@@ -1,99 +1,84 @@
 import sys
 
-# 本地调试时取消下面这行注释（用于重定向标准输入）
-# sys.stdin = open('input.txt', 'r')
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
 
-# 快速读取输入。sys.stdin.read().split() 会将所有输入按空格或换行切分成一个字符串列表
-data = sys.stdin.read().split()
-if not data:
-    sys.exit()
+    n = int(data[0])
+    q = int(data[1])
 
-# 解析第一行的 n (数组长度) 和 q (询问次数)
-n = int(data[0])
-q = int(data[1])
+    nums = [int(x) for x in data[2 : 2 + n]]
+    asks = [int(x) for x in data[2 + n : 2 + n + q]]
 
-# 解析接下来的 n 个初始整数
-nums = []
-for i in range(n):
-    nums.append(int(data[2 + i]))
+    # 使用 append 动态构建数组，不需要一开始开好 MAX 大小的数组
+    cnt = []
+    sums = []
+    odd = []
 
-# 解析接下来的 q 个询问整数 x
-asks = []
-for i in range(q):
-    asks.append(int(data[2 + n + i]))
+    # 1. 动态扩展并填充 nums 的信息
+    for v in nums:
+        # 如果当前数字超过了列表长度，动态 append(0) 扩展到足够长度
+        while len(cnt) <= v:
+            cnt.append(0)
+            sums.append(0)
+            odd.append(0)
+            
+        cnt[v] += 1
+        sums[v] += v
+        if v % 2 == 1:
+            odd[v] += 1
 
-# 题目给定的数值范围上限
-MAX = 100000
+    # 2. 确保查询需要用到的最大索引也存在（处理 x+1 越界问题）
+    # 因为查询 x 可能比 nums 中的最大数字还要大
+    max_x = max(asks) if asks else 0
+    while len(cnt) <= max_x + 1:
+        cnt.append(0)
+        sums.append(0)
+        odd.append(0)
 
-# 初始化统计数组（哈希桶）
-# 数组大小开到 MAX + 2，是为了处理边界情况 x+1 越界（当 x = 100000 时，x+1 = 100001）
-cnt = [0] * (MAX + 2)      # 记录每个数字出现次数
-sums = [0] * (MAX + 2)     # 记录每个数字的总和
-odd = [0] * (MAX + 2)      # 记录奇数出现次数（因为偶数个数可以通过 cnt - odd 得到，所以只需记录奇数）
+    # 3. 动态计算前缀和
+    for i in range(1, len(cnt)):
+        cnt[i] += cnt[i - 1]
+        sums[i] += sums[i - 1]
+        odd[i] += odd[i - 1]
 
-# 遍历初始数字，填充统计数组
-for v in nums:
-    cnt[v] += 1
-    sums[v] += v
-    if v % 2 == 1:
-        odd[v] += 1
+    # 相当于原代码中的 sums[MAX + 1]，现在直接用列表的最后一个元素
+    total_cnt = cnt[-1]
+    total_sum = sums[-1]
+    total_odd = odd[-1]
 
-# 构建前缀和数组
-# 前缀和的作用：通过 O(1) 的时间快速求出某个区间 [0, i] 内的数量、总和或奇数个数
-for i in range(1, MAX + 2):
-    cnt[i] += cnt[i - 1]
-    sums[i] += sums[i - 1]
-    odd[i] += odd[i - 1]
+    ans = []
+    for x in asks:
+        # --- 左侧部分：数值 <= x-1 ---
+        if x >= 1:
+            c1 = cnt[x - 1]
+            s1 = sums[x - 1]
+            o1 = odd[x - 1]
+        else:
+            c1 = s1 = o1 = 0
 
-# 计算所有数字的总和，方便后续快速计算右侧部分的数字和
-total_sum = sums[MAX + 1]
+        # --- 右侧部分：数值 >= x+1 ---
+        if x + 1 < len(cnt):
+            c2 = total_cnt - cnt[x + 1]
+            s2 = total_sum - sums[x + 1]
+            o2 = total_odd - odd[x + 1]
+        else:
+            c2 = s2 = o2 = 0
 
-ans = [] # 用于存储每次询问的答案
+        # --- 计算奇偶性冲突导致“多花一步”的数字个数 bad ---
+        bad = 0
+        if x % 2 == 0:
+            bad = o1 + o2
+        else:
+            bad = (c1 - o1) + (c2 - o2)
 
-# 遍历每次询问的 x
-for x in asks:
-    # --- 1. 统计左侧部分：数值 <= x-1 的数字信息 ---
-    if x >= 1:
-        c1 = cnt[x - 1]     # 左侧数字的个数
-        s1 = sums[x - 1]    # 左侧数字的总和
-        o1 = odd[x - 1]     # 左侧数字中奇数的个数
-    else:
-        # 边界情况：x=0 时，左侧没有数字（题目说 x >= 1，此分支为防御性编程）
-        c1 = 0
-        s1 = 0
-        o1 = 0
+        # --- 计算最小操作数 ---
+        res = (abs(x * c1 - s1) + abs(x * c2 - s2) - bad) // 2
+        ans.append(str(res))
 
-    # --- 2. 统计右侧部分：数值 >= x+1 的数字信息 ---
-    if x + 1 <= MAX:
-        c2 = n - cnt[x + 1]            # 右侧数字的个数（总数 - 小于等于x+1的数量）
-        s2 = total_sum - sums[x + 1]   # 右侧数字的总和（总和 - 小于等于x+1的总和）
-        o2 = odd[MAX + 1] - odd[x + 1] # 右侧数字中奇数的个数（总奇数个数 - 小于等于x+1的奇数个数）
-    else:
-        # 边界情况：x=100000 时，右侧没有数字
-        c2 = 0
-        s2 = 0
-        o2 = 0
+    print(' '.join(ans))
 
-    # --- 3. 计算由于奇偶性冲突导致“多花一步”的数字个数 bad ---
-    # 原理：操作是加减2，不改变数字奇偶性。
-    # 如果 x 是偶数，目标区间 [x-1, x+1] 内的 x-1 和 x+1 是奇数。
-    # 因此，所有原本是奇数的数字（o1 + o2）无法直接变成 x，会产生额外的1步代价，记为 bad。
-    # 同理，如果 x 是奇数，目标区间内的偶数会产生额外代价。
-    bad = 0
-    if x % 2 == 0:
-        bad = o1 + o2                  # x 是偶数，奇数无法直接变成 x，bad 为奇数总数
-    else:
-        bad = (c1 - o1) + (c2 - o2)    # x 是奇数，偶数无法直接变成 x，bad 为偶数总数
+if __name__ == '__main__':
+    solve()
 
-    # --- 4. 计算最小操作数 ---
-    # 核心公式推导：
-    # 假设所有数字都能变成 x，那么左侧距离为 (x * c1 - s1)，右侧距离为 (s2 - x * c2)。
-    # 每操作一次（加2或减2）相当于移动了距离2，所以除以 2。
-    # 但是，奇偶性冲突的数字 (bad) 不能直接变成 x，它们只能变成 x-1 或 x+1，
-    # 这使得它们的绝对距离比直接变成 x 的距离少了 1（例如 v=3, x=4，直接到4距离为1，实际只能到3或5，距离为0）。
-    # 因此在分子上减去 bad，再整除 2，得到真实的最小操作数。
-    res = (abs(x * c1 - s1) + abs(x * c2 - s2) - bad) // 2
-    ans.append(str(res))
-
-# 将结果列表用空格拼接并输出
-print(' '.join(ans))
