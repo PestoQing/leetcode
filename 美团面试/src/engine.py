@@ -164,42 +164,62 @@ def scalar_field(
 
 
 def visible_steps(service: Any, plan: Record) -> list[Record]:
-    """remove_step 只注销它观察到的那些 add_step；未被观察的并发添加保留。"""
+    """remove_step 只注销它明确观察到的那些 add_step；未被观察的并发添加保留。"""
     accepted = accepted_operations(service, plan)
     additions = [item for item in accepted if item["kind"] == "add_step"]
-    removals = [item for item in accepted if item["kind"] == "remove_step"]
     retired: set[str] = set()
-    for removal in removals:
-        observed = set(removal["payload"]["observed_add_operation_ids"])
-        for addition in additions:
-            if (
-                addition["id"] in observed
-                and addition["payload"]["step_id"] == removal["payload"]["step_id"]
-            ):
-                retired.add(addition["id"])
+    for removal in accepted:
+        if removal["kind"] == "remove_step":
+            retired.update(removal["payload"]["observed_add_operation_ids"])
     survivors = sorted(
         (item for item in additions if item["id"] not in retired),
-        key=lambda item: (item["accept_order"], item["id"]),
+        key=lambda item: (item["created_at"], item["accept_order"], item["id"]),
     )
     grouped: dict[str, Record] = {}
     for addition in survivors:
         grouped.setdefault(addition["payload"]["step_id"], addition)
     return [
-        {
-            "step_id": step_id,
-            "text": addition["payload"]["text"],
-            "add_operation_id": addition["id"],
-        }
+        {"step_id": step_id, "text": addition["payload"]["text"]}
         for step_id, addition in sorted(grouped.items())
     ]
 
 
-def claimed_step_ids(service: Any, plan: Record) -> set[str]:
-    """已被占用的 step_id：含待定操作，含已删除的墓碑，不含已过期操作。"""
-    claimed: set[str] = set()
-    for operation in plan_operations(service, plan):
-        if operation["state"] == EXPIRED:
+def causal_closure(service: Any, plan: Record, seed_ids: list[str]) -> set[str]:
+    """从若干依赖出发，沿显式父边与隐式前驱回溯出全部因果祖先（含待定操作）。"""
+    index = {
+        item["id"]: item
+        for item in plan_operations(service, plan)
+        if item["state"] != EXPIRED
+    }
+    seen: set[str] = set()
+    stack = [identifier for identifier in seed_ids if identifier in index]
+    while stack:
+        current = stack.pop()
+        if current in seen:
             continue
+        seen.add(current)
+        for dependency in dependency_ids(service, index[current]):
+            if dependency in index and dependency not in seen:
+                stack.append(dependency)
+    return seen
+
+
+def observed_step_ids(service: Any, plan: Record, draft: Record) -> set[str]:
+    """一条新操作在因果上已经「看见」的 step_id 集合。
+
+    并发添加互相看不见，所以同一个 step_id 可以并发出现；
+    但沿着自己的因果链已经添加过或删除过的 step_id 不能再复用。
+    """
+    seed = list(draft["parent_operation_ids"])
+    if draft["actor_sequence"] > 1:
+        predecessor = actor_sibling(
+            service, plan, draft["actor_id"], draft["actor_sequence"] - 1
+        )
+        if predecessor is not None:
+            seed.append(predecessor["id"])
+    claimed: set[str] = set()
+    for identifier in causal_closure(service, plan, seed):
+        operation = service.operations[identifier]
         if operation["kind"] in ("add_step", "remove_step"):
             claimed.add(operation["payload"]["step_id"])
     return claimed

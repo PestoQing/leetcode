@@ -13,10 +13,10 @@ from src.audit_support import list_events, record_event, record_many
 from src.engine import (
     PENDING,
     actor_sibling,
-    claimed_step_ids,
     expire_operations,
     expire_snapshots,
     materialize,
+    observed_step_ids,
     operation_deadline,
     settle_plan,
     snapshot_deadline,
@@ -302,10 +302,10 @@ class PlanService:
                 )
         if (
             draft["kind"] == "add_step"
-            and draft["payload"]["step_id"] in claimed_step_ids(self, plan)
+            and draft["payload"]["step_id"] in observed_step_ids(self, plan, draft)
         ):
             raise ApiError(
-                "step_id is already used or retired",
+                "step_id was already added or retired in this causal history",
                 HTTPStatus.CONFLICT,
                 "STEP_ID_REUSED",
             )
@@ -753,7 +753,12 @@ class Handler(BaseHTTPRequestHandler):
             return SERVICE.create_operation_batch(route.segments[1], body)
         if len(route.segments) == 3 and route.segments[0] == "plans":
             plan_id, leaf = route.segments[1], route.segments[2]
+            if leaf in ("operation-batches", "operation_batches", "batches"):
+                return SERVICE.create_operation_batch(plan_id, body)
             if leaf == "operations":
+                # 单条路由收到 operations 数组时按批次处理，兼容两种提交形态。
+                if isinstance(body, dict) and isinstance(body.get("operations"), list):
+                    return SERVICE.create_operation_batch(plan_id, body)
                 return SERVICE.create_operation(plan_id, body)
             if leaf == "snapshots":
                 return SERVICE.create_snapshot(plan_id, body)

@@ -180,10 +180,35 @@ check(
 )
 
 status, reused = submit(
-    plan, "t5", operation_id="add-3", actor_id="dave", actor_sequence=1,
+    plan, "t5", operation_id="add-3", actor_id="alice", actor_sequence=3,
     kind="add_step", payload={"step_id": "s1", "text": "复用"},
 )
-check("已删除的 step_id 不可复用", status == 409 and code(reused) == "STEP_ID_REUSED", reused)
+check("因果链上已删除的 step_id 不可复用", status == 409 and code(reused) == "STEP_ID_REUSED", reused)
+
+# --- 4b. 同一 step_id 的并发添加 ---
+reset()
+plan = new_plan("concurrent-step")
+submit(plan, "p1", operation_id="pa-1", actor_id="alice", actor_sequence=1,
+       kind="add_step", payload={"step_id": "s1", "text": "alice 版"})
+status, rival = submit(
+    plan, "p2", operation_id="pa-2", actor_id="bob", actor_sequence=1,
+    kind="add_step", payload={"step_id": "s1", "text": "bob 版"},
+)
+check("并发添加同一 step_id 不被拒", status == 201, rival)
+submit(plan, "p3", operation_id="pa-rm", actor_id="alice", actor_sequence=2,
+       parent_operation_ids=["pa-1"], kind="remove_step",
+       payload={"step_id": "s1", "observed_add_operation_ids": ["pa-1"]})
+_, view = request("GET", f"/plans/{plan}")
+check(
+    "删除未覆盖并发新增，检查项仍可见",
+    [item["step_id"] for item in view["visible_steps"]] == ["s1"],
+    view["visible_steps"],
+)
+check(
+    "可见检查项只含 step_id 与 text",
+    all(set(item) == {"step_id", "text"} for item in view["visible_steps"]),
+    view["visible_steps"],
+)
 
 # --- 5. 批量提交原子性 ---
 reset()
@@ -210,26 +235,78 @@ check(
     {"batch": batch, "view": view},
 )
 
-status, failed = request(
-    "POST",
-    f"/plans/{plan}/operations/batch",
-    {
-        "idempotency_key": "b2",
-        "operations": [
-            {"operation_id": "b-3", "actor_id": "bob", "actor_sequence": 1,
-             "kind": "add_step", "payload": {"step_id": "x3", "text": "好的"}},
-            {"operation_id": "b-4", "actor_id": "bob", "actor_sequence": 2,
-             "kind": "add_step", "payload": {"step_id": "x1", "text": "重复"}},
-        ],
-    },
+def failing_batch(key: str, operations: list[dict]) -> tuple[int, Any]:
+    return request(
+        "POST",
+        f"/plans/{plan}/operations/batch",
+        {"idempotency_key": key, "operations": operations},
+    )
+
+
+status, dup_op = failing_batch(
+    "b2",
+    [
+        {"operation_id": "b-3", "actor_id": "bob", "actor_sequence": 1,
+         "kind": "add_step", "payload": {"step_id": "x3", "text": "好的"}},
+        {"operation_id": "b-1", "actor_id": "bob", "actor_sequence": 2,
+         "kind": "add_step", "payload": {"step_id": "x4", "text": "撞 id"}},
+    ],
+)
+status_seq, dup_seq = failing_batch(
+    "b3",
+    [
+        {"operation_id": "b-5", "actor_id": "bob", "actor_sequence": 1,
+         "kind": "add_step", "payload": {"step_id": "x5", "text": "好的"}},
+        {"operation_id": "b-6", "actor_id": "bob", "actor_sequence": 1,
+         "kind": "add_step", "payload": {"step_id": "x6", "text": "撞序号"}},
+    ],
+)
+status_step, dup_step = failing_batch(
+    "b4",
+    [
+        {"operation_id": "b-7", "actor_id": "carol", "actor_sequence": 1,
+         "kind": "add_step", "payload": {"step_id": "x7", "text": "好的"}},
+        {"operation_id": "b-8", "actor_id": "carol", "actor_sequence": 2,
+         "kind": "add_step", "payload": {"step_id": "x7", "text": "同链复用"}},
+    ],
 )
 _, after = request("GET", f"/plans/{plan}/operations")
 check(
-    "批量失败时整批回滚",
-    status == 409
-    and code(failed) == "STEP_ID_REUSED"
+    "批量内 ID 冲突整批回滚",
+    status == 409 and code(dup_op) == "OPERATION_ID_REUSED"
+    and status_seq == 409 and code(dup_seq) == "ACTOR_SEQUENCE_REUSED"
+    and status_step == 409 and code(dup_step) == "STEP_ID_REUSED"
     and [item["id"] for item in after["operations"]] == ["b-2", "b-1"],
-    {"error": failed, "operations": [item["id"] for item in after["operations"]]},
+    {
+        "dup_op": dup_op,
+        "dup_seq": dup_seq,
+        "dup_step": dup_step,
+        "operations": [item["id"] for item in after["operations"]],
+    },
+)
+
+status, chained = request(
+    "POST",
+    f"/plans/{plan}/operations/batch",
+    {
+        "idempotency_key": "b5",
+        "operations": [
+            {"operation_id": "c-child", "actor_id": "dave", "actor_sequence": 2,
+             "parent_operation_ids": ["c-root"], "kind": "set_title",
+             "payload": {"value": "子操作"}},
+            {"operation_id": "c-root", "actor_id": "dave", "actor_sequence": 1,
+             "kind": "set_title", "payload": {"value": "根操作"}},
+        ],
+    },
+)
+_, view = request("GET", f"/plans/{plan}")
+check(
+    "批次内父边倒序也能递归接纳",
+    status == 201
+    and all(item["state"] == "ACCEPTED" for item in chained["operations"])
+    and view["title"] == "子操作"
+    and "c-child" in view["head_operation_ids"],
+    {"batch": chained, "view": view},
 )
 
 # --- 6. 待定操作 20 分钟过期 ---
