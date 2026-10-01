@@ -8,6 +8,8 @@ class Solution:
         s.sort()
         g=deque(g)
         s=deque(s)
+        a=100
+        a=int(a)
         index = 0
         while len(g) >0 and len(s)>0:
             a=g.popleft()

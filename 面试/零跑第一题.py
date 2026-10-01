@@ -1,5 +1,5 @@
 from typing import List
-
+RNN 的前向传播公式
 def solution(grid: List[List[int]], x: int, y: int) -> int:
     dp = []
     
