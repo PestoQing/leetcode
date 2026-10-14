@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>算法动态演示</title>
+<style>
+/* =====================================================================
+   ENGINE STYLE —— 通用布局与风格（固定，生成新演示时不要改动）
+   ===================================================================== */
+:root {
+  --bg: #f5f7fb; --card: #fff; --line: #e5e7eb; --text: #1f2937; --muted: #6b7280;
+  --blue: #2563eb; --green: #16a34a; --red: #dc2626; --amber: #d97706; --purple: #7c3aed; --gray: #64748b;
+  --blue-l: #eff6ff; --green-l: #f0fdf4; --red-l: #fef2f2; --amber-l: #fffbeb; --purple-l: #f5f3ff;
+  --dur: 420ms; --ease: cubic-bezier(.4, 0, .2, 1);
+  --code-w: 720px; --code-fs: 14px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; }
+body.instant *, body.instant *::before, body.instant *::after { transition: none !important; animation: none !important; }
+
+header { flex: none; display: flex; align-items: baseline; gap: 14px; padding: 12px 20px 8px; min-width: 0; }
+header h1 { margin: 0; font-size: 19px; white-space: nowrap; }
+header .sub { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--code-w);
+  padding: 0 16px 14px 20px; transition: grid-template-columns var(--dur) var(--ease); }
+.app.dragging { transition: none; user-select: none; }
+.app.code-collapsed { grid-template-columns: minmax(0, 1fr) 12px 44px; }
+.left { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; min-width: 0; }
+.card-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px;
+  font-weight: 600; font-size: 15px; }
+.card-h .hint { font-weight: 400; text-align: right; }
+.hint { color: var(--muted); font-size: 12px; }
+.mono { font-family: Consolas, "Courier New", monospace; }
+.dim { opacity: .5; transition: opacity var(--dur); }
+
+/* 工具栏 */
+.toolbar { flex: none; display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.toolbar label { color: var(--muted); }
+input[type=text], input[type=number] { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px;
+  font-family: inherit; transition: border-color .15s, box-shadow .15s; }
+input[type=text]:focus, input[type=number]:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px #dbeafe; }
+button { padding: 6px 12px; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; cursor: pointer;
+  font-size: 14px; font-family: inherit; color: var(--text); transition: background .15s, border-color .15s; }
+button:hover { background: #eef2ff; border-color: #a5b4fc; }
+button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+button.primary:hover { background: #1d4ed8; }
+button.preset { font-size: 12px; padding: 3px 9px; }
+.progress { flex: 1; min-width: 140px; height: 8px; background: var(--line); border-radius: 4px; cursor: pointer;
+  position: relative; touch-action: none; margin: 0 8px; }
+.progress::before { content: ""; position: absolute; left: -8px; right: -8px; top: -9px; bottom: -9px; }
+.progress #prog { height: 100%; background: var(--blue); border-radius: 4px; transition: width var(--dur) var(--ease); }
+.progress .thumb { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--blue); box-shadow: 0 1px 4px rgba(0, 0, 0, .2); cursor: grab;
+  transition: left var(--dur) var(--ease), transform .15s; }
+.progress:hover .thumb, .progress.dragging .thumb { transform: scale(1.2); }
+.progress.dragging .thumb { cursor: grabbing; }
+.progress.dragging #prog, .progress.dragging .thumb { transition: none; }
+.progress .tip { position: absolute; bottom: 18px; transform: translateX(-50%); background: var(--text); color: #fff;
+  font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.progress.dragging .tip { opacity: 1; }
+.err { color: var(--red); font-size: 13px; }
+
+/* 统计卡片（保持这一风格：标题 + 大号彩色数字） */
+.stats { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 16px; transition: box-shadow .3s; }
+.stat .lab { font-size: 14px; font-weight: 600; line-height: 20px; }
+.stat .num { font-size: 32px; font-weight: 800; line-height: 1.45; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat .num small { font-size: 15px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+.stat .sub { font-size: 12px; color: var(--muted); height: 18px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat.red .num { color: var(--red); } .stat.green .num { color: var(--green); } .stat.blue .num { color: var(--blue); }
+.stat.amber .num { color: var(--amber); } .stat.purple .num { color: var(--purple); } .stat.gray .num { color: var(--gray); }
+.stat.bump { animation: bump .6s var(--ease); }
+@keyframes bump { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .35); } 100% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } }
+
+/* 主画布 + 下方两列 */
+.canvas-card { flex: none; }
+.bottom { flex: 1; min-height: 200px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
+.col > .card { flex: none; }
+.col > .card.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.card.grow > .card-b { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+
+/* 步骤说明 */
+.desc { font-size: 15px; line-height: 1.75; }
+.desc b { color: var(--blue); }
+.fade-in { animation: fadeIn var(--dur) var(--ease); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.tag { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-right: 6px; color: #fff; line-height: 20px; }
+.tag.pre { background: var(--purple); } .tag.hit { background: var(--green); } .tag.miss { background: var(--red); }
+.tag.info { background: var(--blue); } .tag.warn { background: var(--amber); }
+.phase { font-size: 12px; font-weight: 600; color: var(--blue); background: var(--blue-l); border-radius: 10px; padding: 1px 10px; }
+
+/* 通用：进入 / 闪烁动画 */
+.av-enter { animation: avEnter var(--dur) var(--ease); }
+@keyframes avEnter { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+.av-flash { animation: avFlash calc(var(--dur) * 1.6) var(--ease); }
+@keyframes avFlash { 0% { background: #fde68a; } 100% { background: transparent; } }
+
+/* 分隔条 */
+.splitter { position: relative; cursor: col-resize; }
+.splitter::after { content: ""; position: absolute; left: 5px; top: calc(50% - 30px); height: 60px; width: 3px; border-radius: 2px;
+  background: #cbd5e1; transition: background .15s; }
+.splitter:hover::after, .app.dragging .splitter::after { background: var(--blue); }
+.app.code-collapsed .splitter { cursor: default; }
+
+/* 代码位置：深色背景 + VS Code Dark Modern / Pylance 配色 */
+.right { min-width: 0; min-height: 0; display: flex; }
+.code-card { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #1f1f1f; border: 1px solid #2b2b2b;
+  border-radius: 12px; overflow: hidden; }
+.code-h { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #181818;
+  border-bottom: 1px solid #2b2b2b; color: #cccccc; font-size: 13px; white-space: nowrap; }
+.code-h .file { color: #e5e5e5; font-weight: 600; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; }
+.code-h .pyicon { width: 16px; height: 16px; border-radius: 3px; background: linear-gradient(135deg, #3572a5 50%, #ffd43b 50%); flex: none; }
+.code-h .pos { color: #8b949e; margin-left: auto; }
+.code-h button { background: transparent; border: 1px solid #3c3c3c; color: #cccccc; padding: 2px 8px; font-size: 12px; }
+.code-h button:hover { background: #2a2d2e; border-color: #555; }
+.code-h button.on { border-color: #0078d4; color: #fff; }
+.code-body { flex: 1; min-height: 0; position: relative; overflow-y: auto; overflow-x: hidden; padding: 8px 0 35vh;
+  font-family: Consolas, "Courier New", monospace; font-size: var(--code-fs); line-height: 1.45; color: #cccccc; }
+.code-body::-webkit-scrollbar { width: 12px; } .code-body::-webkit-scrollbar-thumb { background: #424242; }
+.code-body::-webkit-scrollbar-track { background: #1f1f1f; }
+.ln { display: flex; transition: background var(--dur) var(--ease); }
+.ln .g { flex: none; width: 4.4em; padding-right: 1.4em; text-align: right; color: #6e7681; user-select: none; position: relative;
+  transition: color var(--dur); }
+.ln .s { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all;
+  padding-left: calc(var(--ind) * 1ch + 4ch); text-indent: -4ch; padding-right: 12px;
+  background-image: repeating-linear-gradient(90deg, #404040 0 1px, transparent 1px 4ch);
+  background-size: calc(var(--ind) * 1ch) 100%; background-repeat: no-repeat; }
+.ln.on { background: rgba(255, 215, 0, .13); box-shadow: inset 3px 0 #ffd700; }
+.ln.on .g { color: #ffd700; }
+.ln.on .g::before { content: "➜"; position: absolute; left: .5em; color: #ffd700; }
+.code-body.no-cmt .ln.cmt { display: none; }
+.app.code-collapsed .code-body, .app.code-collapsed .code-h > :not(.collapse) { display: none; }
+.app.code-collapsed .code-h { flex: 1; flex-direction: column; justify-content: flex-start; padding: 10px 0; border: 0; }
+.app.code-collapsed .code-h .collapse::after { content: "代码位置"; display: block; writing-mode: vertical-rl; margin-top: 8px; letter-spacing: 2px; }
+.t-kw { color: #569cd6; } .t-ctl { color: #c586c0; } .t-fn { color: #dcdcaa; } .t-cls { color: #4ec9b0; }
+.t-str { color: #ce9178; } .t-num { color: #b5cea8; } .t-cmt { color: #6a9955; } .t-var { color: #9cdcfe; }
+.t-const { color: #4fc1ff; } .t-op { color: #d4d4d4; }
+.t-b0 { color: #ffd700; } .t-b1 { color: #da70d6; } .t-b2 { color: #179fff; }
+
+#av-check { display: none; }
+
+/* =====================================================================
+   DEMO STYLE —— 本题专用的可视化样式（生成新演示时替换这里）
+   ===================================================================== */
+.g2 { display: flex; gap: 20px; height: 258px; }
+.graph { flex: 1; min-width: 0; position: relative; }
+.graph svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.graph .edge line { stroke: #cbd5e1; stroke-width: 2; transition: stroke var(--dur), stroke-width var(--dur), opacity var(--dur); }
+.graph .edge text { font-size: 12px; font-weight: 600; fill: var(--gray); paint-order: stroke; stroke: #fff; stroke-width: 4px;
+  stroke-linejoin: round; text-anchor: middle; dominant-baseline: central; transition: fill var(--dur), opacity var(--dur); }
+.graph .edge.pending line { stroke-dasharray: 4 5; opacity: .45; }
+.graph .edge.pending text { opacity: 0; }
+.graph .edge.hl line { stroke: var(--blue); stroke-width: 4; }
+.graph .edge.hl text { fill: var(--blue); }
+.graph .node circle { fill: #fff; stroke: #94a3b8; stroke-width: 2.5; transition: fill var(--dur), stroke var(--dur), stroke-width var(--dur); }
+.graph .node text { font-size: 15px; font-weight: 800; fill: var(--text); text-anchor: middle; dominant-baseline: central; }
+.graph .node text.cap { font-size: 11px; font-weight: 600; fill: var(--amber); paint-order: stroke; stroke: #fff; stroke-width: 4px; }
+.graph .node.wh circle { stroke: var(--amber); fill: var(--amber-l); }
+.graph .node.in circle { stroke: var(--green); fill: var(--green-l); }
+.graph .node.ij circle { stroke: var(--blue); stroke-width: 3.5; }
+.graph .node.cur circle { stroke: var(--blue); stroke-width: 4.5; fill: var(--blue-l); }
+.graph .node.tnode circle { stroke: var(--purple); stroke-width: 4.5; fill: var(--purple-l); }
+.graph .node.bad circle { stroke: var(--red); stroke-width: 4; fill: var(--red-l); }
+.graph svg > g.arrows path { fill: none; stroke-width: 2.5; transition: stroke var(--dur), opacity var(--dur); }
+.graph svg > g.arrows text { font-size: 12px; font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round;
+  text-anchor: middle; dominant-baseline: central; transition: fill var(--dur); }
+.graph svg > g.arrows g { transition: opacity var(--dur); }
+
+.mat { flex: none; align-self: center; display: grid; grid-template-columns: repeat(var(--n1), var(--mc)); grid-auto-rows: var(--mc); gap: 3px;
+  font-family: Consolas, monospace; font-size: 13px; }
+.mat div { display: flex; align-items: center; justify-content: center; border-radius: 6px; background: #f8fafc; border: 1px solid var(--line);
+  transition: background var(--dur), border-color var(--dur), color var(--dur), box-shadow var(--dur); }
+.mat .h { background: none; border-color: transparent; color: var(--muted); font-size: 12px; }
+.mat .h.corner { font-weight: 700; color: var(--text); }
+.mat .h.tl { color: var(--purple); font-weight: 800; }
+.mat .inf { color: #cbd5e1; }
+.mat .t { background: #ede9fe; border-color: #ddd6fe; }
+.mat .src { border-color: var(--purple); box-shadow: inset 0 0 0 1px var(--purple); color: var(--purple); font-weight: 700; }
+.mat .upd { background: var(--green-l); border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); color: var(--green); font-weight: 800; }
+.mat .edge { background: var(--blue-l); border-color: var(--blue); color: var(--blue); font-weight: 800; }
+.mat .bad { background: var(--red-l); border-color: var(--red); color: var(--red); font-weight: 800; }
+
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+
+.formula { font-family: Consolas, monospace; font-size: 15px; line-height: 2; }
+.formula .p { color: var(--purple); font-weight: 700; } .formula .g { color: var(--green); font-weight: 800; }
+.formula .r { color: var(--red); font-weight: 700; } .formula .b { color: var(--blue); font-weight: 700; } .formula .m { color: var(--muted); }
+.hide { display: none !important; }
+.bitsrow { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.bits { display: flex; gap: 6px; }
+.bit { width: 46px; text-align: center; }
+.bit .lab { font-size: 11px; color: var(--muted); height: 16px; line-height: 16px; margin-bottom: 7px; white-space: nowrap; }
+.bit .b { height: 34px; line-height: 30px; border: 2px solid var(--line); border-radius: 8px; font-weight: 800; font-family: Consolas, monospace;
+  font-size: 16px; color: #9ca3af; background: #fff; transition: background var(--dur), border-color var(--dur), color var(--dur), box-shadow var(--dur); }
+.bit.on .b { background: var(--green-l); border-color: var(--green); color: var(--green); }
+.bit.add .b { border-color: var(--blue); color: var(--blue); box-shadow: 0 0 0 3px #bfdbfe; }
+.maskinfo { font-family: Consolas, monospace; font-size: 14px; line-height: 1.7; }
+.maskinfo b { color: var(--blue); }
+.cands { margin-top: 10px; font-size: 13px; }
+.crow { display: grid; grid-template-columns: .6fr .9fr 2fr 1fr 1fr; align-items: center; height: 27px; text-align: center;
+  border-bottom: 1px solid var(--line); border-radius: 6px; transition: background var(--dur), color var(--dur); }
+.crow.head { color: var(--muted); font-weight: 600; }
+.cbody { position: relative; }
+.crow.better { background: var(--green-l); color: var(--green); font-weight: 700; }
+.crow.worse { color: #9ca3af; }
+.crow.best { background: var(--red-l); color: var(--red); font-weight: 800; }
+
+.dpt { font-size: 13px; font-family: Consolas, monospace; display: flex; flex-direction: column; height: 100%; }
+.dpscroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative; }
+.dprow { display: grid; grid-template-columns: 64px 92px repeat(var(--n), minmax(0, 1fr)); align-items: center; height: 27px;
+  border-bottom: 1px solid var(--line); text-align: center; transition: background var(--dur); }
+.dprow.head { flex: none; color: var(--muted); font-weight: 600; font-family: inherit; }
+.dprow.currow { background: var(--blue-l); }
+.dprow span { border-radius: 5px; margin: 0 2px; transition: background var(--dur), color var(--dur), box-shadow var(--dur); }
+.dprow .inf { color: #d1d5db; }
+.dprow .cur { background: var(--blue); color: #fff; font-weight: 800; }
+.dprow .upd { background: var(--green-l); color: var(--green); font-weight: 800; box-shadow: inset 0 0 0 1px var(--green); }
+.dprow .keep { color: var(--amber); box-shadow: inset 0 0 0 1px #fcd34d; }
+.dprow .fin { box-shadow: inset 0 0 0 1px var(--red); color: var(--red); font-weight: 700; }
+.dprow .best { background: var(--red); color: #fff; font-weight: 800; }
+.dprow .mk { color: var(--purple); }
+.route { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 14px; min-height: 30px; }
+.route .st { display: inline-block; min-width: 30px; height: 30px; line-height: 26px; text-align: center; border-radius: 15px; border: 2px solid var(--green);
+  background: var(--green-l); font-weight: 800; padding: 0 6px; }
+.route .st.wh { border-color: var(--amber); background: var(--amber-l); }
+.route .leg { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header><h1 id="title"></h1><div class="sub" id="subtitle"></div></header>
+
+<div class="app" id="app">
+  <section class="left" id="left">
+    <div class="card toolbar">
+      <div class="row" id="inputs"></div>
+      <div class="row">
+        <button id="btnFirst" title="第一步">⏮</button>
+        <button id="btnPrev">◀ 上一步</button>
+        <button class="primary" id="btnPlay">▶ 播放</button>
+        <button id="btnNext">下一步 ▶</button>
+        <button id="btnLast" title="最后一步">⏭</button>
+        <span class="hint">慢</span><input id="speed" type="range" min="300" max="2600" value="1200" style="width:110px;direction:rtl"><span class="hint">快</span>
+        <div class="progress" id="progress" title="点击或拖动跳转"><div id="prog"></div><div class="thumb" id="thumb"></div><div class="tip" id="progTip"></div></div>
+        <span id="stepNo" class="hint mono"></span>
+        <span class="hint">← → 单步 · 空格 播放 · 进度条可拖动</span>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="card canvas-card">
+      <div class="card-h"><span id="canvasTitle"></span><span class="hint" id="canvasHint"></span></div>
+      <div id="canvas"></div>
+    </div>
+    <div class="bottom">
+      <div class="col">
+        <div class="card">
+          <div class="card-h"><span>当前步骤</span><span class="phase" id="phase"></span></div>
+          <div class="desc" id="desc"></div>
+        </div>
+        <div class="card grow" id="stateCard">
+          <div class="card-h"><span id="stateTitle"></span><span class="hint" id="stateHint"></span></div>
+          <div class="card-b" id="state"></div>
+        </div>
+      </div>
+      <div class="col" id="auxCol"></div>
+    </div>
+  </section>
+  <div class="splitter" id="splitter" title="拖动调整宽度，双击恢复"></div>
+  <aside class="right">
+    <div class="code-card">
+      <div class="code-h">
+        <button class="collapse" id="btnCollapse" title="折叠 / 展开代码">⇥</button>
+        <span class="file"><span class="pyicon"></span><span>代码位置 · <span id="fileName"></span></span></span>
+        <span class="pos" id="codePos"></span>
+        <button id="btnCmt" title="显示 / 隐藏纯注释行">注释</button>
+        <button id="btnFsDown" title="缩小字号">A−</button>
+        <button id="btnFsUp" title="放大字号">A+</button>
+      </div>
+      <div class="code-body" id="codeBody"></div>
+    </div>
+  </aside>
+</div>
+<pre id="av-check"></pre>
+
+<!-- 对应 .py 的完整源码，用 scripts/embed_source.py 写入（保持与源文件一致） -->
+<script type="text/plain" id="py-source">
+# 题目描述：
+# 有 n 个点、m 条双向道路、k 个配送员，1 号点是仓库。
+# 每个非仓库点必须恰好分配给一个配送员负责访问。
+# 每个配送员从仓库出发，访问负责的所有点后回到仓库。
+# 可以经过其他配送员负责的点，也可以多次经过仓库。
+# 配送员可以不执行任务，耗时为 0。
+# 求所有配送员的总通行时间最小值，无法覆盖所有点则输出 -1。
+#
+# 输入：
+# 第一行 n m k
+# 接下来 m 行，每行 u v w，表示双向道路及通行时间
+# 两点间可能有重边，需要取最小值。
+#
+# 思路：
+# 多个人的往返路线可以拼成一个人的路线，总时间不变。
+# 反过来，让一个配送员完成整条路线，其他配送员休息，也符合要求。
+# 所以在 k >= 1 时，多配送员和单配送员的最优总时间相等。
+# 注意优化的是“总时间”；若要求最晚完成时间最小，就不能这样合并。
+# 先用 Floyd 求最短路，再用状态压缩 DP 求最短访问路线。
+# 通行时间按非负数理解；本实现适用于 n >= 1、k >= 1 的输入。
+# 时间复杂度 O(n^3 + n^2 * 2^(n-1))。
+# 空间复杂度 O(n^2 + n * 2^(n-1))，因此只适合节点数较少的情况。
+#
+# 测试 1 输入：
+# 4 4 2
+# 1 2 1
+# 1 3 5
+# 1 4 5
+# 2 3 1
+# 输出：
+# 14
+#
+# 测试 2 输入：
+# 3 1 1
+# 1 2 4
+# 输出：
+# -1
+#
+# 测试 3 输入：
+# 1 0 1
+# 输出：
+# 0
+
+import sys
+
+# sys.stdin = open('input.txt', 'r')
+
+# 一次性读取所有输入；后面用 index 每次取出一条道路的三个字段。
+data = sys.stdin.read().split()
+n = int(data[0])
+m = int(data[1])
+k = int(data[2])
+
+# dist[i][j] 保存两点之间的最短距离；初始只有自身到自身的距离为 0。
+# 正无穷表示暂时不可达，便于直接进行 min 和加法运算。
+inf = float('inf')
+dist = []
+
+for i in range(n):
+    row = []
+    for j in range(n):
+        if i == j:
+            row.append(0)
+        else:
+            row.append(inf)
+    dist.append(row)
+
+index = 3
+for i in range(m):
+    # 输入从 1 编号，数组从 0 编号，所以仓库对应数组中的点 0。
+    u = int(data[index]) - 1
+    v = int(data[index + 1]) - 1
+    w = int(data[index + 2])
+    index += 3
+
+    # 双向道路要更新两个方向；重边仅保留耗时最短的一条。
+    dist[u][v] = min(dist[u][v], w)
+    dist[v][u] = min(dist[v][u], w)
+
+# Floyd：依次允许点 t 作为中间节点，尝试用 i -> t -> j 改善 i -> j。
+# t 必须在最外层，才能维护“只允许使用已经处理过的中间点”这一阶段含义。
+# 最短路径可以途经任意点，包括仓库和其他配送员负责的点。
+for t in range(n):
+    for i in range(n):
+        for j in range(n):
+            dist[i][j] = min(dist[i][j], dist[i][t] + dist[t][j])
+
+# 无向图中，只要有点无法从仓库到达，就不可能完成配送。
+# 若所有点都与仓库连通，则每个点也都能返回仓库。
+if inf in dist[0]:
+    print(-1)
+    sys.exit()
+
+# mask 用 n-1 个二进制位记录已纳入访问顺序的非仓库点。
+# 点 j 对应第 j-1 位：该位为 1 表示已纳入，为 0 表示尚未纳入。
+# 例如 n=4 时，mask=0b101 表示点 1、3 已纳入，点 2 尚未纳入（数组编号）。
+# dp[mask][i]：从仓库出发，已纳入集合为 mask，最后停在 i 的最小时间。
+# 这里记录的是最短路压缩后的访问顺序：某段最短路可能已途经 mask 外的点，
+# 不必立即给这些点置位，因为题目允许重复经过节点；后续仍可纳入访问顺序。
+# 任意实际路线都可按各点首次出现顺序压缩，且用最短路替换各段不会更贵；
+# 任意 DP 路线又能展开成合法实际路线，因此该建模不会改变最优值。
+size = 2 ** (n - 1)
+dp = []
+
+for mask in range(size):
+    row = []
+    for i in range(n):
+        row.append(inf)
+    dp.append(row)
+
+# 起点状态：尚未纳入任何非仓库点，停在仓库，累计耗时为 0。
+dp[0][0] = 0
+
+# 每次只添加一个未置位的点，新 mask 一定更大，按数值递增枚举即可。
+for mask in range(size):
+    for i in range(n):
+        # 跳过不可达状态，避免无意义的转移。
+        if dp[mask][i] == inf:
+            continue
+
+        for j in range(1, n):
+            # 左移构造仅第 j-1 位为 1 的数，用于检测或设置点 j 的状态。
+            bit = 1 << (j - 1)
+
+            # 这个点已经访问过
+            if mask & bit:
+                continue
+
+            # 按位或把点 j 加入集合，耗时增加从当前点 i 到 j 的最短路。
+            # 同一个新状态可从不同的上一站到达，因此要取所有候选中的最小值。
+            tmp = mask | bit
+            dp[tmp][j] = min(dp[tmp][j], dp[mask][i] + dist[i][j])
+
+# size-1 的低 n-1 位全为 1，表示所有非仓库点都已纳入访问顺序。
+# 枚举最后停留点 i，加上返回仓库的最短距离，才是完整往返路线的耗时。
+# n=1 时 size=1，直接得到 dp[0][0] + dist[0][0] = 0。
+res = inf
+for i in range(n):
+    res = min(res, dp[size - 1][i] + dist[i][0])
+
+print(res)
+</script>
+
+<script>
+/* =====================================================================
+   ENGINE —— 播放器 / 布局 / 代码高亮 / 平滑过渡 / 自检（通用，勿改）
+   ===================================================================== */
+const AV = (() => {
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  let DUR = 420, instant = false;
+  const dur = () => (instant ? 0 : DUR);
+  const ease = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+  // ---------- 动画工具 ----------
+  const anims = new Map();
+  function animate(key, step, done, ms = dur()) {
+    if (anims.has(key)) cancelAnimationFrame(anims.get(key));
+    anims.delete(key);
+    if (ms <= 0) { step(1); done && done(); return; }
+    const t0 = performance.now();
+    const f = now => {
+      const p = Math.min(1, (now - t0) / ms);
+      step(ease(p));
+      if (p < 1) anims.set(key, requestAnimationFrame(f)); else { anims.delete(key); done && done(); }
+    };
+    anims.set(key, requestAnimationFrame(f));
+  }
+  function flash(node, cls) { if (instant) return; node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls); }
+  function setText(node, text, flashCls) {
+    const t = String(text);
+    if (node.textContent === t) return false;
+    node.textContent = t;
+    if (flashCls) flash(node, flashCls);
+    return true;
+  }
+  // 按 key 复用 DOM：移动 FLIP 平滑过渡，新增淡入，删除淡出（容器需 position:relative）
+  function keyed(box, items, keyOf, create, update) {
+    const ms = dur();
+    const old = new Map();
+    for (const c of [...box.children]) if (c.dataset.key != null && !c.classList.contains('av-leaving')) old.set(c.dataset.key, c);
+    const first = new Map();
+    if (ms) old.forEach((c, k) => first.set(k, c.getBoundingClientRect().top));
+    const want = new Set(items.map(it => String(keyOf(it))));
+    old.forEach((c, k) => {
+      if (want.has(k)) return;
+      if (!ms) { c.remove(); return; }
+      const st = { position: 'absolute', top: c.offsetTop + 'px', left: c.offsetLeft + 'px', width: c.offsetWidth + 'px' };
+      c.classList.add('av-leaving');
+      Object.assign(c.style, st, { transition: `opacity ${ms}ms, transform ${ms}ms`, pointerEvents: 'none' });
+      requestAnimationFrame(() => { c.style.opacity = 0; c.style.transform = 'translateX(18px)'; });
+      setTimeout(() => c.remove(), ms + 40);
+    });
+    const nodes = items.map(it => {
+      const k = String(keyOf(it));
+      let c = old.get(k), isNew = false;
+      if (!c) { c = create(it); c.dataset.key = k; isNew = true; }
+      update(c, it, isNew);
+      box.appendChild(c);
+      return c;
+    });
+    if (!ms) return;
+    nodes.forEach(c => {
+      const k = c.dataset.key;
+      if (!first.has(k)) { flash(c, 'av-enter'); return; }
+      const dy = first.get(k) - c.getBoundingClientRect().top;
+      if (Math.abs(dy) < .5) return;
+      c.style.transition = 'none';
+      c.style.transform = `translateY(${dy}px)`;
+      void c.offsetWidth;
+      c.style.transition = `transform ${ms}ms cubic-bezier(.4,0,.2,1), background ${ms}ms, color ${ms}ms`;
+      c.style.transform = '';
+      setTimeout(() => { c.style.transition = ''; }, ms + 20);
+    });
+  }
+
+  // ---------- Python 高亮（VS Code Dark Modern + Pylance 语义配色） ----------
+  const CTL = new Set('if elif else for while return import from as try except finally raise with break continue pass yield await async del global nonlocal assert match case'.split(' '));
+  const KW = new Set('def class lambda None True False and or not in is self cls'.split(' '));
+  const CLS = new Set('int float str bool list dict set tuple range object type bytes frozenset complex Exception ValueError KeyError IndexError TypeError deque defaultdict Counter OrderedDict'.split(' '));
+  function highlightPython(src) {
+    const lines = src.split('\n');
+    const modules = new Set();
+    for (const l of lines) {
+      let m = l.match(/^\s*import\s+([\w., ]+)/);
+      if (m) m[1].split(',').forEach(p => { const a = p.trim().split(/\s+as\s+/); modules.add((a[1] || a[0]).split('.')[0].trim()); });
+      m = l.match(/^\s*from\s+([\w.]+)\s+import/);
+      if (m) modules.add(m[1].split('.')[0]);
+    }
+    let depth = 0, triple = null;
+    const re = /(#.*)|([rRbBuUfF]{0,2})("""|'''|"(?:\\.|[^"\\])*"?|'(?:\\.|[^'\\])*'?)|(\d[\d_]*(?:\.\d*)?(?:[eE][+-]?\d+)?j?)|([A-Za-z_\u00c0-\uffff][\w\u00c0-\uffff]*)|([()[\]{}])|(\s+)|([\s\S])/y;
+    return lines.map(raw => {
+      const line = raw.replace(/\t/g, '    ');
+      const indent = line.match(/^ */)[0].length;
+      const toks = [];
+      let i = indent;
+      if (triple) {
+        const end = line.indexOf(triple, i);
+        if (end < 0) return { html: `<span class="t-str">${esc(line.slice(i))}</span>`, indent, cmt: false };
+        toks.push(['str', line.slice(i, end + 3)]); i = end + 3; triple = null;
+      }
+      while (i < line.length) {
+        re.lastIndex = i;
+        const m = re.exec(line);
+        if (!m) break;
+        if (m[1]) toks.push(['cmt', m[1]]);
+        else if (m[3] !== undefined && (m[3] || m[2])) {
+          if (m[2]) toks.push([/[fF]/.test(m[2]) ? 'kw' : 'str', m[2]]);
+          let s = m[3];
+          if (s === '"""' || s === "'''") {
+            const end = line.indexOf(s, re.lastIndex);
+            if (end < 0) { s = line.slice(m.index + m[2].length); triple = m[3]; re.lastIndex = line.length; }
+            else { s = line.slice(m.index + m[2].length, end + 3); re.lastIndex = end + 3; }
+          }
+          toks.push(['str', s]);
+        }
+        else if (m[4]) toks.push(['num', m[4]]);
+        else if (m[5]) toks.push(['id', m[5]]);
+        else if (m[6]) toks.push(['br', m[6]]);
+        else if (m[7]) toks.push(['ws', m[7]]);
+        else toks.push(['op', m[8]]);
+        i = re.lastIndex;
+      }
+      const sig = toks.map((t, k) => k).filter(k => toks[k][0] !== 'ws');
+      const html = toks.map((t, k) => {
+        const [type, w] = t;
+        if (type === 'ws') return w;
+        if (type === 'br') {
+          if ('([{'.includes(w)) { const c = depth % 3; depth++; return `<span class="t-b${c}">${w}</span>`; }
+          depth = Math.max(0, depth - 1); return `<span class="t-b${depth % 3}">${w}</span>`;
+        }
+        if (type !== 'id') return `<span class="t-${type}">${esc(w)}</span>`;
+        const p = sig.indexOf(k), prev = p > 0 ? toks[sig[p - 1]][1] : '', next = p < sig.length - 1 ? toks[sig[p + 1]][1] : '';
+        let c = 'var';
+        if (prev === 'def') c = 'fn';
+        else if (prev === 'class') c = 'cls';
+        else if (CTL.has(w)) c = 'ctl';
+        else if (KW.has(w)) c = 'kw';
+        else if (prev === '.') c = next === '(' ? 'fn' : 'var';
+        else if (modules.has(w)) c = 'cls';
+        else if (next === '(') c = CLS.has(w) || /^[A-Z]/.test(w) ? 'cls' : 'fn';
+        else if (CLS.has(w)) c = 'cls';
+        else if (/^[A-Z][A-Z0-9_]+$/.test(w)) c = 'const';
+        return `<span class="t-${c}">${esc(w)}</span>`;
+      }).join('');
+      return { html, indent, cmt: line.trim().startsWith('#') };
+    });
+  }
+
+  // ---------- 代码面板 ----------
+  let srcLines = [], codeEls = [];
+  function mountCode(fileName) {
+    const src = $('py-source').textContent.replace(/\r\n?/g, '\n').replace(/^\n/, '').replace(/\s+$/, '');
+    srcLines = src.split('\n');
+    $('fileName').textContent = fileName || '';
+    const body = $('codeBody');
+    body.innerHTML = '';
+    codeEls = highlightPython(src).map((h, k) => {
+      const ln = el('div', 'ln' + (h.cmt ? ' cmt' : ''));
+      ln.innerHTML = `<span class="g">${k + 1}</span><span class="s" style="--ind:${h.indent}">${h.html || ' '}</span>`;
+      body.appendChild(ln);
+      return ln;
+    });
+  }
+  // 按源码内容定位行号：lineOf('res += 1')，nth 表示第几处匹配（忽略注释部分）
+  function lineOf(text, nth = 1) {
+    let cnt = 0;
+    for (let k = 0; k < srcLines.length; k++) {
+      const code = srcLines[k].replace(/#.*$/, '');
+      if (code.includes(text) && ++cnt === nth) return k + 1;
+    }
+    console.error('[AV] lineOf 未找到：', text, nth);
+    return 0;
+  }
+  function setCodeLines(lines) {
+    lines = (lines || []).filter(Boolean);
+    const set = new Set(lines);
+    codeEls.forEach((e, k) => e.classList.toggle('on', set.has(k + 1)));
+    const sorted = [...set].sort((a, b) => a - b);
+    $('codePos').textContent = sorted.length ? `第 ${sorted.length > 1 && sorted.at(-1) - sorted[0] === sorted.length - 1 ? sorted[0] + '–' + sorted.at(-1) : sorted.join(', ')} 行` : '';
+    if (!sorted.length) return;
+    const body = $('codeBody'), a = codeEls[sorted[0] - 1], b = codeEls[sorted.at(-1) - 1];
+    const top = a.offsetTop, bottom = b.offsetTop + b.offsetHeight, vt = body.scrollTop, vh = body.clientHeight;
+    if (top < vt + vh * .12 || bottom > vt + vh * .82) body.scrollTo({ top: Math.max(0, top - vh * .3), behavior: instant ? 'auto' : 'smooth' });
+  }
+
+  // ---------- 播放器与布局 ----------
+  let D, data, steps = [], cur = 0, timer = null;
+  const statEls = {}, P = { aux: {}, auxCard: {} };
+  const speedMs = () => +$('speed').value;
+  function setSpeed() {
+    DUR = clamp(Math.round(speedMs() * .5), 180, 650);
+    document.documentElement.style.setProperty('--dur', DUR + 'ms');
+  }
+
+  function setStat(def, val) {
+    const t = statEls[def.key];
+    const o = val !== null && typeof val === 'object' ? val : { v: val };
+    const v = o.v ?? '—';
+    if (typeof v === 'number' && typeof t.cur === 'number' && t.cur !== v && !instant) {
+      const a = t.cur;
+      animate('stat-' + def.key, p => { t.n.textContent = Math.round(a + (v - a) * p); });
+      flash(t.box, 'bump');
+    } else {
+      if (anims.has('stat-' + def.key)) { cancelAnimationFrame(anims.get('stat-' + def.key)); anims.delete('stat-' + def.key); }
+      t.n.textContent = v;
+    }
+    t.cur = v;
+    t.unit.textContent = o.unit || '';
+    t.sub.textContent = o.sub || '';
+  }
+
+  function render(prev) {
+    const s = steps[cur];
+    const pct = (steps.length > 1 ? cur / (steps.length - 1) * 100 : 100) + '%';
+    $('prog').style.width = pct;
+    $('thumb').style.left = pct;
+    $('progTip').style.left = pct;
+    $('progTip').textContent = `第 ${cur + 1} 步`;
+    $('stepNo').textContent = `${cur + 1} / ${steps.length}`;
+    const html = (s.tag ? `<span class="tag ${s.tag.kind || 'info'}">${s.tag.text}</span>` : '') + s.desc;
+    if ($('desc').innerHTML !== html) { $('desc').innerHTML = html; flash($('desc'), 'fade-in'); }
+    setText($('phase'), s.phase || '');
+    (D.stats || []).forEach(def => setStat(def, s.stats ? s.stats[def.key] : undefined));
+    setCodeLines(s.lines);
+    D.render(s, prev, data, P);
+  }
+  function go(k) {
+    k = clamp(k, 0, steps.length - 1);
+    const prev = steps[cur];
+    cur = k;
+    render(prev === steps[cur] ? null : prev);
+  }
+  function stop() { clearTimeout(timer); timer = null; $('btnPlay').textContent = '▶ 播放'; }
+  function play() {
+    if (timer) return stop();
+    if (cur >= steps.length - 1) go(0);
+    $('btnPlay').textContent = '⏸ 暂停';
+    const tick = () => {
+      if (cur >= steps.length - 1) return stop();
+      go(cur + 1);
+      timer = setTimeout(tick, speedMs());
+    };
+    timer = setTimeout(tick, 120);
+  }
+  function withInstant(fn) { const was = instant; instant = true; document.body.classList.add('instant'); try { fn(); } finally { instant = was; if (!was) { void document.body.offsetWidth; document.body.classList.remove('instant'); } } }
+
+  function apply() {
+    stop();
+    const values = {};
+    (D.inputs || []).forEach(f => { values[f.id] = $('in-' + f.id).value; });
+    const r = D.parse(values);
+    if (r.error) { $('err').textContent = r.error; return false; }
+    $('err').textContent = '';
+    data = r;
+    steps = D.build(data);
+    for (const k in P.aux) P.aux[k].innerHTML = '';
+    $('canvas').innerHTML = ''; $('state').innerHTML = '';
+    withInstant(() => {
+      D.mount(data, P);
+      cur = 0;
+      D.layout && D.layout(data, P);
+      render(null);
+    });
+    return true;
+  }
+
+  function buildShell() {
+    document.title = D.title;
+    $('title').textContent = D.title;
+    $('subtitle').innerHTML = D.subtitle || '';
+    const inputs = $('inputs');
+    (D.inputs || []).forEach(f => {
+      inputs.appendChild(el('label', '', f.label));
+      const inp = el('input');
+      inp.type = f.type || 'text'; inp.id = 'in-' + f.id; inp.value = f.value;
+      if (f.width) inp.style.width = f.width + 'px';
+      if (f.flex) { inp.style.flex = '1'; inp.style.minWidth = '200px'; }
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') apply(); });
+      inputs.appendChild(inp);
+    });
+    const btn = el('button', 'primary', '生成演示'); btn.onclick = apply; inputs.appendChild(btn);
+    if (D.presets && D.presets.length) inputs.appendChild(el('span', 'hint', '预设：'));
+    (D.presets || []).forEach(p => {
+      const b = el('button', 'preset', p.label);
+      b.onclick = () => { for (const k in p.values) $('in-' + k).value = p.values[k]; apply(); };
+      inputs.appendChild(b);
+    });
+    inputs.appendChild(el('span', 'err')).id = 'err';
+
+    (D.stats || []).forEach(def => {
+      const box = el('div', 'stat ' + (def.color || 'blue'));
+      box.innerHTML = `<div class="lab">${def.label}</div><div class="num"><span class="n">—</span><small></small></div><div class="sub"></div>`;
+      $('stats').appendChild(box);
+      statEls[def.key] = { box, n: box.querySelector('.n'), unit: box.querySelector('small'), sub: box.querySelector('.sub'), cur: null };
+    });
+
+    const pn = D.panels || {};
+    $('canvasTitle').textContent = pn.canvas?.title || '';
+    $('canvasHint').textContent = pn.canvas?.hint || '';
+    $('stateTitle').textContent = pn.state?.title || '';
+    $('stateHint').textContent = pn.state?.hint || '';
+    P.canvas = $('canvas'); P.state = $('state'); P.stateHint = $('stateHint'); P.stateCard = $('stateCard');
+    (pn.aux || []).forEach(a => {
+      const card = el('div', 'card' + (a.grow ? ' grow' : ''));
+      card.innerHTML = `<div class="card-h"><span>${a.title}</span><span class="hint">${a.hint || ''}</span></div><div class="card-b"></div>`;
+      $('auxCol').appendChild(card);
+      P.aux[a.id] = card.querySelector('.card-b');
+      P.auxCard[a.id] = card;
+    });
+    mountCode(D.file);
+  }
+
+  function wire() {
+    $('btnFirst').onclick = () => { stop(); go(0); };
+    $('btnLast').onclick = () => { stop(); go(steps.length - 1); };
+    $('btnPrev').onclick = () => { stop(); go(cur - 1); };
+    $('btnNext').onclick = () => { stop(); go(cur + 1); };
+    $('btnPlay').onclick = play;
+    $('speed').oninput = setSpeed;
+    // 进度条：点击跳转 / 按住拖动逐步刷过（每经过一步都正常渲染，保持过渡）
+    const bar = $('progress');
+    const seek = e => {
+      const r = bar.getBoundingClientRect();
+      const k = Math.round(clamp((e.clientX - r.left) / r.width, 0, 1) * (steps.length - 1));
+      if (k !== cur) go(k);
+    };
+    bar.addEventListener('pointerdown', e => {
+      stop(); bar.setPointerCapture(e.pointerId); bar.classList.add('dragging'); seek(e);
+      const up = () => { bar.classList.remove('dragging'); bar.removeEventListener('pointermove', seek); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up); };
+      bar.addEventListener('pointermove', seek); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+    });
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight') { stop(); go(cur + 1); }
+      else if (e.key === 'ArrowLeft') { stop(); go(cur - 1); }
+      else if (e.key === ' ') { e.preventDefault(); play(); }
+      else if (e.key === 'Home') { stop(); go(0); }
+      else if (e.key === 'End') { stop(); go(steps.length - 1); }
+    });
+
+    // 代码面板：可拖动宽度 / 折叠 / 注释开关 / 字号
+    const app = $('app'), sp = $('splitter'), LS = 'algoviz.';
+    const defW = () => clamp(Math.round(window.innerWidth * .4), 420, 820);
+    const setW = w => app.style.setProperty('--code-w', clamp(w, 320, window.innerWidth - 700) + 'px');
+    setW(+localStorage.getItem(LS + 'codeW') || defW());
+    sp.addEventListener('pointerdown', e => {
+      if (app.classList.contains('code-collapsed')) return;
+      sp.setPointerCapture(e.pointerId); app.classList.add('dragging');
+      const right = app.getBoundingClientRect().right - 16;
+      const move = ev => setW(right - ev.clientX - 6);
+      const up = () => {
+        sp.removeEventListener('pointermove', move); sp.removeEventListener('pointerup', up);
+        app.classList.remove('dragging');
+        localStorage.setItem(LS + 'codeW', parseInt(app.style.getPropertyValue('--code-w')));
+      };
+      sp.addEventListener('pointermove', move); sp.addEventListener('pointerup', up);
+    });
+    sp.ondblclick = () => { localStorage.removeItem(LS + 'codeW'); setW(defW()); };
+    const setCollapsed = c => { app.classList.toggle('code-collapsed', c); $('btnCollapse').textContent = c ? '⇤' : '⇥'; localStorage.setItem(LS + 'collapsed', c ? 1 : ''); };
+    setCollapsed(!!localStorage.getItem(LS + 'collapsed'));
+    $('btnCollapse').onclick = () => setCollapsed(!app.classList.contains('code-collapsed'));
+    const setCmt = show => { $('codeBody').classList.toggle('no-cmt', !show); $('btnCmt').classList.toggle('on', show); localStorage.setItem(LS + 'hideCmt', show ? '' : 1); };
+    setCmt(!localStorage.getItem(LS + 'hideCmt'));
+    $('btnCmt').onclick = () => setCmt($('codeBody').classList.contains('no-cmt'));
+    let fs = +localStorage.getItem(LS + 'fs') || 14;
+    const setFs = v => { fs = clamp(v, 11, 20); document.documentElement.style.setProperty('--code-fs', fs + 'px'); localStorage.setItem(LS + 'fs', fs); };
+    setFs(fs);
+    $('btnFsDown').onclick = () => setFs(fs - 1);
+    $('btnFsUp').onclick = () => setFs(fs + 1);
+
+    // 画布尺寸变化（窗口缩放、拖动分隔条、折叠代码）时重新排版，不做过渡
+    let raf = 0;
+    new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => withInstant(() => { D.layout && D.layout(data, P); D.render(steps[cur], null, data, P); }));
+    }).observe($('canvas'));
+  }
+
+  // ---------- 自检：文字互相遮挡 / 左侧需滚动 / 代码横向滚动 ----------
+  function textRects(root) {
+    const out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    while (w.nextNode()) {
+      const node = w.currentNode;
+      if (!node.textContent.trim()) continue;
+      const host = node.parentElement;
+      if (host.closest('.av-leaving, svg defs, .slots .empty')) continue;
+      const cs = getComputedStyle(host);
+      if (cs.visibility === 'hidden' || +cs.opacity === 0) continue;
+      range.selectNodeContents(node);
+      // 被滚动容器裁掉（不可见）的部分不参与检查
+      let clip = null;
+      for (let a = host.parentElement; a && a !== root; a = a.parentElement) {
+        const o = getComputedStyle(a);
+        if (/(auto|scroll|hidden)/.test(o.overflowY + o.overflowX)) { clip = a.getBoundingClientRect(); break; }
+      }
+      for (const r0 of range.getClientRects()) {
+        let r = r0;
+        if (clip) {
+          const l = Math.max(r.left, clip.left), t = Math.max(r.top, clip.top), rr = Math.min(r.right, clip.right), b = Math.min(r.bottom, clip.bottom);
+          if (rr - l <= 1 || b - t <= 1) continue;
+          r = { left: l, top: t, right: rr, bottom: b, width: rr - l, height: b - t };
+        }
+        if (r.width > 1 && r.height > 1) out.push({ r, host, text: node.textContent.trim().slice(0, 16) });
+      }
+    }
+    return out;
+  }
+  const inter = (a, b, pad = 0) => Math.min(a.right + pad, b.right + pad) - Math.max(a.left - pad, b.left - pad) > 1.5 &&
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1.5;
+  function checkOnce(stepIdx, issues) {
+    const left = $('left');
+    const ts = textRects(left);
+    for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) {
+      const a = ts[i], b = ts[j];
+      if (a.host === b.host || a.host.contains(b.host) || b.host.contains(a.host)) continue;
+      if (inter(a.r, b.r)) issues.push({ step: stepIdx, type: '文字重叠', a: a.text, b: b.text });
+    }
+    const solids = [...left.querySelectorAll('[data-solid]')].map(e => {
+      const r = e.getBoundingClientRect(), g = +(e.dataset.ring || 0);
+      return { e, r: { left: r.left - g, right: r.right + g, top: r.top - g, bottom: r.bottom + g } };
+    });
+    for (const path of left.querySelectorAll('svg [marker-end], svg [marker-start]')) {
+      if (path.closest('.av-leaving') || +getComputedStyle(path.closest('g') || path).opacity === 0) continue;
+      const id = (path.getAttribute('marker-end') || path.getAttribute('marker-start')).match(/#([^)]+)/)?.[1];
+      const head = id && document.getElementById(id)?.querySelector('path, polygon');
+      const cs = head && getComputedStyle(head);
+      if (!cs || (cs.fill === 'none' && (cs.stroke === 'none' || parseFloat(cs.strokeWidth) === 0)))
+        issues.push({ step: stepIdx, type: '连线缺少箭头', a: id || '(无 marker)', b: path.getAttribute('d')?.slice(0, 20) || '' });
+    }
+    for (const t of ts) for (const s of solids) {
+      if (s.e.contains(t.host)) continue;
+      if (inter(t.r, s.r)) issues.push({ step: stepIdx, type: '元素遮挡文字', a: t.text, b: s.e.className });
+    }
+  }
+  function runCheck() {
+    const issues = [];
+    let total = 0;
+    // 逐个预设、逐步检查；没有预设时只检查当前输入
+    const runs = D.presets && D.presets.length ? D.presets : [null];
+    runs.forEach(p => {
+      if (p) { for (const k in p.values) $('in-' + k).value = p.values[k]; if (!apply()) return; }
+      const tagged = [];
+      withInstant(() => { for (let k = 0; k < steps.length; k++) { go(k); checkOnce(k, tagged); } go(0); });
+      total += steps.length;
+      tagged.forEach(it => { it.step = (p ? p.label + ' · ' : '') + 'step ' + it.step; issues.push(it); });
+    });
+    const left = $('left'), body = $('codeBody');
+    const uniq = [], seen = new Set();
+    for (const it of issues) { const key = it.type + it.a + '|' + it.b; if (!seen.has(key)) { seen.add(key); uniq.push(it); } }
+    const res = {
+      viewport: [window.innerWidth, window.innerHeight], steps: total, lastSteps: steps.length,
+      leftNeedsScroll: Math.max(0, left.scrollHeight - left.clientHeight),
+      codeHScroll: Math.max(0, body.scrollWidth - body.clientWidth),
+      overlaps: uniq.slice(0, 30), overlapCount: uniq.length,
+    };
+    $('av-check').textContent = JSON.stringify(res);
+    document.title = 'AVCHECK ' + (res.leftNeedsScroll || res.codeHScroll || res.overlapCount ? 'FAIL' : 'OK');
+  }
+
+  function start(demo) {
+    D = demo;
+    buildShell();
+    wire();
+    setSpeed();
+    apply();
+    const h = new URLSearchParams(location.hash.slice(1));
+    const pre = D.presets && D.presets[+h.get('preset')];
+    if (h.has('preset') && pre) { for (const k in pre.values) $('in-' + k).value = pre.values[k]; apply(); }
+    if (h.has('step')) withInstant(() => go(+h.get('step')));
+    if (h.has('check')) setTimeout(runCheck, 50);
+  }
+
+  return { $, el, esc, clamp, dur, animate, flash, setText, keyed, lineOf, start, isInstant: () => instant };
+})();
+</script>
+
+<script>
+/* =====================================================================
+   DEMO —— 本题专用：输入解析、步骤生成、可视化挂载与渲染（生成新演示时替换这里）
+   本题：文远2.py · Floyd + 状压 DP
+   ===================================================================== */
+(() => {
+const { el, esc, clamp, animate, setText, flash, keyed, lineOf: L } = AV;
+const INF = Infinity, NR = 18;
+const COLORS = { purple: '#7c3aed', red: '#dc2626', green: '#16a34a', blue: '#2563eb', gray: '#94a3b8', amber: '#d97706' };
+const fv = v => (v === INF ? '∞' : String(v));
+const bin = (mask, w) => (w > 0 ? mask.toString(2).padStart(w, '0') : '0');
+const setOf = (mask, n) => { const a = []; for (let j = 1; j < n; j++) if (mask & (1 << (j - 1))) a.push(j); return '{' + a.join(',') + '}'; };
+let U = null;
+// 标签避让：用矩形框（中心 x,y + 宽高）近似文字与节点
+const box = (x, y, text, h = 15) => ({ x, y, w: String(text).length * 8 + 8, h });
+const hit = (a, b) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 + 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + 2;
+
+const DEMO = {
+  file: '文远2.py',
+  title: '多配送员最小总时间 · Floyd + 状压 DP（文远2）',
+  subtitle: '多人往返路线可拼成一人路线、总时间不变 → 只需求单人走遍所有点的最短往返。① Floyd 求两两最短路　② dp[mask][i] 求最短访问顺序。图中编号均为数组下标（输入编号 − 1），0 号为仓库',
+  inputs: [
+    { id: 'n', label: 'n =', value: '4', type: 'number', width: 60 },
+    { id: 'k', label: 'k =', value: '2', type: 'number', width: 60 },
+    { id: 'edges', label: '道路 u v w', value: '1 2 1, 1 3 5, 1 4 5, 2 3 1', flex: true },
+  ],
+  presets: [
+    { label: '测试1', values: { n: 4, k: 2, edges: '1 2 1, 1 3 5, 1 4 5, 2 3 1' } },
+    { label: '测试2', values: { n: 3, k: 1, edges: '1 2 4' } },
+    { label: '测试3', values: { n: 1, k: 1, edges: '' } },
+    { label: '5 点 · 需绕路', values: { n: 5, k: 2, edges: '1 2 3, 1 3 9, 2 3 2, 2 4 7, 3 5 4, 4 5 1, 1 4 8' } },
+    { label: '重边', values: { n: 3, k: 3, edges: '1 2 6, 1 2 2, 2 3 3, 1 3 10' } },
+  ],
+  stats: [
+    { key: 'res', label: '最小总时间 res', color: 'red' },
+    { key: 't', label: 'Floyd 中转点 t', color: 'purple' },
+    { key: 'fl', label: '最短路改进次数', color: 'amber' },
+    { key: 'st', label: '当前 DP 状态', color: 'blue' },
+    { key: 'upd', label: 'dp 更新次数', color: 'green' },
+  ],
+  panels: {
+    canvas: { title: '道路图 与 dist 最短路矩阵', hint: '图中箭头只表示本步涉及的路线；矩阵行 = 起点 i，列 = 终点 j' },
+    state: { title: '当前计算' },
+    aux: [
+      { id: 'dp', title: 'dp[mask][i] 表', hint: 'mask：已纳入的非仓库点（点 j ↔ 第 j-1 位）；i：停留点', grow: true },
+      { id: 'route', title: '最优路线' },
+    ],
+  },
+
+  parse(v) {
+    const n = parseInt(v.n, 10), k = parseInt(v.k, 10);
+    if (!(n >= 1 && n <= 6)) return { error: 'n 取 1 ~ 6（状态数 2^(n-1) 增长很快，演示限制）' };
+    if (!(k >= 1)) return { error: 'k 需 ≥ 1' };
+    const edges = [];
+    for (const part of String(v.edges).split(/[,，;；\n]+/).map(s => s.trim()).filter(Boolean)) {
+      const a = part.split(/\s+/).map(Number);
+      if (a.length !== 3 || a.some(x => !Number.isInteger(x))) return { error: `道路格式错误：「${part}」，应为 u v w` };
+      if (a[0] < 1 || a[0] > n || a[1] < 1 || a[1] > n) return { error: `端点越界：「${part}」，应在 1 ~ ${n}` };
+      if (a[2] < 0) return { error: '通行时间需非负' };
+      edges.push([a[0] - 1, a[1] - 1, a[2]]);
+    }
+    if (edges.length > 15) return { error: '道路数 ≤ 15，保证一屏内展示' };
+    return { n, k, m: edges.length, edges };
+  },
+
+  build({ n, k, m, edges }) {
+    const steps = [];
+    const dist = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 0 : INF)));
+    const edgeW = {};
+    const size = 2 ** (n - 1), W = n - 1;
+    let fl = 0, upd = 0, res = null, tCur = null, tDone = false, dp = null, par = null;
+    const S = o => ({
+      dist: dist.map(r => [...r]), edgeW: { ...edgeW }, dp: dp ? dp.map(r => [...r]) : null,
+      stats: {
+        res: res == null ? '—' : res === INF ? '∞' : res,
+        t: tCur == null ? { v: '—', sub: tDone ? 'Floyd 已完成' : `共 ${n} 个点` } : { v: tCur, sub: `允许经过 0 ~ ${tCur} 中转` },
+        fl, upd, st: o.st || { v: '—' },
+      },
+      ...o,
+    });
+    const back = (mask, i) => { const p = []; while (!(mask === 0 && i === 0)) { p.unshift(i); [mask, i] = par[mask][i]; } p.unshift(0); return p; };
+    const P0 = '准备 · 读入与建图', P1 = '阶段一 · Floyd 最短路', P2 = '阶段二 · 状压 DP', P3 = '收尾 · 回到仓库';
+
+    steps.push(S({ phase: P0, tag: { text: '初始化', kind: 'info' }, lines: [L('inf = float'), L('if i == j'), L('row.append(0)'), L('row.append(inf)')],
+      formula: `dist[i][i] = <span class="g">0</span>，其余 dist[i][j] = <span class="m">∞</span>（暂不可达）`,
+      desc: `读入 n = ${n}，m = ${m}，k = ${k}，初始化 dist。<br>为什么 k 无关：每个配送员都是"仓库出发、回到仓库"，多人路线首尾都在仓库，可<b>直接拼成一个人的路线，总时间不变</b>；反之一人跑完、其余休息也合法。所以只需求一个人走遍所有点的最短往返。` }));
+
+    edges.forEach(([u, v, w], idx) => {
+      const old = dist[u][v];
+      dist[u][v] = Math.min(dist[u][v], w);
+      dist[v][u] = Math.min(dist[v][u], w);
+      const key = Math.min(u, v) + '-' + Math.max(u, v);
+      if (u !== v) edgeW[key] = Math.min(edgeW[key] ?? INF, w);
+      const dup = u !== v && old !== INF;
+      steps.push(S({ phase: P0, tag: { text: `道路 ${idx + 1} / ${m}`, kind: 'info' },
+        lines: [L('u = int(data[index])'), L('v = int(data[index + 1])'), L('w = int(data[index + 2])'), L('dist[u][v] = min'), L('dist[v][u] = min')],
+        hlEdge: key, mat: { cls: 'edge', cells: [[u, v], [v, u]] },
+        formula: `dist[<span class="b">${u}</span>][<span class="b">${v}</span>] = min(${fv(old)}, ${w}) = <span class="g">${dist[u][v]}</span>`,
+        desc: `读入道路 ${u + 1} ${v + 1} ${w}，下标为 <b>${u} — ${v}</b>，耗时 ${w}。双向道路，dist[${u}][${v}] 与 dist[${v}][${u}] 都要更新` +
+          (dup ? `；这是<b>重边</b>，原值 ${fv(old)}，只保留较小值 ${dist[u][v]}。` : '。') }));
+    });
+
+    for (let t = 0; t < n; t++) {
+      tCur = t;
+      const introIdx = steps.length;
+      const before = dist.map(r => [...r]);
+      steps.push(null);
+      let cnt = 0;
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        const a = dist[i][t], b = dist[t][j], c = a + b;
+        if (!(c < dist[i][j])) continue;
+        const old = dist[i][j];
+        dist[i][j] = dist[j][i] = c;
+        fl++; cnt++;
+        steps.push(S({ phase: P1, tag: { text: `t = ${t} · 改进`, kind: 'pre' }, lines: [L('for t in range(n)'), L('dist[i][j] = min')],
+          floyd: { t, i, j }, mat: { cls: 'upd', cells: [[i, j], [j, i]], src: [[i, t], [t, j]] },
+          formula: `dist[${i}][${j}] = min(dist[${i}][${j}], dist[${i}][<span class="p">${t}</span>] + dist[<span class="p">${t}</span>][${j}])<br>` +
+            `　　　　 = min(<span class="r">${fv(old)}</span>, <span class="p">${a}</span> + <span class="p">${b}</span>) = <span class="g">${c}</span>`,
+          desc: `路径 ${i} → <b style="color:var(--purple)">${t}</b> → ${j} 耗时 ${a} + ${b} = <b>${c}</b>，比原来的 ${fv(old)} 更短，更新 dist[${i}][${j}] = ${c}。无向图对称，循环到 (${j}, ${i}) 时同样更新。` }));
+      }
+      steps[introIdx] = S({ phase: P1, tag: { text: `中转点 t = ${t}`, kind: 'pre' }, lines: [L('for t in range(n)')], floyd: { t },
+        formula: `对每对 (i, j)：dist[i][j] = min(dist[i][j], dist[i][<span class="p">${t}</span>] + dist[<span class="p">${t}</span>][j])`,
+        desc: `允许点 <b style="color:var(--purple)">${t}</b> 作为中间点，检查每对 i → ${t} → j 是否更短（紫色行、列就是要用到的 dist[i][${t}] 与 dist[${t}][j]）。t 必须在最外层：处理完 t 后，dist 表示"只经 0 ~ ${t} 中转"的最短路。` +
+          (cnt ? `本轮有 <b>${cnt}</b> 对点被改进。` : '本轮<b>没有</b>任何改进。') });
+      // 引导步展示的是本轮开始前的状态
+      steps[introIdx].dist = before;
+      steps[introIdx].stats.fl = fl - cnt;
+    }
+    tCur = null; tDone = true;
+
+    const bad = [];
+    for (let j = 0; j < n; j++) if (dist[0][j] === INF) bad.push(j);
+    if (bad.length) {
+      res = -1;
+      steps.push(S({ phase: '连通性检查', tag: { text: '不可达', kind: 'miss' }, lines: [L('if inf in dist[0]'), L('print(-1)'), L('sys.exit()')],
+        bad, mat: { cls: 'bad', cells: bad.map(j => [0, j]) }, done: true,
+        formula: `dist[0] = [${dist[0].map(fv).join(', ')}]　含 <span class="r">∞</span>`,
+        desc: `dist[0] 中点 <b style="color:var(--red)">${bad.join('、')}</b> 仍为 ∞：从仓库无法到达，不可能完成配送，输出 <b style="font-size:20px;color:var(--red)">-1</b>。` }));
+      return steps;
+    }
+    steps.push(S({ phase: '连通性检查', tag: { text: '全部连通', kind: 'hit' }, lines: [L('if inf in dist[0]')],
+      mat: { cls: 'edge', cells: dist[0].map((_, j) => [0, j]) },
+      formula: `dist[0] = [${dist[0].map(fv).join(', ')}]　无 ∞`,
+      desc: `dist[0] 中没有 ∞，所有点都能从仓库到达；无向图中能到就能回。接下来只需决定<b>访问顺序</b>，相邻两站之间都走最短路。` }));
+
+    dp = Array.from({ length: size }, () => new Array(n).fill(INF));
+    par = Array.from({ length: size }, () => new Array(n).fill(null));
+    dp[0][0] = 0;
+    const stOf = (mask, i) => ({ v: '0b' + bin(mask, W), unit: `停在 ${i}`, sub: `已纳入 ${setOf(mask, n)}` });
+    steps.push(S({ phase: P2, tag: { text: '初始化', kind: 'info' }, lines: [L('size = 2 ** (n - 1)'), L('row.append(inf)', 2), L('dp[0][0] = 0')],
+      dpState: { mask: 0, i: 0, cands: [] }, prefix: [0], st: stOf(0, 0),
+      desc: `size = 2^(n−1) = ${size}：用 ${W} 个二进制位记录哪些非仓库点已纳入访问顺序，点 j 对应第 j−1 位。dp[mask][i] = 从仓库出发、已纳入 mask、最后停在 i 的最短时间。起点 <b>dp[0][0] = 0</b>。` }));
+
+    for (let mask = 0; mask < size; mask++) for (let i = 0; i < n; i++) {
+      if (dp[mask][i] === INF) continue;
+      const base = dp[mask][i], cands = [];
+      for (let j = 1; j < n; j++) {
+        const bit = 1 << (j - 1);
+        if (mask & bit) continue;
+        const tmp = mask | bit, cand = base + dist[i][j], old = dp[tmp][j], better = cand < old;
+        if (better) { dp[tmp][j] = cand; par[tmp][j] = [mask, i]; upd++; }
+        cands.push({ j, tmp, d: dist[i][j], base, cand, old, better });
+      }
+      const good = cands.filter(c => c.better), worse = cands.filter(c => !c.better);
+      steps.push(S({ phase: P2, tag: { text: cands.length ? '扩展状态' : '已全部纳入', kind: cands.length ? 'hit' : 'info' },
+        lines: cands.length ? [L('if dp[mask][i] == inf'), L('bit = 1 << (j - 1)'), L('if mask & bit'), L('tmp = mask | bit'), L('dp[tmp][j] = min')] : [L('if dp[mask][i] == inf'), L('if mask & bit')],
+        dpState: { mask, i, cands }, prefix: back(mask, i), st: stOf(mask, i),
+        desc: `状态 mask = <b>0b${bin(mask, W)}</b>（已纳入 ${setOf(mask, n)}），停在 <b>${i}</b>，最短耗时 ${base}。` +
+          (cands.length
+            ? `尝试加入每个未纳入的点 j：候选 = ${base} + dist[${i}][j]。` +
+              (good.length ? `<b style="color:var(--green)">${good.map(c => `dp[0b${bin(c.tmp, W)}][${c.j}] ← ${c.cand}`).join('，')}</b>` : '') +
+              (worse.length ? `${good.length ? '；' : ''}点 ${worse.map(c => c.j).join('、')} 的候选不比已有值小，保持不变` : '') + '。'
+            : '所有非仓库点都已纳入，没有可加入的点，只等最后返回仓库。') }));
+    }
+
+    const full = size - 1, fins = [];
+    let bestV = INF, best = 0;
+    for (let i = 0; i < n; i++) {
+      const v = dp[full][i] + dist[i][0];
+      fins.push({ i, d: dp[full][i], back: dist[i][0], v });
+      if (v < bestV) { bestV = v; best = i; }
+    }
+    fins.forEach(f => { f.best = f.i === best; });
+    const route = n === 1 ? [0] : [...back(full, best), 0];
+    steps.push(S({ phase: P3, tag: { text: '回仓库', kind: 'warn' }, lines: [L('res = inf'), L('res = min(res, dp[size - 1][i] + dist[i][0])')],
+      fins, prefix: back(full, best), st: stOf(full, best), finBack: best,
+      desc: `mask = size − 1 = 0b${bin(full, W)} 表示全部纳入。枚举最后停留点 i，加上返回仓库的 dist[i][0]：` +
+        fins.filter(f => f.d !== INF).map(f => `i=${f.i}：${f.d} + ${f.back} = ${f.v}`).join('，') + `。最小值来自 i = <b>${best}</b>。` }));
+    res = bestV;
+    const legs = [];
+    for (let a = 0; a + 1 < route.length; a++) legs.push(dist[route[a]][route[a + 1]]);
+    steps.push(S({ phase: P3, tag: { text: '完成', kind: 'info' }, lines: [L('print(res)')], route, legs, fins, done: true, st: stOf(full, best),
+      desc: n === 1
+        ? `只有仓库一个点，无需出发，答案为 <b style="font-size:20px;color:var(--red)">0</b>。`
+        : `最小总时间 <b style="font-size:20px;color:var(--red)">${res}</b>。最优访问顺序 ${route.join(' → ')}，各段耗时 ${legs.join(' + ')}。每段都是 Floyd 最短路，可能途经其他点（允许重复经过）。k = ${k} 个配送员时，可由一人走完、其余休息。` }));
+    return steps;
+  },
+
+  mount({ n, edges }, P) {
+    const mk = Object.entries(COLORS).map(([k, c]) =>
+      `<marker id="mk-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:${c};stroke:none"/></marker>`).join('');
+    P.canvas.innerHTML = `<div class="g2"><div class="graph"><svg><defs>${mk}</defs><g class="edges"></g><g class="arrows"></g><g class="nodes"></g></svg></div><div class="mat"></div></div>
+      <div class="legend"><span><i style="background:${COLORS.purple}"></i>经中转点 t 的路径</span><span><i style="background:${COLORS.blue}"></i>当前状态的最优前缀路线</span>
+      <span><i style="background:${COLORS.green}"></i>使 dp 变小的转移 / 最终路线</span><span><i style="background:${COLORS.gray}"></i>不更优的转移</span><span><i style="background:${COLORS.red}"></i>返回仓库</span></div>`;
+    const svg = P.canvas.querySelector('svg');
+    const gE = svg.querySelector('.edges'), gN = svg.querySelector('.nodes');
+    const ns = 'http://www.w3.org/2000/svg', mkS = t => document.createElementNS(ns, t);
+    const ekeys = [...new Set(edges.filter(([u, v]) => u !== v).map(([u, v]) => Math.min(u, v) + '-' + Math.max(u, v)))];
+    const eEls = {};
+    ekeys.forEach(key => {
+      const g = mkS('g'); g.setAttribute('class', 'edge');
+      const line = mkS('line'), text = mkS('text');
+      g.append(line, text); gE.appendChild(g);
+      eEls[key] = { g, line, text };
+    });
+    const nEls = Array.from({ length: n }, (_, k) => {
+      const g = mkS('g'); g.setAttribute('class', 'node' + (k === 0 ? ' wh' : ''));
+      const c = mkS('circle'); c.setAttribute('r', NR);
+      const t = mkS('text'); t.textContent = k;
+      g.append(c, t);
+      if (k === 0) { const cap = mkS('text'); cap.setAttribute('class', 'cap'); cap.textContent = '仓库'; g.appendChild(cap); }
+      gN.appendChild(g);
+      return g;
+    });
+    // dist 矩阵
+    const mat = P.canvas.querySelector('.mat');
+    mat.style.setProperty('--n1', n + 1);
+    const mc = [];
+    mat.appendChild(el('div', 'h corner', 'dist'));
+    const colH = [], rowH = [];
+    for (let j = 0; j < n; j++) colH.push(mat.appendChild(el('div', 'h', j)));
+    for (let i = 0; i < n; i++) {
+      rowH.push(mat.appendChild(el('div', 'h', i)));
+      mc.push(Array.from({ length: n }, () => mat.appendChild(el('div'))));
+    }
+    // 当前计算：公式 / DP 状态
+    P.state.innerHTML = `<div class="formula"></div>
+      <div class="dpbox hide"><div class="bitsrow"><div class="bits"></div><div class="maskinfo"></div></div>
+      <div class="cands"><div class="crow head"><span>j</span><span>tmp</span><span>候选值</span><span>原值</span><span>结果</span></div><div class="cbody"></div></div></div>`;
+    const bits = P.state.querySelector('.bits');
+    const bitEls = {};
+    if (n === 1) bits.appendChild(el('span', 'hint', '（没有非仓库点）'));
+    for (let j = n - 1; j >= 1; j--) {
+      const b = el('div', 'bit', `<div class="lab">点 ${j}</div><div class="b" data-solid data-ring="3">0</div>`);
+      bits.appendChild(b); bitEls[j] = b;
+    }
+    // dp 表
+    const size = 2 ** (n - 1);
+    P.aux.dp.innerHTML = `<div class="dpt" style="--n:${n}"><div class="dprow head"><span>mask</span><span>集合</span>${Array.from({ length: n }, (_, i) => `<span>i=${i}</span>`).join('')}</div><div class="dpscroll"></div></div>`;
+    P.aux.dp.style.overflow = 'hidden';
+    const dpt = P.aux.dp.querySelector('.dpscroll');
+    const dpRows = [], dpc = [];
+    for (let mask = 0; mask < size; mask++) {
+      const r = el('div', 'dprow', `<span class="mk">${bin(mask, n - 1)}</span><span>${setOf(mask, n)}</span>` + '<span></span>'.repeat(n));
+      dpt.appendChild(r); dpRows.push(r); dpc.push([...r.children].slice(2));
+    }
+    P.aux.route.innerHTML = `<div class="route"><span class="hint">DP 完成后给出</span></div>`;
+    U = { svg, gA: svg.querySelector('.arrows'), graph: P.canvas.querySelector('.graph'), eEls, nEls, mat, mc, colH, rowH,
+      formula: P.state.querySelector('.formula'), dpbox: P.state.querySelector('.dpbox'), bitEls, minfo: P.state.querySelector('.maskinfo'),
+      chead: P.state.querySelector('.crow.head'), cbody: P.state.querySelector('.cbody'), dpRows, dpc, dpScroll: dpt, routeBox: P.aux.route.querySelector('.route'),
+      arrows: new Map(), pos: [], placed: [], n };
+  },
+
+  layout({ n, edges }) {
+    const W = U.graph.clientWidth, H = U.graph.clientHeight;
+    // 椭圆布局：纵向受高度限制，横向利用宽度拉开，减少中部边与标签的拥挤
+    const ry = Math.max(40, H / 2 - 42), rx = Math.max(40, Math.min(W / 2 - 50, ry * 2));
+    U.pos = Array.from({ length: n }, (_, k) => {
+      if (n === 1) return { x: W / 2, y: H / 2 };
+      const a = -Math.PI / 2 + 2 * Math.PI * k / n;
+      return { x: W / 2 + rx * Math.cos(a), y: H / 2 + ry * Math.sin(a) };
+    });
+    U.placed = U.pos.map(p => ({ x: p.x, y: p.y, w: 2 * NR + 6, h: 2 * NR + 6 }));
+    U.nEls.forEach((g, k) => {
+      const p = U.pos[k];
+      g.setAttribute('transform', `translate(${p.x},${p.y})`);
+      const cap = g.querySelector('.cap');
+      if (cap) {
+        const dx = p.x - W / 2, dy = p.y - H / 2, l = Math.hypot(dx, dy) || 1;
+        const ox = n === 1 ? 0 : dx / l * (NR + 16), oy = n === 1 ? -(NR + 12) : dy / l * (NR + 12);
+        cap.setAttribute('x', ox); cap.setAttribute('y', oy);
+        U.placed.push({ x: p.x + ox, y: p.y + oy, w: 30, h: 16 });
+      }
+    });
+    for (const key in U.eEls) {
+      const [a, b] = key.split('-').map(Number), A = U.pos[a], B = U.pos[b], e = U.eEls[key];
+      e.line.setAttribute('x1', A.x); e.line.setAttribute('y1', A.y); e.line.setAttribute('x2', B.x); e.line.setAttribute('y2', B.y);
+      const wlab = edges.reduce((m, [u, v, w]) => (Math.min(u, v) + '-' + Math.max(u, v) === key ? Math.min(m, w) : m), INF);
+      let pt = null;
+      for (const f of [.5, .4, .6, .32, .68, .25, .75]) {
+        const c = box(A.x + (B.x - A.x) * f, A.y + (B.y - A.y) * f, wlab);
+        if (!U.placed.some(q => hit(q, c))) { pt = c; break; }
+      }
+      pt = pt || box((A.x + B.x) / 2, (A.y + B.y) / 2, wlab);
+      U.placed.push(pt);
+      e.text.setAttribute('x', pt.x); e.text.setAttribute('y', pt.y);
+    }
+    const mcpx = clamp(Math.floor((H - 3 * n) / (n + 1)), 26, 40);
+    U.mat.style.setProperty('--mc', mcpx + 'px');
+  },
+
+  render(s, prev, { n }, P) {
+    const ds = s.dpState, fl = s.floyd;
+    // 边
+    for (const key in U.eEls) {
+      const e = U.eEls[key], w = s.edgeW[key];
+      e.g.classList.toggle('pending', w === undefined);
+      e.g.classList.toggle('hl', s.hlEdge === key);
+      setText(e.text, w === undefined ? '' : w);
+    }
+    // 点
+    const inMask = k => (ds && k > 0 && (ds.mask & (1 << (k - 1)))) || (s.fins && k > 0) || (s.route && k > 0);
+    U.nEls.forEach((g, k) => {
+      g.classList.toggle('in', !!inMask(k));
+      g.classList.toggle('cur', !!ds && ds.i === k);
+      g.classList.toggle('tnode', !!fl && fl.t === k);
+      g.classList.toggle('ij', !!fl && (fl.i === k || fl.j === k));
+      g.classList.toggle('bad', !!s.bad && s.bad.includes(k));
+    });
+    // 箭头
+    const T = [];
+    if (fl && fl.i != null) {
+      T.push({ key: `f-${fl.i}-${fl.t}`, a: fl.i, b: fl.t, color: 'purple', label: s.dist[fl.i][fl.t] });
+      T.push({ key: `f-${fl.t}-${fl.j}`, a: fl.t, b: fl.j, color: 'purple', label: s.dist[fl.t][fl.j] });
+    }
+    if (s.prefix) for (let q = 0; q + 1 < s.prefix.length; q++) {
+      const a = s.prefix[q], b = s.prefix[q + 1];
+      T.push({ key: `p-${a}-${b}`, a, b, color: 'blue', label: s.dist[a][b] });
+    }
+    if (ds) ds.cands.forEach(c => T.push({ key: `c-${ds.i}-${c.j}`, a: ds.i, b: c.j, color: c.better ? 'green' : 'gray', dash: !c.better, label: `+${c.d}` }));
+    if (s.fins && s.finBack > 0) T.push({ key: `b-${s.finBack}-0`, a: s.finBack, b: 0, color: 'red', label: `+${s.dist[s.finBack][0]}` });
+    if (s.route) for (let q = 0; q + 1 < s.route.length; q++) {
+      const a = s.route[q], b = s.route[q + 1];
+      T.push({ key: `r-${a}-${b}`, a, b, color: 'green', label: `${'①②③④⑤⑥⑦'[q]} ${s.legs[q]}` });
+    }
+    drawArrows(T.filter(t => t.a !== t.b));
+
+    // dist 矩阵
+    const cellCls = (i, j) => {
+      const has = list => list && list.some(([a, b]) => a === i && b === j);
+      if (s.mat && has(s.mat.cells)) return s.mat.cls;
+      if (s.mat && has(s.mat.src)) return 'src';
+      if (fl && (i === fl.t || j === fl.t)) return 't';
+      return '';
+    };
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const c = U.mc[i][j], v = s.dist[i][j];
+      setText(c, fv(v), prev ? 'av-flash' : null);
+      c.className = [cellCls(i, j), v === INF ? 'inf' : ''].filter(Boolean).join(' ');
+    }
+    U.colH.forEach((h, j) => h.classList.toggle('tl', !!fl && fl.t === j));
+    U.rowH.forEach((h, i) => h.classList.toggle('tl', !!fl && fl.t === i));
+
+    // 当前计算面板
+    const useDp = !!(ds || s.fins || s.route);
+    U.formula.classList.toggle('hide', useDp);
+    U.dpbox.classList.toggle('hide', !useDp);
+    P.stateHint.textContent = useDp ? (s.fins ? '枚举最后停留点，加上回仓库的距离' : s.route ? '最终结果' : 'mask 位图与本状态的全部转移') : '本步更新的公式';
+    if (!useDp) {
+      if (U.formula.innerHTML !== s.formula) { U.formula.innerHTML = s.formula; flash(U.formula, 'fade-in'); }
+    } else {
+      const mask = ds ? ds.mask : 2 ** (n - 1) - 1;
+      for (const j in U.bitEls) {
+        const on = !!(mask & (1 << (j - 1)));
+        U.bitEls[j].classList.toggle('on', on);
+        U.bitEls[j].classList.toggle('add', !!ds && ds.cands.some(c => c.j === +j && c.better));
+        setText(U.bitEls[j].querySelector('.b'), on ? 1 : 0);
+      }
+      const W = n - 1;
+      U.minfo.innerHTML = ds
+        ? `mask = 0b${bin(mask, W)} = ${mask}　集合 ${setOf(mask, n)}<br>停在 <b>${ds.i}</b>，dp[${mask}][${ds.i}] = <b>${s.dp[mask][ds.i]}</b>`
+        : `mask = 0b${bin(mask, W)}（全部纳入）<br>${s.route ? `答案 res = <b style="color:var(--red)">${s.stats.res}</b>` : '再加上返回仓库的距离'}`;
+      const fin = !ds;
+      const heads = fin ? ['i', '', 'dp + dist[i][0]', '', '结果'] : ['j', 'tmp', '候选值', '原值', '结果'];
+      [...U.chead.children].forEach((sp, q) => setText(sp, heads[q]));
+      const rows = ds ? ds.cands.map(c => ({ k: 'c' + c.j, a: c.j, b: '0b' + bin(c.tmp, W), c: `${c.base} + ${c.d} = ${c.cand}`, d: fv(c.old), e: c.better ? '更新 ✓' : '不更优', cls: c.better ? 'better' : 'worse' }))
+        : (s.fins || []).filter(f => f.d !== INF).map(f => ({ k: 'f' + f.i, a: f.i, b: '', c: `${f.d} + ${f.back} = ${f.v}`, d: '', e: f.best ? '最小 ★' : '', cls: f.best ? 'best' : '' }));
+      keyed(U.cbody, rows, r => r.k, () => el('div', 'crow', '<span></span><span></span><span></span><span></span><span></span>'),
+        (row, r) => { const sp = row.children; [r.a, r.b, r.c, r.d, r.e].forEach((v, q) => setText(sp[q], v)); row.className = 'crow ' + r.cls; });
+    }
+
+    // dp 表
+    P.auxCard.dp.classList.toggle('dim', !s.dp);
+    const size = 2 ** (n - 1);
+    let focusRow = null;
+    for (let mask = 0; mask < size; mask++) {
+      U.dpRows[mask].classList.toggle('currow', !!ds && ds.mask === mask);
+      for (let i = 0; i < n; i++) {
+        const c = U.dpc[mask][i], v = s.dp ? s.dp[mask][i] : null;
+        setText(c, v == null ? '·' : fv(v), prev ? 'av-flash' : null);
+        let cls = v === INF || v == null ? 'inf' : '';
+        if (ds && ds.mask === mask && ds.i === i) cls = 'cur';
+        if (ds) { const c2 = ds.cands.find(q => q.tmp === mask && q.j === i); if (c2) cls = c2.better ? 'upd' : 'keep'; }
+        if ((s.fins || s.route) && mask === size - 1 && v !== INF && v != null) cls = (s.fins ? s.fins.find(f => f.i === i)?.best : s.route.at(-2) === i) ? 'best' : 'fin';
+        c.className = cls;
+      }
+      if (ds && ds.mask === mask) focusRow = U.dpRows[mask];
+    }
+    if (s.fins || s.route) focusRow = U.dpRows[size - 1];
+    if (focusRow) {
+      const box = U.dpScroll, top = focusRow.offsetTop, vh = box.clientHeight;
+      if (top < box.scrollTop + 30 || top + 30 > box.scrollTop + vh) box.scrollTo({ top: Math.max(0, top - vh / 2), behavior: AV.isInstant() ? 'auto' : 'smooth' });
+    }
+
+    // 路线
+    const rk = s.route ? s.route.join('-') : '';
+    if (U.routeBox.dataset.k !== rk) {
+      U.routeBox.dataset.k = rk;
+      U.routeBox.innerHTML = s.route
+        ? s.route.map((v, q) => (q ? `<span class="leg">—${s.legs[q - 1]}→</span>` : '') + `<span class="st${v === 0 ? ' wh' : ''}">${v}</span>`).join('') +
+          `<span class="leg">　总计 <b style="color:var(--red);font-size:15px">${s.stats.res}</b></span>`
+        : '<span class="hint">DP 完成后给出</span>';
+      flash(U.routeBox, 'fade-in');
+    }
+  },
+};
+
+function drawArrows(targets) {
+  const want = new Set(targets.map(t => t.key));
+  U.arrows.forEach((a, key) => {
+    if (want.has(key)) return;
+    U.arrows.delete(key);
+    if (AV.isInstant()) { a.g.remove(); return; }
+    a.g.style.opacity = 0;
+    setTimeout(() => a.g.remove(), AV.dur() + 40);
+  });
+  const placed = [...U.placed];
+  const unit = (x, y) => { const l = Math.hypot(x, y) || 1; return { x: x / l, y: y / l }; };
+  targets.forEach(t => {
+    const A = U.pos[t.a], B = U.pos[t.b];
+    const u = unit(B.x - A.x, B.y - A.y), nx = -u.y, ny = u.x;
+    const len = Math.hypot(B.x - A.x, B.y - A.y);
+    const bend = Math.min(36, len * .16 + 6);
+    const cx = (A.x + B.x) / 2 + nx * bend, cy = (A.y + B.y) / 2 + ny * bend;
+    const s0 = unit(cx - A.x, cy - A.y), s1 = unit(B.x - cx, B.y - cy);
+    const x0 = A.x + s0.x * (NR + 3), y0 = A.y + s0.y * (NR + 3), x1 = B.x - s1.x * (NR + 6), y1 = B.y - s1.y * (NR + 6);
+    const mx = (x0 + 2 * cx + x1) / 4, my = (y0 + 2 * cy + y1) / 4;
+    // 先在弧顶外侧找位置，不行再试内侧，逐步远离
+    let lb = null, bestN = Infinity;
+    for (const d of [11, 22, -11, 33, -22, 44, -33, 55]) {
+      const c = box(mx + nx * d, my + ny * d, t.label), k = placed.filter(q => hit(q, c)).length;
+      if (k < bestN) { bestN = k; lb = c; }
+      if (!k) break;
+    }
+    placed.push(lb);
+    const lx = lb.x, ly = lb.y;
+    t.geo = { x0, y0, cx, cy, x1, y1, lx, ly };
+  });
+  const ns = 'http://www.w3.org/2000/svg';
+  targets.forEach(t => {
+    let a = U.arrows.get(t.key);
+    if (!a) {
+      const g = document.createElementNS(ns, 'g'), path = document.createElementNS(ns, 'path'), text = document.createElementNS(ns, 'text');
+      g.append(path, text); U.gA.appendChild(g);
+      const { x0, y0 } = t.geo;
+      a = { g, path, text, cur: { x0, y0, cx: x0, cy: y0, x1: x0, y1: y0, lx: x0, ly: y0 } };
+      U.arrows.set(t.key, a);
+    }
+    a.path.style.stroke = COLORS[t.color];
+    a.path.style.strokeDasharray = t.dash ? '5 4' : '';
+    a.path.setAttribute('marker-end', `url(#mk-${t.color})`);
+    a.text.style.fill = COLORS[t.color];
+    a.text.textContent = t.label;
+    a.g.style.opacity = 1;
+    const from = { ...a.cur }, to = t.geo;
+    animate('arw-' + t.key, p => {
+      const c = {};
+      for (const k in to) c[k] = from[k] + (to[k] - from[k]) * p;
+      a.cur = c;
+      a.path.setAttribute('d', `M${c.x0},${c.y0} Q${c.cx},${c.cy} ${c.x1},${c.y1}`);
+      a.text.setAttribute('x', c.lx); a.text.setAttribute('y', c.ly);
+    });
+  });
+}
+
+AV.start(DEMO);
+})();
+</script>
+</body>
+</html>

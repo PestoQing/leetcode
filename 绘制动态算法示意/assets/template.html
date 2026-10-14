@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>算法动态演示</title>
+<style>
+/* =====================================================================
+   ENGINE STYLE —— 通用布局与风格（固定，生成新演示时不要改动）
+   ===================================================================== */
+:root {
+  --bg: #f5f7fb; --card: #fff; --line: #e5e7eb; --text: #1f2937; --muted: #6b7280;
+  --blue: #2563eb; --green: #16a34a; --red: #dc2626; --amber: #d97706; --purple: #7c3aed; --gray: #64748b;
+  --blue-l: #eff6ff; --green-l: #f0fdf4; --red-l: #fef2f2; --amber-l: #fffbeb; --purple-l: #f5f3ff;
+  --dur: 420ms; --ease: cubic-bezier(.4, 0, .2, 1);
+  --code-w: 720px; --code-fs: 14px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; }
+body.instant *, body.instant *::before, body.instant *::after { transition: none !important; animation: none !important; }
+
+header { flex: none; display: flex; align-items: baseline; gap: 14px; padding: 12px 20px 8px; min-width: 0; }
+header h1 { margin: 0; font-size: 19px; white-space: nowrap; }
+header .sub { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--code-w);
+  padding: 0 16px 14px 20px; transition: grid-template-columns var(--dur) var(--ease); }
+.app.dragging { transition: none; user-select: none; }
+.app.code-collapsed { grid-template-columns: minmax(0, 1fr) 12px 44px; }
+.left { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; min-width: 0; }
+.card-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px;
+  font-weight: 600; font-size: 15px; }
+.card-h .hint { font-weight: 400; text-align: right; }
+.hint { color: var(--muted); font-size: 12px; }
+.mono { font-family: Consolas, "Courier New", monospace; }
+.dim { opacity: .5; transition: opacity var(--dur); }
+
+/* 工具栏 */
+.toolbar { flex: none; display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.toolbar label { color: var(--muted); }
+input[type=text], input[type=number] { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px;
+  font-family: inherit; transition: border-color .15s, box-shadow .15s; }
+input[type=text]:focus, input[type=number]:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px #dbeafe; }
+button { padding: 6px 12px; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; cursor: pointer;
+  font-size: 14px; font-family: inherit; color: var(--text); transition: background .15s, border-color .15s; }
+button:hover { background: #eef2ff; border-color: #a5b4fc; }
+button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+button.primary:hover { background: #1d4ed8; }
+button.preset { font-size: 12px; padding: 3px 9px; }
+.progress { flex: 1; min-width: 140px; height: 8px; background: var(--line); border-radius: 4px; cursor: pointer;
+  position: relative; touch-action: none; margin: 0 8px; }
+.progress::before { content: ""; position: absolute; left: -8px; right: -8px; top: -9px; bottom: -9px; }
+.progress #prog { height: 100%; background: var(--blue); border-radius: 4px; transition: width var(--dur) var(--ease); }
+.progress .thumb { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--blue); box-shadow: 0 1px 4px rgba(0, 0, 0, .2); cursor: grab;
+  transition: left var(--dur) var(--ease), transform .15s; }
+.progress:hover .thumb, .progress.dragging .thumb { transform: scale(1.2); }
+.progress.dragging .thumb { cursor: grabbing; }
+.progress.dragging #prog, .progress.dragging .thumb { transition: none; }
+.progress .tip { position: absolute; bottom: 18px; transform: translateX(-50%); background: var(--text); color: #fff;
+  font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.progress.dragging .tip { opacity: 1; }
+.err { color: var(--red); font-size: 13px; }
+
+/* 统计卡片（保持这一风格：标题 + 大号彩色数字） */
+.stats { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 16px; transition: box-shadow .3s; }
+.stat .lab { font-size: 14px; font-weight: 600; line-height: 20px; }
+.stat .num { font-size: 32px; font-weight: 800; line-height: 1.45; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat .num small { font-size: 15px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+.stat .sub { font-size: 12px; color: var(--muted); height: 18px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat.red .num { color: var(--red); } .stat.green .num { color: var(--green); } .stat.blue .num { color: var(--blue); }
+.stat.amber .num { color: var(--amber); } .stat.purple .num { color: var(--purple); } .stat.gray .num { color: var(--gray); }
+.stat.bump { animation: bump .6s var(--ease); }
+@keyframes bump { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .35); } 100% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } }
+
+/* 主画布 + 下方两列 */
+.canvas-card { flex: none; }
+.bottom { flex: 1; min-height: 200px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
+.col > .card { flex: none; }
+.col > .card.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.card.grow > .card-b { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+
+/* 步骤说明 */
+.desc { font-size: 15px; line-height: 1.75; }
+.desc b { color: var(--blue); }
+.fade-in { animation: fadeIn var(--dur) var(--ease); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.tag { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-right: 6px; color: #fff; line-height: 20px; }
+.tag.pre { background: var(--purple); } .tag.hit { background: var(--green); } .tag.miss { background: var(--red); }
+.tag.info { background: var(--blue); } .tag.warn { background: var(--amber); }
+.phase { font-size: 12px; font-weight: 600; color: var(--blue); background: var(--blue-l); border-radius: 10px; padding: 1px 10px; }
+
+/* 通用：进入 / 闪烁动画 */
+.av-enter { animation: avEnter var(--dur) var(--ease); }
+@keyframes avEnter { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+.av-flash { animation: avFlash calc(var(--dur) * 1.6) var(--ease); }
+@keyframes avFlash { 0% { background: #fde68a; } 100% { background: transparent; } }
+
+/* 分隔条 */
+.splitter { position: relative; cursor: col-resize; }
+.splitter::after { content: ""; position: absolute; left: 5px; top: calc(50% - 30px); height: 60px; width: 3px; border-radius: 2px;
+  background: #cbd5e1; transition: background .15s; }
+.splitter:hover::after, .app.dragging .splitter::after { background: var(--blue); }
+.app.code-collapsed .splitter { cursor: default; }
+
+/* 代码位置：深色背景 + VS Code Dark Modern / Pylance 配色 */
+.right { min-width: 0; min-height: 0; display: flex; }
+.code-card { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #1f1f1f; border: 1px solid #2b2b2b;
+  border-radius: 12px; overflow: hidden; }
+.code-h { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #181818;
+  border-bottom: 1px solid #2b2b2b; color: #cccccc; font-size: 13px; white-space: nowrap; }
+.code-h .file { color: #e5e5e5; font-weight: 600; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; }
+.code-h .pyicon { width: 16px; height: 16px; border-radius: 3px; background: linear-gradient(135deg, #3572a5 50%, #ffd43b 50%); flex: none; }
+.code-h .pos { color: #8b949e; margin-left: auto; }
+.code-h button { background: transparent; border: 1px solid #3c3c3c; color: #cccccc; padding: 2px 8px; font-size: 12px; }
+.code-h button:hover { background: #2a2d2e; border-color: #555; }
+.code-h button.on { border-color: #0078d4; color: #fff; }
+.code-body { flex: 1; min-height: 0; position: relative; overflow-y: auto; overflow-x: hidden; padding: 8px 0 35vh;
+  font-family: Consolas, "Courier New", monospace; font-size: var(--code-fs); line-height: 1.45; color: #cccccc; }
+.code-body::-webkit-scrollbar { width: 12px; } .code-body::-webkit-scrollbar-thumb { background: #424242; }
+.code-body::-webkit-scrollbar-track { background: #1f1f1f; }
+.ln { display: flex; transition: background var(--dur) var(--ease); }
+.ln .g { flex: none; width: 4.4em; padding-right: 1.4em; text-align: right; color: #6e7681; user-select: none; position: relative;
+  transition: color var(--dur); }
+.ln .s { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all;
+  padding-left: calc(var(--ind) * 1ch + 4ch); text-indent: -4ch; padding-right: 12px;
+  background-image: repeating-linear-gradient(90deg, #404040 0 1px, transparent 1px 4ch);
+  background-size: calc(var(--ind) * 1ch) 100%; background-repeat: no-repeat; }
+.ln.on { background: rgba(255, 215, 0, .13); box-shadow: inset 3px 0 #ffd700; }
+.ln.on .g { color: #ffd700; }
+.ln.on .g::before { content: "➜"; position: absolute; left: .5em; color: #ffd700; }
+.code-body.no-cmt .ln.cmt { display: none; }
+.app.code-collapsed .code-body, .app.code-collapsed .code-h > :not(.collapse) { display: none; }
+.app.code-collapsed .code-h { flex: 1; flex-direction: column; justify-content: flex-start; padding: 10px 0; border: 0; }
+.app.code-collapsed .code-h .collapse::after { content: "代码位置"; display: block; writing-mode: vertical-rl; margin-top: 8px; letter-spacing: 2px; }
+.t-kw { color: #569cd6; } .t-ctl { color: #c586c0; } .t-fn { color: #dcdcaa; } .t-cls { color: #4ec9b0; }
+.t-str { color: #ce9178; } .t-num { color: #b5cea8; } .t-cmt { color: #6a9955; } .t-var { color: #9cdcfe; }
+.t-const { color: #4fc1ff; } .t-op { color: #d4d4d4; }
+.t-b0 { color: #ffd700; } .t-b1 { color: #da70d6; } .t-b2 { color: #179fff; }
+
+#av-check { display: none; }
+
+/* =====================================================================
+   DEMO STYLE —— 本题专用的可视化样式（生成新演示时替换这里）
+   ===================================================================== */
+.tl { position: relative; padding-top: 120px; }
+.tl svg { position: absolute; left: 0; top: 0; width: 100%; height: 120px; overflow: visible; pointer-events: none; }
+.tl svg > g path { fill: none; stroke-width: 2; transition: stroke var(--dur), stroke-width var(--dur), opacity var(--dur); }
+.tl svg text { font-size: 12px; font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round;
+  transition: fill var(--dur), opacity var(--dur); }
+.tl svg g { transition: opacity var(--dur); }
+.cells { display: flex; gap: var(--gap, 6px); padding-bottom: 14px; }
+.cell { flex: none; width: var(--cw, 52px); text-align: center; }
+.cell .idx { height: 16px; line-height: 16px; font-size: 11px; color: var(--muted); margin-bottom: 8px; font-variant-numeric: tabular-nums;
+  transition: color var(--dur); }
+.cell .val { height: 42px; line-height: 38px; border: 2px solid var(--line); border-radius: 8px; font-weight: 700;
+  font-size: var(--cfs, 18px); background: #fff;
+  transition: border-color var(--dur), background var(--dur), box-shadow var(--dur), color var(--dur); }
+.cell .np { height: 18px; line-height: 18px; margin-top: 8px; font-size: var(--npfs, 12px); color: var(--purple);
+  font-family: Consolas, monospace; white-space: nowrap; border-radius: 4px; }
+.cell.past .val { background: #f3f4f6; color: #9ca3af; }
+.cell.cur .idx { color: var(--blue); font-weight: 700; }
+.cell.cur .val { border-color: var(--blue); background: var(--blue-l); box-shadow: 0 0 0 3px #bfdbfe; color: var(--text); }
+.cell.cur.hit .val { border-color: var(--green); background: var(--green-l); box-shadow: 0 0 0 3px #bbf7d0; }
+.cell.cur.miss .val { border-color: var(--red); background: var(--red-l); box-shadow: 0 0 0 3px #fecaca; }
+.cell.cur.pre .val { border-color: var(--purple); background: var(--purple-l); box-shadow: 0 0 0 3px #ddd6fe; }
+.cell.target .val { border-color: var(--purple); border-style: dashed; }
+.cell.inf .val { border-style: dashed; color: var(--muted); }
+.cursor { position: absolute; bottom: 2px; height: 5px; border-radius: 3px; background: var(--blue); opacity: 0;
+  transition: left var(--dur) var(--ease), width var(--dur) var(--ease), background var(--dur), opacity var(--dur); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+
+.slots { display: flex; gap: 12px; flex-wrap: wrap; }
+.slot { width: 116px; border: 2px solid var(--line); border-radius: 10px; padding: 8px 6px; text-align: center; background: #fff;
+  transition: border-color var(--dur), background var(--dur); }
+.slot .name { font-size: 26px; font-weight: 800; height: 34px; line-height: 34px; }
+.slot .meta { font-size: 12px; color: var(--muted); height: 16px; white-space: nowrap; }
+.slot.empty .name { color: #d1d5db; font-size: 18px; font-weight: 600; }
+.slot.hit { border-color: var(--green); background: var(--green-l); }
+.slot.victim { border-color: var(--red); background: var(--red-l); animation: shake .45s; }
+.slot.new { border-color: var(--blue); background: var(--blue-l); }
+.slot .name.swap { animation: swap var(--dur) var(--ease); }
+@keyframes swap { from { opacity: 0; transform: translateY(10px) scale(.85); } to { opacity: 1; transform: none; } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+.htable { font-size: 13px; }
+.hrow { display: grid; grid-template-columns: .9fr 1.5fr .8fr .8fr 1.1fr; align-items: center; height: 28px;
+  border-bottom: 1px solid var(--line); text-align: center; border-radius: 6px;
+  transition: background var(--dur), color var(--dur), opacity var(--dur); }
+.hhead { color: var(--muted); font-weight: 600; }
+.hbody { position: relative; }
+.hrow.stale { color: #9ca3af; } .hrow.stale > span:not(:last-child) { text-decoration: line-through; }
+.hrow.top { background: var(--red-l); color: var(--red); font-weight: 700; }
+.hrow.fresh { background: var(--blue-l); }
+.kv { position: relative; display: flex; flex-wrap: wrap; gap: 6px; }
+.kv span { background: #f3f4f6; border-radius: 6px; padding: 3px 9px; font-size: 13px; font-family: Consolas, monospace; }
+.cmp { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 13px; }
+.cmp .best { color: var(--green); font-weight: 800; }
+</style>
+</head>
+<body>
+<header><h1 id="title"></h1><div class="sub" id="subtitle"></div></header>
+
+<div class="app" id="app">
+  <section class="left" id="left">
+    <div class="card toolbar">
+      <div class="row" id="inputs"></div>
+      <div class="row">
+        <button id="btnFirst" title="第一步">⏮</button>
+        <button id="btnPrev">◀ 上一步</button>
+        <button class="primary" id="btnPlay">▶ 播放</button>
+        <button id="btnNext">下一步 ▶</button>
+        <button id="btnLast" title="最后一步">⏭</button>
+        <span class="hint">慢</span><input id="speed" type="range" min="300" max="2600" value="1200" style="width:110px;direction:rtl"><span class="hint">快</span>
+        <div class="progress" id="progress" title="点击或拖动跳转"><div id="prog"></div><div class="thumb" id="thumb"></div><div class="tip" id="progTip"></div></div>
+        <span id="stepNo" class="hint mono"></span>
+        <span class="hint">← → 单步 · 空格 播放 · 进度条可拖动</span>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="card canvas-card">
+      <div class="card-h"><span id="canvasTitle"></span><span class="hint" id="canvasHint"></span></div>
+      <div id="canvas"></div>
+    </div>
+    <div class="bottom">
+      <div class="col">
+        <div class="card">
+          <div class="card-h"><span>当前步骤</span><span class="phase" id="phase"></span></div>
+          <div class="desc" id="desc"></div>
+        </div>
+        <div class="card grow" id="stateCard">
+          <div class="card-h"><span id="stateTitle"></span><span class="hint" id="stateHint"></span></div>
+          <div class="card-b" id="state"></div>
+        </div>
+      </div>
+      <div class="col" id="auxCol"></div>
+    </div>
+  </section>
+  <div class="splitter" id="splitter" title="拖动调整宽度，双击恢复"></div>
+  <aside class="right">
+    <div class="code-card">
+      <div class="code-h">
+        <button class="collapse" id="btnCollapse" title="折叠 / 展开代码">⇥</button>
+        <span class="file"><span class="pyicon"></span><span>代码位置 · <span id="fileName"></span></span></span>
+        <span class="pos" id="codePos"></span>
+        <button id="btnCmt" title="显示 / 隐藏纯注释行">注释</button>
+        <button id="btnFsDown" title="缩小字号">A−</button>
+        <button id="btnFsUp" title="放大字号">A+</button>
+      </div>
+      <div class="code-body" id="codeBody"></div>
+    </div>
+  </aside>
+</div>
+<pre id="av-check"></pre>
+
+<!-- 对应 .py 的完整源码，用 scripts/embed_source.py 写入（保持与源文件一致） -->
+<script type="text/plain" id="py-source">
+</script>
+
+<script>
+/* =====================================================================
+   ENGINE —— 播放器 / 布局 / 代码高亮 / 平滑过渡 / 自检（通用，勿改）
+   ===================================================================== */
+const AV = (() => {
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  let DUR = 420, instant = false;
+  const dur = () => (instant ? 0 : DUR);
+  const ease = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+  // ---------- 动画工具 ----------
+  const anims = new Map();
+  function animate(key, step, done, ms = dur()) {
+    if (anims.has(key)) cancelAnimationFrame(anims.get(key));
+    anims.delete(key);
+    if (ms <= 0) { step(1); done && done(); return; }
+    const t0 = performance.now();
+    const f = now => {
+      const p = Math.min(1, (now - t0) / ms);
+      step(ease(p));
+      if (p < 1) anims.set(key, requestAnimationFrame(f)); else { anims.delete(key); done && done(); }
+    };
+    anims.set(key, requestAnimationFrame(f));
+  }
+  function flash(node, cls) { if (instant) return; node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls); }
+  function setText(node, text, flashCls) {
+    const t = String(text);
+    if (node.textContent === t) return false;
+    node.textContent = t;
+    if (flashCls) flash(node, flashCls);
+    return true;
+  }
+  // 按 key 复用 DOM：移动 FLIP 平滑过渡，新增淡入，删除淡出（容器需 position:relative）
+  function keyed(box, items, keyOf, create, update) {
+    const ms = dur();
+    const old = new Map();
+    for (const c of [...box.children]) if (c.dataset.key != null && !c.classList.contains('av-leaving')) old.set(c.dataset.key, c);
+    const first = new Map();
+    if (ms) old.forEach((c, k) => first.set(k, c.getBoundingClientRect().top));
+    const want = new Set(items.map(it => String(keyOf(it))));
+    old.forEach((c, k) => {
+      if (want.has(k)) return;
+      if (!ms) { c.remove(); return; }
+      const st = { position: 'absolute', top: c.offsetTop + 'px', left: c.offsetLeft + 'px', width: c.offsetWidth + 'px' };
+      c.classList.add('av-leaving');
+      Object.assign(c.style, st, { transition: `opacity ${ms}ms, transform ${ms}ms`, pointerEvents: 'none' });
+      requestAnimationFrame(() => { c.style.opacity = 0; c.style.transform = 'translateX(18px)'; });
+      setTimeout(() => c.remove(), ms + 40);
+    });
+    const nodes = items.map(it => {
+      const k = String(keyOf(it));
+      let c = old.get(k), isNew = false;
+      if (!c) { c = create(it); c.dataset.key = k; isNew = true; }
+      update(c, it, isNew);
+      box.appendChild(c);
+      return c;
+    });
+    if (!ms) return;
+    nodes.forEach(c => {
+      const k = c.dataset.key;
+      if (!first.has(k)) { flash(c, 'av-enter'); return; }
+      const dy = first.get(k) - c.getBoundingClientRect().top;
+      if (Math.abs(dy) < .5) return;
+      c.style.transition = 'none';
+      c.style.transform = `translateY(${dy}px)`;
+      void c.offsetWidth;
+      c.style.transition = `transform ${ms}ms cubic-bezier(.4,0,.2,1), background ${ms}ms, color ${ms}ms`;
+      c.style.transform = '';
+      setTimeout(() => { c.style.transition = ''; }, ms + 20);
+    });
+  }
+
+  // ---------- Python 高亮（VS Code Dark Modern + Pylance 语义配色） ----------
+  const CTL = new Set('if elif else for while return import from as try except finally raise with break continue pass yield await async del global nonlocal assert match case'.split(' '));
+  const KW = new Set('def class lambda None True False and or not in is self cls'.split(' '));
+  const CLS = new Set('int float str bool list dict set tuple range object type bytes frozenset complex Exception ValueError KeyError IndexError TypeError deque defaultdict Counter OrderedDict'.split(' '));
+  function highlightPython(src) {
+    const lines = src.split('\n');
+    const modules = new Set();
+    for (const l of lines) {
+      let m = l.match(/^\s*import\s+([\w., ]+)/);
+      if (m) m[1].split(',').forEach(p => { const a = p.trim().split(/\s+as\s+/); modules.add((a[1] || a[0]).split('.')[0].trim()); });
+      m = l.match(/^\s*from\s+([\w.]+)\s+import/);
+      if (m) modules.add(m[1].split('.')[0]);
+    }
+    let depth = 0, triple = null;
+    const re = /(#.*)|([rRbBuUfF]{0,2})("""|'''|"(?:\\.|[^"\\])*"?|'(?:\\.|[^'\\])*'?)|(\d[\d_]*(?:\.\d*)?(?:[eE][+-]?\d+)?j?)|([A-Za-z_\u00c0-\uffff][\w\u00c0-\uffff]*)|([()[\]{}])|(\s+)|([\s\S])/y;
+    return lines.map(raw => {
+      const line = raw.replace(/\t/g, '    ');
+      const indent = line.match(/^ */)[0].length;
+      const toks = [];
+      let i = indent;
+      if (triple) {
+        const end = line.indexOf(triple, i);
+        if (end < 0) return { html: `<span class="t-str">${esc(line.slice(i))}</span>`, indent, cmt: false };
+        toks.push(['str', line.slice(i, end + 3)]); i = end + 3; triple = null;
+      }
+      while (i < line.length) {
+        re.lastIndex = i;
+        const m = re.exec(line);
+        if (!m) break;
+        if (m[1]) toks.push(['cmt', m[1]]);
+        else if (m[3] !== undefined && (m[3] || m[2])) {
+          if (m[2]) toks.push([/[fF]/.test(m[2]) ? 'kw' : 'str', m[2]]);
+          let s = m[3];
+          if (s === '"""' || s === "'''") {
+            const end = line.indexOf(s, re.lastIndex);
+            if (end < 0) { s = line.slice(m.index + m[2].length); triple = m[3]; re.lastIndex = line.length; }
+            else { s = line.slice(m.index + m[2].length, end + 3); re.lastIndex = end + 3; }
+          }
+          toks.push(['str', s]);
+        }
+        else if (m[4]) toks.push(['num', m[4]]);
+        else if (m[5]) toks.push(['id', m[5]]);
+        else if (m[6]) toks.push(['br', m[6]]);
+        else if (m[7]) toks.push(['ws', m[7]]);
+        else toks.push(['op', m[8]]);
+        i = re.lastIndex;
+      }
+      const sig = toks.map((t, k) => k).filter(k => toks[k][0] !== 'ws');
+      const html = toks.map((t, k) => {
+        const [type, w] = t;
+        if (type === 'ws') return w;
+        if (type === 'br') {
+          if ('([{'.includes(w)) { const c = depth % 3; depth++; return `<span class="t-b${c}">${w}</span>`; }
+          depth = Math.max(0, depth - 1); return `<span class="t-b${depth % 3}">${w}</span>`;
+        }
+        if (type !== 'id') return `<span class="t-${type}">${esc(w)}</span>`;
+        const p = sig.indexOf(k), prev = p > 0 ? toks[sig[p - 1]][1] : '', next = p < sig.length - 1 ? toks[sig[p + 1]][1] : '';
+        let c = 'var';
+        if (prev === 'def') c = 'fn';
+        else if (prev === 'class') c = 'cls';
+        else if (CTL.has(w)) c = 'ctl';
+        else if (KW.has(w)) c = 'kw';
+        else if (prev === '.') c = next === '(' ? 'fn' : 'var';
+        else if (modules.has(w)) c = 'cls';
+        else if (next === '(') c = CLS.has(w) || /^[A-Z]/.test(w) ? 'cls' : 'fn';
+        else if (CLS.has(w)) c = 'cls';
+        else if (/^[A-Z][A-Z0-9_]+$/.test(w)) c = 'const';
+        return `<span class="t-${c}">${esc(w)}</span>`;
+      }).join('');
+      return { html, indent, cmt: line.trim().startsWith('#') };
+    });
+  }
+
+  // ---------- 代码面板 ----------
+  let srcLines = [], codeEls = [];
+  function mountCode(fileName) {
+    const src = $('py-source').textContent.replace(/\r\n?/g, '\n').replace(/^\n/, '').replace(/\s+$/, '');
+    srcLines = src.split('\n');
+    $('fileName').textContent = fileName || '';
+    const body = $('codeBody');
+    body.innerHTML = '';
+    codeEls = highlightPython(src).map((h, k) => {
+      const ln = el('div', 'ln' + (h.cmt ? ' cmt' : ''));
+      ln.innerHTML = `<span class="g">${k + 1}</span><span class="s" style="--ind:${h.indent}">${h.html || ' '}</span>`;
+      body.appendChild(ln);
+      return ln;
+    });
+  }
+  // 按源码内容定位行号：lineOf('res += 1')，nth 表示第几处匹配（忽略注释部分）
+  function lineOf(text, nth = 1) {
+    let cnt = 0;
+    for (let k = 0; k < srcLines.length; k++) {
+      const code = srcLines[k].replace(/#.*$/, '');
+      if (code.includes(text) && ++cnt === nth) return k + 1;
+    }
+    console.error('[AV] lineOf 未找到：', text, nth);
+    return 0;
+  }
+  function setCodeLines(lines) {
+    lines = (lines || []).filter(Boolean);
+    const set = new Set(lines);
+    codeEls.forEach((e, k) => e.classList.toggle('on', set.has(k + 1)));
+    const sorted = [...set].sort((a, b) => a - b);
+    $('codePos').textContent = sorted.length ? `第 ${sorted.length > 1 && sorted.at(-1) - sorted[0] === sorted.length - 1 ? sorted[0] + '–' + sorted.at(-1) : sorted.join(', ')} 行` : '';
+    if (!sorted.length) return;
+    const body = $('codeBody'), a = codeEls[sorted[0] - 1], b = codeEls[sorted.at(-1) - 1];
+    const top = a.offsetTop, bottom = b.offsetTop + b.offsetHeight, vt = body.scrollTop, vh = body.clientHeight;
+    if (top < vt + vh * .12 || bottom > vt + vh * .82) body.scrollTo({ top: Math.max(0, top - vh * .3), behavior: instant ? 'auto' : 'smooth' });
+  }
+
+  // ---------- 播放器与布局 ----------
+  let D, data, steps = [], cur = 0, timer = null;
+  const statEls = {}, P = { aux: {}, auxCard: {} };
+  const speedMs = () => +$('speed').value;
+  function setSpeed() {
+    DUR = clamp(Math.round(speedMs() * .5), 180, 650);
+    document.documentElement.style.setProperty('--dur', DUR + 'ms');
+  }
+
+  function setStat(def, val) {
+    const t = statEls[def.key];
+    const o = val !== null && typeof val === 'object' ? val : { v: val };
+    const v = o.v ?? '—';
+    if (typeof v === 'number' && typeof t.cur === 'number' && t.cur !== v && !instant) {
+      const a = t.cur;
+      animate('stat-' + def.key, p => { t.n.textContent = Math.round(a + (v - a) * p); });
+      flash(t.box, 'bump');
+    } else {
+      if (anims.has('stat-' + def.key)) { cancelAnimationFrame(anims.get('stat-' + def.key)); anims.delete('stat-' + def.key); }
+      t.n.textContent = v;
+    }
+    t.cur = v;
+    t.unit.textContent = o.unit || '';
+    t.sub.textContent = o.sub || '';
+  }
+
+  function render(prev) {
+    const s = steps[cur];
+    const pct = (steps.length > 1 ? cur / (steps.length - 1) * 100 : 100) + '%';
+    $('prog').style.width = pct;
+    $('thumb').style.left = pct;
+    $('progTip').style.left = pct;
+    $('progTip').textContent = `第 ${cur + 1} 步`;
+    $('stepNo').textContent = `${cur + 1} / ${steps.length}`;
+    const html = (s.tag ? `<span class="tag ${s.tag.kind || 'info'}">${s.tag.text}</span>` : '') + s.desc;
+    if ($('desc').innerHTML !== html) { $('desc').innerHTML = html; flash($('desc'), 'fade-in'); }
+    setText($('phase'), s.phase || '');
+    (D.stats || []).forEach(def => setStat(def, s.stats ? s.stats[def.key] : undefined));
+    setCodeLines(s.lines);
+    D.render(s, prev, data, P);
+  }
+  function go(k) {
+    k = clamp(k, 0, steps.length - 1);
+    const prev = steps[cur];
+    cur = k;
+    render(prev === steps[cur] ? null : prev);
+  }
+  function stop() { clearTimeout(timer); timer = null; $('btnPlay').textContent = '▶ 播放'; }
+  function play() {
+    if (timer) return stop();
+    if (cur >= steps.length - 1) go(0);
+    $('btnPlay').textContent = '⏸ 暂停';
+    const tick = () => {
+      if (cur >= steps.length - 1) return stop();
+      go(cur + 1);
+      timer = setTimeout(tick, speedMs());
+    };
+    timer = setTimeout(tick, 120);
+  }
+  function withInstant(fn) { const was = instant; instant = true; document.body.classList.add('instant'); try { fn(); } finally { instant = was; if (!was) { void document.body.offsetWidth; document.body.classList.remove('instant'); } } }
+
+  function apply() {
+    stop();
+    const values = {};
+    (D.inputs || []).forEach(f => { values[f.id] = $('in-' + f.id).value; });
+    const r = D.parse(values);
+    if (r.error) { $('err').textContent = r.error; return false; }
+    $('err').textContent = '';
+    data = r;
+    steps = D.build(data);
+    for (const k in P.aux) P.aux[k].innerHTML = '';
+    $('canvas').innerHTML = ''; $('state').innerHTML = '';
+    withInstant(() => {
+      D.mount(data, P);
+      cur = 0;
+      D.layout && D.layout(data, P);
+      render(null);
+    });
+    return true;
+  }
+
+  function buildShell() {
+    document.title = D.title;
+    $('title').textContent = D.title;
+    $('subtitle').innerHTML = D.subtitle || '';
+    const inputs = $('inputs');
+    (D.inputs || []).forEach(f => {
+      inputs.appendChild(el('label', '', f.label));
+      const inp = el('input');
+      inp.type = f.type || 'text'; inp.id = 'in-' + f.id; inp.value = f.value;
+      if (f.width) inp.style.width = f.width + 'px';
+      if (f.flex) { inp.style.flex = '1'; inp.style.minWidth = '200px'; }
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') apply(); });
+      inputs.appendChild(inp);
+    });
+    const btn = el('button', 'primary', '生成演示'); btn.onclick = apply; inputs.appendChild(btn);
+    if (D.presets && D.presets.length) inputs.appendChild(el('span', 'hint', '预设：'));
+    (D.presets || []).forEach(p => {
+      const b = el('button', 'preset', p.label);
+      b.onclick = () => { for (const k in p.values) $('in-' + k).value = p.values[k]; apply(); };
+      inputs.appendChild(b);
+    });
+    inputs.appendChild(el('span', 'err')).id = 'err';
+
+    (D.stats || []).forEach(def => {
+      const box = el('div', 'stat ' + (def.color || 'blue'));
+      box.innerHTML = `<div class="lab">${def.label}</div><div class="num"><span class="n">—</span><small></small></div><div class="sub"></div>`;
+      $('stats').appendChild(box);
+      statEls[def.key] = { box, n: box.querySelector('.n'), unit: box.querySelector('small'), sub: box.querySelector('.sub'), cur: null };
+    });
+
+    const pn = D.panels || {};
+    $('canvasTitle').textContent = pn.canvas?.title || '';
+    $('canvasHint').textContent = pn.canvas?.hint || '';
+    $('stateTitle').textContent = pn.state?.title || '';
+    $('stateHint').textContent = pn.state?.hint || '';
+    P.canvas = $('canvas'); P.state = $('state'); P.stateHint = $('stateHint'); P.stateCard = $('stateCard');
+    (pn.aux || []).forEach(a => {
+      const card = el('div', 'card' + (a.grow ? ' grow' : ''));
+      card.innerHTML = `<div class="card-h"><span>${a.title}</span><span class="hint">${a.hint || ''}</span></div><div class="card-b"></div>`;
+      $('auxCol').appendChild(card);
+      P.aux[a.id] = card.querySelector('.card-b');
+      P.auxCard[a.id] = card;
+    });
+    mountCode(D.file);
+  }
+
+  function wire() {
+    $('btnFirst').onclick = () => { stop(); go(0); };
+    $('btnLast').onclick = () => { stop(); go(steps.length - 1); };
+    $('btnPrev').onclick = () => { stop(); go(cur - 1); };
+    $('btnNext').onclick = () => { stop(); go(cur + 1); };
+    $('btnPlay').onclick = play;
+    $('speed').oninput = setSpeed;
+    // 进度条：点击跳转 / 按住拖动逐步刷过（每经过一步都正常渲染，保持过渡）
+    const bar = $('progress');
+    const seek = e => {
+      const r = bar.getBoundingClientRect();
+      const k = Math.round(clamp((e.clientX - r.left) / r.width, 0, 1) * (steps.length - 1));
+      if (k !== cur) go(k);
+    };
+    bar.addEventListener('pointerdown', e => {
+      stop(); bar.setPointerCapture(e.pointerId); bar.classList.add('dragging'); seek(e);
+      const up = () => { bar.classList.remove('dragging'); bar.removeEventListener('pointermove', seek); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up); };
+      bar.addEventListener('pointermove', seek); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+    });
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight') { stop(); go(cur + 1); }
+      else if (e.key === 'ArrowLeft') { stop(); go(cur - 1); }
+      else if (e.key === ' ') { e.preventDefault(); play(); }
+      else if (e.key === 'Home') { stop(); go(0); }
+      else if (e.key === 'End') { stop(); go(steps.length - 1); }
+    });
+
+    // 代码面板：可拖动宽度 / 折叠 / 注释开关 / 字号
+    const app = $('app'), sp = $('splitter'), LS = 'algoviz.';
+    const defW = () => clamp(Math.round(window.innerWidth * .4), 420, 820);
+    const setW = w => app.style.setProperty('--code-w', clamp(w, 320, window.innerWidth - 700) + 'px');
+    setW(+localStorage.getItem(LS + 'codeW') || defW());
+    sp.addEventListener('pointerdown', e => {
+      if (app.classList.contains('code-collapsed')) return;
+      sp.setPointerCapture(e.pointerId); app.classList.add('dragging');
+      const right = app.getBoundingClientRect().right - 16;
+      const move = ev => setW(right - ev.clientX - 6);
+      const up = () => {
+        sp.removeEventListener('pointermove', move); sp.removeEventListener('pointerup', up);
+        app.classList.remove('dragging');
+        localStorage.setItem(LS + 'codeW', parseInt(app.style.getPropertyValue('--code-w')));
+      };
+      sp.addEventListener('pointermove', move); sp.addEventListener('pointerup', up);
+    });
+    sp.ondblclick = () => { localStorage.removeItem(LS + 'codeW'); setW(defW()); };
+    const setCollapsed = c => { app.classList.toggle('code-collapsed', c); $('btnCollapse').textContent = c ? '⇤' : '⇥'; localStorage.setItem(LS + 'collapsed', c ? 1 : ''); };
+    setCollapsed(!!localStorage.getItem(LS + 'collapsed'));
+    $('btnCollapse').onclick = () => setCollapsed(!app.classList.contains('code-collapsed'));
+    const setCmt = show => { $('codeBody').classList.toggle('no-cmt', !show); $('btnCmt').classList.toggle('on', show); localStorage.setItem(LS + 'hideCmt', show ? '' : 1); };
+    setCmt(!localStorage.getItem(LS + 'hideCmt'));
+    $('btnCmt').onclick = () => setCmt($('codeBody').classList.contains('no-cmt'));
+    let fs = +localStorage.getItem(LS + 'fs') || 14;
+    const setFs = v => { fs = clamp(v, 11, 20); document.documentElement.style.setProperty('--code-fs', fs + 'px'); localStorage.setItem(LS + 'fs', fs); };
+    setFs(fs);
+    $('btnFsDown').onclick = () => setFs(fs - 1);
+    $('btnFsUp').onclick = () => setFs(fs + 1);
+
+    // 画布尺寸变化（窗口缩放、拖动分隔条、折叠代码）时重新排版，不做过渡
+    let raf = 0;
+    new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => withInstant(() => { D.layout && D.layout(data, P); D.render(steps[cur], null, data, P); }));
+    }).observe($('canvas'));
+  }
+
+  // ---------- 自检：文字互相遮挡 / 左侧需滚动 / 代码横向滚动 ----------
+  function textRects(root) {
+    const out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    while (w.nextNode()) {
+      const node = w.currentNode;
+      if (!node.textContent.trim()) continue;
+      const host = node.parentElement;
+      if (host.closest('.av-leaving, svg defs, .slots .empty')) continue;
+      const cs = getComputedStyle(host);
+      if (cs.visibility === 'hidden' || +cs.opacity === 0) continue;
+      range.selectNodeContents(node);
+      // 被滚动容器裁掉（不可见）的部分不参与检查
+      let clip = null;
+      for (let a = host.parentElement; a && a !== root; a = a.parentElement) {
+        const o = getComputedStyle(a);
+        if (/(auto|scroll|hidden)/.test(o.overflowY + o.overflowX)) { clip = a.getBoundingClientRect(); break; }
+      }
+      for (const r0 of range.getClientRects()) {
+        let r = r0;
+        if (clip) {
+          const l = Math.max(r.left, clip.left), t = Math.max(r.top, clip.top), rr = Math.min(r.right, clip.right), b = Math.min(r.bottom, clip.bottom);
+          if (rr - l <= 1 || b - t <= 1) continue;
+          r = { left: l, top: t, right: rr, bottom: b, width: rr - l, height: b - t };
+        }
+        if (r.width > 1 && r.height > 1) out.push({ r, host, text: node.textContent.trim().slice(0, 16) });
+      }
+    }
+    return out;
+  }
+  const inter = (a, b, pad = 0) => Math.min(a.right + pad, b.right + pad) - Math.max(a.left - pad, b.left - pad) > 1.5 &&
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1.5;
+  function checkOnce(stepIdx, issues) {
+    const left = $('left');
+    const ts = textRects(left);
+    for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) {
+      const a = ts[i], b = ts[j];
+      if (a.host === b.host || a.host.contains(b.host) || b.host.contains(a.host)) continue;
+      if (inter(a.r, b.r)) issues.push({ step: stepIdx, type: '文字重叠', a: a.text, b: b.text });
+    }
+    const solids = [...left.querySelectorAll('[data-solid]')].map(e => {
+      const r = e.getBoundingClientRect(), g = +(e.dataset.ring || 0);
+      return { e, r: { left: r.left - g, right: r.right + g, top: r.top - g, bottom: r.bottom + g } };
+    });
+    for (const path of left.querySelectorAll('svg [marker-end], svg [marker-start]')) {
+      if (path.closest('.av-leaving') || +getComputedStyle(path.closest('g') || path).opacity === 0) continue;
+      const id = (path.getAttribute('marker-end') || path.getAttribute('marker-start')).match(/#([^)]+)/)?.[1];
+      const head = id && document.getElementById(id)?.querySelector('path, polygon');
+      const cs = head && getComputedStyle(head);
+      if (!cs || (cs.fill === 'none' && (cs.stroke === 'none' || parseFloat(cs.strokeWidth) === 0)))
+        issues.push({ step: stepIdx, type: '连线缺少箭头', a: id || '(无 marker)', b: path.getAttribute('d')?.slice(0, 20) || '' });
+    }
+    for (const t of ts) for (const s of solids) {
+      if (s.e.contains(t.host)) continue;
+      if (inter(t.r, s.r)) issues.push({ step: stepIdx, type: '元素遮挡文字', a: t.text, b: s.e.className });
+    }
+  }
+  function runCheck() {
+    const issues = [];
+    let total = 0;
+    // 逐个预设、逐步检查；没有预设时只检查当前输入
+    const runs = D.presets && D.presets.length ? D.presets : [null];
+    runs.forEach(p => {
+      if (p) { for (const k in p.values) $('in-' + k).value = p.values[k]; if (!apply()) return; }
+      const tagged = [];
+      withInstant(() => { for (let k = 0; k < steps.length; k++) { go(k); checkOnce(k, tagged); } go(0); });
+      total += steps.length;
+      tagged.forEach(it => { it.step = (p ? p.label + ' · ' : '') + 'step ' + it.step; issues.push(it); });
+    });
+    const left = $('left'), body = $('codeBody');
+    const uniq = [], seen = new Set();
+    for (const it of issues) { const key = it.type + it.a + '|' + it.b; if (!seen.has(key)) { seen.add(key); uniq.push(it); } }
+    const res = {
+      viewport: [window.innerWidth, window.innerHeight], steps: total, lastSteps: steps.length,
+      leftNeedsScroll: Math.max(0, left.scrollHeight - left.clientHeight),
+      codeHScroll: Math.max(0, body.scrollWidth - body.clientWidth),
+      overlaps: uniq.slice(0, 30), overlapCount: uniq.length,
+    };
+    $('av-check').textContent = JSON.stringify(res);
+    document.title = 'AVCHECK ' + (res.leftNeedsScroll || res.codeHScroll || res.overlapCount ? 'FAIL' : 'OK');
+  }
+
+  function start(demo) {
+    D = demo;
+    buildShell();
+    wire();
+    setSpeed();
+    apply();
+    const h = new URLSearchParams(location.hash.slice(1));
+    const pre = D.presets && D.presets[+h.get('preset')];
+    if (h.has('preset') && pre) { for (const k in pre.values) $('in-' + k).value = pre.values[k]; apply(); }
+    if (h.has('step')) withInstant(() => go(+h.get('step')));
+    if (h.has('check')) setTimeout(runCheck, 50);
+  }
+
+  return { $, el, esc, clamp, dur, animate, flash, setText, keyed, lineOf, start, isInstant: () => instant };
+})();
+</script>
+
+<script>
+/* =====================================================================
+   DEMO —— 本题专用：输入解析、步骤生成、可视化挂载与渲染（生成新演示时替换这里）
+   示例：文远1.py · Belady 最优缓存替换
+   ===================================================================== */
+(() => {
+const { el, esc, clamp, animate, setText, flash, keyed, lineOf: L } = AV;
+const ARC_H = 120, BASE = ARC_H - 4;
+const COLORS = { purple: '#7c3aed', red: '#dc2626', green: '#16a34a', blue: '#2563eb' };
+let U = null, lastStep = null;
+
+const fmt = (v, n) => (v >= n ? `${v}（∞）` : `${v}`);
+
+function compare(m, nums) {
+  const run = pick => {
+    let c = [], cnt = 0;
+    nums.forEach((x, i) => {
+      const k = c.indexOf(x);
+      if (k >= 0) { if (pick === 'LRU') { c.splice(k, 1); c.push(x); } return; }
+      cnt++;
+      if (c.length === m) {
+        if (pick === 'OPT') {
+          let best = -1, bi = 0;
+          c.forEach((y, j) => { let p = nums.indexOf(y, i + 1); if (p < 0) p = Infinity; if (p > best) { best = p; bi = j; } });
+          c.splice(bi, 1);
+        } else c.shift();
+      }
+      c.push(x);
+    });
+    return cnt;
+  };
+  return { OPT: run('OPT'), LRU: run('LRU'), FIFO: run('FIFO') };
+}
+
+const DEMO = {
+  file: '文远1.py',
+  title: '端侧模型缓存 · Belady 最优替换（文远1）',
+  subtitle: '缓存满时淘汰<b>下一次使用最晚</b>的模型（以后不再使用的优先）。① 倒序预处理 next_pos　② 最大堆模拟缓存',
+  inputs: [
+    { id: 'm', label: 'm =', value: '3', type: 'number', width: 64 },
+    { id: 'seq', label: '调用序列', value: '1 2 3 4 1 2 5 1 2 3 4 5', flex: true },
+  ],
+  presets: [
+    { label: '测试1', values: { m: 3, seq: '1 2 1 3 1' } },
+    { label: '测试2', values: { m: 2, seq: '1 2 3 1 2 3' } },
+    { label: '测试3', values: { m: 1, seq: '1 2 1 2' } },
+    { label: '经典例子', values: { m: 3, seq: '1 2 3 4 1 2 5 1 2 3 4 5' } },
+    { label: '教材例子', values: { m: 3, seq: '7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1' } },
+  ],
+  stats: [
+    { key: 'res', label: '累计加载次数 res', color: 'red' },
+    { key: 'hit', label: '命中次数', color: 'green' },
+    { key: 'i', label: '当前调用 i', color: 'blue' },
+    { key: 'used', label: '缓存占用', color: 'amber' },
+    { key: 'heap', label: '堆中记录', color: 'purple' },
+  ],
+  panels: {
+    canvas: { title: '调用时间轴', hint: '弧线：当前时刻 → 各模型下一次使用位置（红 = 将被淘汰）；紫色数字为 next_pos[i]，≥ n 为哨兵' },
+    state: { title: '缓存 seen' },
+    aux: [
+      { id: 'heap', title: '最大堆 heap', hint: '按下次使用位置降序；划线 = 过期记录', grow: true },
+      { id: 'last', title: 'last_seen（倒序扫描）' },
+      { id: 'cmp', title: '策略对比（加载次数）' },
+    ],
+  },
+
+  parse(v) {
+    const m = parseInt(v.m, 10);
+    const nums = String(v.seq).trim().split(/[\s,，]+/).filter(Boolean);
+    if (!(m >= 1)) return { error: 'm 需 ≥ 1' };
+    if (!nums.length) return { error: '调用序列不能为空' };
+    if (nums.length > 32) return { error: '序列长度 ≤ 32，保证一屏内展示' };
+    return { m, nums, n: nums.length, cmp: compare(m, nums) };
+  },
+
+  build({ m, nums, n, cmp }) {
+    const steps = [];
+    const nextPos = new Array(n).fill(null), lastSeen = {};
+    const preStats = i => ({ res: 0, hit: 0, i: i == null ? '—' : { v: i, sub: '倒序扫描' }, used: { v: 0, unit: `/ ${m}` }, heap: { v: 0 } });
+
+    steps.push({ phase: '阶段一 · 倒序预处理', tag: { text: '预处理', kind: 'pre' }, lines: [L('last_seen = {}'), L('next_pos = []')],
+      i: null, nextPos: [...nextPos], lastSeen: {}, stats: preStats(null),
+      desc: `从右往左扫描，用 <b>last_seen</b> 记录每个模型在右侧最近的出现位置，求出每次调用之后同一模型<b>下一次出现的位置</b> next_pos[i]。` });
+    for (let i = n - 1; i >= 0; i--) {
+      const x = nums[i], had = x in lastSeen;
+      nextPos[i] = had ? lastSeen[x] : n + i;
+      const desc = had
+        ? `i = ${i}，模型 <b>${esc(x)}</b>：last_seen[${esc(x)}] = ${lastSeen[x]}，所以 <b>next_pos[${i}] = ${lastSeen[x]}</b>。随后更新 last_seen[${esc(x)}] = ${i}。`
+        : `i = ${i}，模型 <b>${esc(x)}</b> 右侧不再出现，记哨兵 <b>next_pos[${i}] = n + i = ${n + i}</b>：比任何真实位置都大，保证优先被淘汰；减去 n 可还原下标。随后 last_seen[${esc(x)}] = ${i}。`;
+      lastSeen[x] = i;
+      steps.push({ phase: '阶段一 · 倒序预处理', tag: { text: '预处理', kind: 'pre' },
+        lines: had ? [L('if x in last_seen'), L('next_pos.append(last_seen[x])'), L('last_seen[x] = i')] : [L('else:'), L('next_pos.append(n + i)'), L('last_seen[x] = i')],
+        i, nextPos: [...nextPos], lastSeen: { ...lastSeen }, stats: preStats(i), desc });
+    }
+
+    const NP = [...nextPos], slots = new Array(m).fill(null), heap = [], latest = {};
+    let res = 0, hits = 0;
+    const valid = e => slots.includes(nums[e.from]) && latest[nums[e.from]] === e.from;
+    const snap = o => ({
+      phase: '阶段二 · 最大堆模拟', nextPos: NP, lastSeen: { ...lastSeen }, slots: [...slots], heap: heap.map(e => ({ ...e, valid: valid(e) })),
+      latest: { ...latest },
+      stats: {
+        res, hit: hits,
+        i: o.i == null || o.i >= n ? '—' : { v: o.i, sub: `模型 ${nums[o.i]}` },
+        used: { v: slots.filter(s => s !== null).length, unit: `/ ${m}` },
+        heap: { v: heap.length, sub: `其中过期 ${heap.filter(e => !valid(e)).length} 条` },
+      },
+      ...o,
+    });
+
+    steps.push(snap({ i: null, tag: { text: '模拟', kind: 'info' }, lines: [L('next_pos.reverse()'), L('seen = set()'), L('heap = []'), L('res = 0')],
+      desc: `预处理完成（代码中倒序 append，再 reverse 成正序）。下面按顺序处理每次调用：缓存 seen 为空，堆 heap 为空。` }));
+
+    for (let i = 0; i < n; i++) {
+      const x = nums[i], X = esc(x);
+      const used = slots.filter(s => s !== null).length;
+      if (slots.includes(x)) {
+        steps.push(snap({ i, kind: 'hit', hitModel: x, tag: { text: '命中', kind: 'hit' }, lines: [L('for i in range(n)'), L('x = nums[i]', 2), L('if x not in seen')],
+          desc: `第 ${i} 次调用模型 <b>${X}</b>，已在缓存中，直接使用，不增加加载次数。` }));
+        hits++;
+        heap.push({ val: NP[i], from: i });
+        latest[x] = i;
+        steps.push(snap({ i, kind: 'hit', hitModel: x, fresh: i, tag: { text: '命中', kind: 'hit' }, lines: [L('heapq.heappush(heap')],
+          desc: `压入新记录 next_pos[${i}] = ${fmt(NP[i], n)}。模型 ${X} 的旧记录指向位置 ≤ ${i}，成为<b>过期记录</b>：留在堆里，但不可能抢先出堆。` }));
+        continue;
+      }
+      if (used < m) {
+        steps.push(snap({ i, kind: 'miss', tag: { text: '未命中', kind: 'miss' }, lines: [L('if x not in seen'), L('res += 1'), L('if len(seen) == m')],
+          desc: `第 ${i} 次调用模型 <b>${X}</b>，不在缓存中，必须加载，res + 1。缓存还有空位（${used}/${m}），无需淘汰。` }));
+        res++;
+        const k = slots.indexOf(null);
+        slots[k] = x;
+        heap.push({ val: NP[i], from: i });
+        latest[x] = i;
+        steps.push(snap({ i, kind: 'miss', fresh: i, slotNew: k, tag: { text: '加载', kind: 'miss' }, lines: [L('seen.add(x)'), L('heapq.heappush(heap')],
+          desc: `模型 <b>${X}</b> 放入缓存，压入记录 next_pos[${i}] = ${fmt(NP[i], n)}。当前 res = ${res}。` }));
+        continue;
+      }
+      let ti = 0;
+      heap.forEach((e, k) => { if (e.val > heap[ti].val) ti = k; });
+      const top = heap[ti], sentinel = top.val >= n, pos = sentinel ? top.val - n : top.val, victim = nums[pos];
+      const others = slots.map(s => `${esc(s)} → ${fmt(NP[latest[s]], n)}`).join('，');
+      steps.push(snap({ i, kind: 'miss', victim, topFrom: top.from, tag: { text: '未命中 · 缓存已满', kind: 'miss' },
+        lines: [L('res += 1'), L('if len(seen) == m'), L('pos = -heapq.heappop(heap)'), ...(sentinel ? [L('if pos >= n'), L('pos -= n')] : [])],
+        desc: `第 ${i} 次调用模型 <b>${X}</b>，需加载且需淘汰一个。各模型下一次使用：${others}。<br>堆顶为 <b>${fmt(top.val, n)}</b>${sentinel ? `（哨兵，减 n 得下标 ${pos}）` : ''}，对应模型 <b style="color:var(--red)">${esc(victim)}</b>，它的下一次使用最晚${sentinel ? '（以后不再使用）' : ''}，淘汰它。` }));
+      res++;
+      heap.splice(ti, 1);
+      const k = slots.indexOf(victim);
+      slots[k] = x;
+      heap.push({ val: NP[i], from: i });
+      latest[x] = i;
+      steps.push(snap({ i, kind: 'miss', fresh: i, slotNew: k, tag: { text: '替换', kind: 'miss' }, lines: [L('seen.remove(nums[pos])'), L('seen.add(x)'), L('heapq.heappush(heap')],
+        desc: `卸载模型 ${esc(victim)}，加载模型 <b>${X}</b>，压入记录 next_pos[${i}] = ${fmt(NP[i], n)}。当前 res = ${res}。` }));
+    }
+    steps.push(snap({ i: n, done: true, tag: { text: '完成', kind: 'info' }, lines: [L('print(res)')],
+      desc: `最少加载次数为 <b style="font-size:20px;color:var(--red)">${res}</b>。对比：LRU 需 ${cmp.LRU} 次，FIFO 需 ${cmp.FIFO} 次。Belady 利用完整的未来调用序列，因而最优。` }));
+    return steps;
+  },
+
+  mount({ m, nums, n, cmp }, P) {
+    // 时间轴
+    const tl = el('div', 'tl');
+    tl.innerHTML = `<svg><defs>${Object.entries(COLORS).map(([k, c]) =>
+      `<marker id="mk-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:${c};stroke:none"/></marker>`).join('')}</defs><g></g></svg>`;
+    const cellsBox = el('div', 'cells');
+    const cells = nums.map((x, k) => {
+      const c = el('div', 'cell', `<div class="idx">${k}</div><div class="val" data-solid data-ring="3">${esc(x)}</div><div class="np"></div>`);
+      cellsBox.appendChild(c);
+      return c;
+    });
+    const inf = el('div', 'cell inf', `<div class="idx">≥ n</div><div class="val" data-solid>∞</div><div class="np"></div>`);
+    cellsBox.appendChild(inf);
+    const cursor = el('div', 'cursor');
+    tl.append(cellsBox, cursor);
+    const legend = el('div', 'legend', `<span><i style="background:${COLORS.purple}"></i>预处理：i → next_pos[i]</span><span><i style="background:${COLORS.blue}"></i>缓存中模型的下次使用</span><span><i style="background:${COLORS.green}"></i>命中</span><span><i style="background:${COLORS.red}"></i>将被淘汰</span>`);
+    P.canvas.append(tl, legend);
+
+    // 缓存槽
+    P.stateHint.textContent = `容量 m = ${m}；槽内为下一次使用位置`;
+    const slotsBox = el('div', 'slots');
+    const slots = Array.from({ length: m }, () => {
+      const s = el('div', 'slot empty', `<div class="name">空</div><div class="meta"></div>`);
+      s.dataset.solid = '';
+      slotsBox.appendChild(s);
+      return s;
+    });
+    P.state.appendChild(slotsBox);
+
+    // 堆
+    P.aux.heap.innerHTML = `<div class="htable"><div class="hrow hhead"><span>堆中存值</span><span>位置</span><span>模型</span><span>来源 i</span><span>状态</span></div><div class="hbody"></div></div>`;
+    // last_seen
+    P.aux.last.innerHTML = `<div class="kv"></div>`;
+    // 策略对比
+    P.aux.cmp.innerHTML = `<div class="cmp"><span>Belady（最优）</span><span class="best">${cmp.OPT}</span><span>LRU（最近最少使用）</span><span>${cmp.LRU}</span><span>FIFO（先进先出）</span><span>${cmp.FIFO}</span></div>`;
+
+    U = { tl, svg: tl.querySelector('svg'), g: tl.querySelector('svg g'), cells, inf, cursor, slots,
+      hbody: P.aux.heap.querySelector('.hbody'), kv: P.aux.last.querySelector('.kv'), arcs: new Map() };
+    lastStep = null;
+  },
+
+  layout({ n }) {
+    const W = U.tl.clientWidth;
+    const gap = n > 20 ? 4 : 6;
+    const cw = clamp(Math.floor((W - gap * n) / (n + 1)), 26, 76);
+    U.tl.style.setProperty('--gap', gap + 'px');
+    U.tl.style.setProperty('--cw', cw + 'px');
+    U.tl.style.setProperty('--cfs', cw < 38 ? '14px' : '18px');
+    U.tl.style.setProperty('--npfs', cw < 38 ? '10px' : '12px');
+  },
+
+  render(s, prev, { m, nums, n }, P) {
+    lastStep = s;
+    const sim = s.phase.startsWith('阶段二');
+    const i = s.i;
+
+    // 时间轴格子
+    U.cells.forEach((c, k) => {
+      c.classList.toggle('past', sim && i != null && k < i);
+      c.classList.toggle('cur', i === k);
+      c.classList.toggle('pre', i === k && !sim);
+      c.classList.toggle('hit', i === k && sim && s.kind === 'hit');
+      c.classList.toggle('miss', i === k && sim && s.kind === 'miss');
+      c.classList.toggle('target', !sim && i != null && s.nextPos[i] === k);
+      const v = s.nextPos[k];
+      setText(c.querySelector('.np'), v == null ? '' : v >= n ? v + '∞' : v, 'av-flash');
+    });
+    U.inf.classList.toggle('target', !sim && i != null && s.nextPos[i] >= n);
+
+    // 当前位置游标（平滑滑动）
+    const curCell = i != null && i < n ? U.cells[i] : null;
+    if (curCell) {
+      Object.assign(U.cursor.style, { left: curCell.offsetLeft + 'px', width: curCell.offsetWidth + 'px', opacity: 1,
+        background: !sim ? COLORS.purple : s.kind === 'hit' ? COLORS.green : COLORS.red });
+    } else U.cursor.style.opacity = 0;
+
+    drawArcs(s, sim, n);
+
+    // 缓存槽
+    U.slots.forEach((box, k) => {
+      const x = sim ? s.slots[k] : null;
+      const nameEl = box.querySelector('.name'), meta = box.querySelector('.meta');
+      if (setText(nameEl, x == null ? '空' : x)) flash(nameEl, 'swap');
+      box.classList.toggle('empty', x == null);
+      box.classList.toggle('victim', x != null && s.victim === x);
+      box.classList.toggle('new', x != null && s.slotNew === k && s.kind !== 'hit');
+      box.classList.toggle('hit', x != null && s.hitModel === x);
+      const np = x == null ? null : s.nextPos[s.latest[x]];
+      setText(meta, x == null ? '' : np >= n ? '下次：不再使用' : `下次：位置 ${np}`);
+    });
+
+    // 堆（FLIP 平滑重排）
+    const entries = sim ? [...s.heap].sort((a, b) => b.val - a.val || a.from - b.from) : [];
+    const firstValid = entries.find(e => e.valid);
+    keyed(U.hbody, entries, e => e.from,
+      () => el('div', 'hrow', '<span class="mono"></span><span></span><span></span><span></span><span></span>'),
+      (row, e) => {
+        const sp = row.children;
+        sp[0].textContent = -e.val;
+        sp[1].textContent = e.val >= n ? `${e.val}（哨兵→${e.val - n}）` : e.val;
+        sp[2].innerHTML = `<b>${esc(nums[e.from])}</b>`;
+        sp[3].textContent = e.from;
+        const top = s.topFrom === e.from;
+        sp[4].textContent = top ? '堆顶 · 淘汰' : e.valid ? (e === firstValid ? '有效 · 堆顶' : '有效') : '过期';
+        row.classList.toggle('top', top);
+        row.classList.toggle('stale', !e.valid && !top);
+        row.classList.toggle('fresh', s.fresh === e.from);
+      });
+    if (!entries.length && !U.hbody.querySelector('.empty-row')) U.hbody.appendChild(el('div', 'hint empty-row', '&nbsp;空'));
+    if (entries.length) U.hbody.querySelectorAll('.empty-row').forEach(e => e.remove());
+
+    // last_seen
+    keyed(U.kv, Object.entries(s.lastSeen), ([k]) => k,
+      () => el('span'),
+      (chip, [k, v], isNew) => { const t = `${k}: ${v}`; if (chip.textContent !== t) { chip.textContent = t; if (!isNew) flash(chip, 'av-flash'); } });
+    P.auxCard.last.classList.toggle('dim', sim);
+    P.auxCard.cmp.style.boxShadow = s.done ? '0 0 0 3px #bbf7d0' : '';
+  },
+};
+
+function drawArcs(s, sim, n) {
+  const i = s.i, targets = [];
+  if (!sim && i != null) targets.push({ key: 'pre', to: s.nextPos[i], color: 'purple', label: s.nextPos[i] >= n ? '∞' : `→${s.nextPos[i]}` });
+  if (sim && i != null && i < n) {
+    s.slots.forEach(x => {
+      if (x == null) return;
+      const color = s.victim === x ? 'red' : s.hitModel === x ? 'green' : 'blue';
+      targets.push({ key: 'm' + x, to: s.nextPos[s.latest[x]], color, label: x, bold: s.victim === x });
+    });
+  }
+  const center = c => c.offsetLeft + c.offsetWidth / 2;
+  const x1 = i != null && i < n ? center(U.cells[i]) : 0;
+  const span = Math.max(1, center(U.inf) - center(U.cells[0]));
+  const infs = targets.filter(t => t.to >= n);
+  targets.forEach(t => {
+    const x2 = t.to >= n ? center(U.inf) + (infs.indexOf(t) - (infs.length - 1) / 2) * 9 : center(U.cells[t.to]);
+    const h = 16 + (ARC_H - 46) * Math.min(1, Math.abs(x2 - x1) / span);
+    Object.assign(t, { x1, x2, h, lx: (x1 + x2) / 2, ly: BASE - h - 7 });
+  });
+  // 标签避让：相互靠近的标签依次上移
+  [...targets].sort((a, b) => a.lx - b.lx).forEach((t, k, arr) => {
+    for (let j = 0; j < k; j++) {
+      const o = arr[j];
+      if (Math.abs(o.lx - t.lx) < 24 && Math.abs(o.ly - t.ly) < 15) t.ly = Math.max(12, o.ly - 15);
+    }
+  });
+
+  const want = new Set(targets.map(t => t.key));
+  U.arcs.forEach((a, key) => {
+    if (want.has(key)) return;
+    U.arcs.delete(key);
+    if (AV.isInstant()) { a.g.remove(); return; }
+    a.g.style.opacity = 0;
+    setTimeout(() => a.g.remove(), AV.dur() + 40);
+  });
+  targets.forEach(t => {
+    let a = U.arcs.get(t.key);
+    if (!a) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const g = document.createElementNS(ns, 'g'), path = document.createElementNS(ns, 'path'), text = document.createElementNS(ns, 'text');
+      text.setAttribute('text-anchor', 'middle');
+      g.append(path, text);
+      U.g.appendChild(g);
+      a = { g, path, text, cur: { x1: t.x1, x2: t.x1, h: 0, lx: t.x1, ly: BASE - 7 } };
+      U.arcs.set(t.key, a);
+    }
+    a.path.style.stroke = COLORS[t.color];
+    a.path.style.strokeWidth = t.bold ? 3 : 2;
+    a.path.setAttribute('marker-end', `url(#mk-${t.color})`);
+    a.text.style.fill = COLORS[t.color];
+    a.text.textContent = t.label;
+    a.g.style.opacity = 1;
+    const from = { ...a.cur }, to = { x1: t.x1, x2: t.x2, h: t.h, lx: t.lx, ly: t.ly };
+    animate('arc-' + t.key, p => {
+      const c = {};
+      for (const k in to) c[k] = from[k] + (to[k] - from[k]) * p;
+      a.cur = c;
+      a.path.setAttribute('d', `M${c.x1},${BASE} Q${(c.x1 + c.x2) / 2},${BASE - 2 * c.h} ${c.x2},${BASE}`);
+      a.text.setAttribute('x', c.lx);
+      a.text.setAttribute('y', c.ly);
+    });
+  });
+}
+
+AV.start(DEMO);
+})();
+</script>
+</body>
+</html>
