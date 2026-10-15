@@ -10,6 +10,7 @@ import os
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SYMBOLS = {
     'ndx': {'name': '纳斯达克100指数', 'symbol': '^NDX', 'secid': '100.NDX', 'tencent': 'us.NDX', 'currency': 'USD', 'market': 'NASDAQ-100'},
+    'nq': {'name': '纳斯达克100期货', 'symbol': 'NQ', 'secid': '', 'sina': 'NQ', 'currency': 'USD', 'market': 'CME 期货'},
     'hstech': {'name': '恒生科技指数', 'symbol': 'HSTECH.HK', 'secid': '100.HSTECH', 'tencent': 'hkHSTECH', 'currency': 'HKD', 'market': '恒生科技指数'},
     'shcomp': {'name': '上证指数', 'symbol': '000001.SS', 'secid': '1.000001', 'tencent': 'sh000001', 'currency': 'CNY', 'market': '上交所'},
     'chinext': {'name': '创业板指数', 'symbol': '399006.SZ', 'secid': '0.399006', 'tencent': 'sz399006', 'currency': 'CNY', 'market': '深交所'},
@@ -22,6 +23,28 @@ def fetch_json(url):
     req = Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36', 'Referer': referer, 'Accept': '*/*'})
     with urlopen(req, timeout=18) as response:
         return json.loads(response.read().decode('utf-8'))
+
+def fetch_sina(url):
+    """Fetch a Sina JSONP/var response and return the raw text (GBK encoded)."""
+    req = Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36', 'Referer': 'https://finance.sina.com.cn/', 'Accept': '*/*'})
+    with urlopen(req, timeout=18) as response:
+        return response.read().decode('gbk', errors='replace')
+
+def sina_jsonp(url):
+    text = fetch_sina(url)
+    return json.loads(text[text.index('(') + 1:text.rindex(')')])
+
+def sina_future_quote(cfg):
+    text = fetch_sina(f"https://hq.sinajs.cn/list=hf_{cfg['sina']}")
+    q = text.split('"')[1].split(',')
+    price, prev = float(q[0]), float(q[7])
+    change = price - prev
+    return {
+        'price': price, 'change': change, 'changePercent': change / prev * 100 if prev else 0,
+        'turnover': None, 'turnoverRate': None, 'pe': None, 'volume': float(q[9] or 0),
+        'currency': cfg['currency'], 'market': cfg['market'], 'name': cfg['name'],
+        'asOf': f'{q[12]} {q[6]}', 'isIndex': True,
+    }
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -57,6 +80,9 @@ class Handler(SimpleHTTPRequestHandler):
         results = {}
         for key, cfg in SYMBOLS.items():
             try:
+                if 'sina' in cfg:
+                    results[key] = sina_future_quote(cfg)
+                    continue
                 entry = fetch_json(f"https://web.ifzq.gtimg.cn/appstock/app/minute/query?code={cfg['tencent']}")['data'][cfg['tencent']]
                 q = entry['qt'][cfg['tencent']]
                 price, change, pct = float(q[3]), float(q[31]), float(q[32])
@@ -93,10 +119,55 @@ class Handler(SimpleHTTPRequestHandler):
         period = (query.get('period') or ['day'])[0]
         cfg = SYMBOLS[key]
         try:
-            candles = self.tencent_candles(key, period)
+            candles = self.sina_candles(key, period) if 'sina' in cfg else self.tencent_candles(key, period)
             self.send_json({'candles': candles, 'currency': cfg['currency'], 'symbol': cfg['symbol'], 'period': period, 'name': cfg['name']})
         except Exception as exc:
             self.send_json({'error': f'获取K线失败：{exc}'}, 502)
+
+    def sina_candles(self, key, period):
+        """Fetch futures history from Sina's global futures endpoints."""
+        code = SYMBOLS[key]['sina']
+        dt = __import__('datetime').datetime
+        base = 'https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_x=/GlobalFuturesService.'
+        if period == 'intraday':
+            rows = sina_jsonp(f'{base}getGlobalFuturesMinLine?symbol={code}')['minLine_1d']
+            output = []
+            for row in rows:
+                # The first row carries extra header fields; every row ends with a full timestamp.
+                price = float(row[5] if len(row) > 6 else row[1])
+                stamp = int(dt.strptime(row[-1], '%Y-%m-%d %H:%M:%S').timestamp())
+                output.append({'time': stamp, 'open': price, 'close': price, 'high': price, 'low': price, 'volume': 0})
+            if not output:
+                raise ValueError('新浪行情源没有返回分时数据')
+            return output
+        rows = sina_jsonp(f'{base}getGlobalFuturesDailyKLine?symbol={code}')
+        candles = []
+        for row in rows:
+            if float(row['open']) <= 0 or float(row['close']) <= 0:
+                continue
+            candles.append({'time': int(dt.strptime(row['date'], '%Y-%m-%d').timestamp()), 'open': float(row['open']), 'close': float(row['close']), 'high': float(row['high']), 'low': float(row['low']), 'volume': float(row['volume'] or 0)})
+        if period != 'day':
+            def bucket_of(date):
+                if period == 'week':
+                    return date.isocalendar()[:2]
+                if period == 'month':
+                    return (date.year, date.month)
+                if period == 'quarter':
+                    return (date.year, (date.month - 1) // 3)
+                return date.year
+            grouped = {}
+            for candle in candles:
+                bucket = bucket_of(dt.fromtimestamp(candle['time']))
+                if bucket not in grouped:
+                    grouped[bucket] = dict(candle)
+                else:
+                    agg = grouped[bucket]
+                    agg['high'] = max(agg['high'], candle['high'])
+                    agg['low'] = min(agg['low'], candle['low'])
+                    agg['close'] = candle['close']
+                    agg['volume'] += candle['volume']
+            candles = [grouped[bucket] for bucket in sorted(grouped)]
+        return candles[-240:]
 
     def tencent_candles(self, key, period):
         """Fetch all chart history from Tencent's domestic market data endpoints."""
