@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>算法动态演示</title>
+<style>
+/* =====================================================================
+   ENGINE STYLE —— 通用布局与风格（固定，生成新演示时不要改动）
+   ===================================================================== */
+:root {
+  --bg: #f5f7fb; --card: #fff; --line: #e5e7eb; --text: #1f2937; --muted: #6b7280;
+  --blue: #2563eb; --green: #16a34a; --red: #dc2626; --amber: #d97706; --purple: #7c3aed; --gray: #64748b;
+  --blue-l: #eff6ff; --green-l: #f0fdf4; --red-l: #fef2f2; --amber-l: #fffbeb; --purple-l: #f5f3ff;
+  --dur: 420ms; --ease: cubic-bezier(.4, 0, .2, 1);
+  --code-w: 720px; --code-fs: 14px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; }
+body.instant *, body.instant *::before, body.instant *::after { transition: none !important; animation: none !important; }
+
+header { flex: none; display: flex; align-items: baseline; gap: 14px; padding: 12px 20px 8px; min-width: 0; }
+header h1 { margin: 0; font-size: 19px; white-space: nowrap; }
+header .sub { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--code-w);
+  padding: 0 16px 14px 20px; transition: grid-template-columns var(--dur) var(--ease); }
+.app.dragging { transition: none; user-select: none; }
+.app.code-collapsed { grid-template-columns: minmax(0, 1fr) 12px 44px; }
+.left { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; min-width: 0; }
+.card-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px;
+  font-weight: 600; font-size: 15px; }
+.card-h .hint { font-weight: 400; text-align: right; }
+.hint { color: var(--muted); font-size: 12px; }
+.mono { font-family: Consolas, "Courier New", monospace; }
+.dim { opacity: .5; transition: opacity var(--dur); }
+
+/* 工具栏 */
+.toolbar { flex: none; display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.toolbar label { color: var(--muted); }
+input[type=text], input[type=number] { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px;
+  font-family: inherit; transition: border-color .15s, box-shadow .15s; }
+input[type=text]:focus, input[type=number]:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px #dbeafe; }
+button { padding: 6px 12px; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; cursor: pointer;
+  font-size: 14px; font-family: inherit; color: var(--text); transition: background .15s, border-color .15s; }
+button:hover { background: #eef2ff; border-color: #a5b4fc; }
+button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+button.primary:hover { background: #1d4ed8; }
+button.preset { font-size: 12px; padding: 3px 9px; }
+.progress { flex: 1; min-width: 140px; height: 8px; background: var(--line); border-radius: 4px; cursor: pointer;
+  position: relative; touch-action: none; margin: 0 8px; }
+.progress::before { content: ""; position: absolute; left: -8px; right: -8px; top: -9px; bottom: -9px; }
+.progress #prog { height: 100%; background: var(--blue); border-radius: 4px; transition: width var(--dur) var(--ease); }
+.progress .thumb { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--blue); box-shadow: 0 1px 4px rgba(0, 0, 0, .2); cursor: grab;
+  transition: left var(--dur) var(--ease), transform .15s; }
+.progress:hover .thumb, .progress.dragging .thumb { transform: scale(1.2); }
+.progress.dragging .thumb { cursor: grabbing; }
+.progress.dragging #prog, .progress.dragging .thumb { transition: none; }
+.progress .tip { position: absolute; bottom: 18px; transform: translateX(-50%); background: var(--text); color: #fff;
+  font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.progress.dragging .tip { opacity: 1; }
+.err { color: var(--red); font-size: 13px; }
+
+/* 统计卡片（保持这一风格：标题 + 大号彩色数字） */
+.stats { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 16px; transition: box-shadow .3s; }
+.stat .lab { font-size: 14px; font-weight: 600; line-height: 20px; }
+.stat .num { font-size: 32px; font-weight: 800; line-height: 1.45; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat .num small { font-size: 15px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+.stat .sub { font-size: 12px; color: var(--muted); height: 18px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat.red .num { color: var(--red); } .stat.green .num { color: var(--green); } .stat.blue .num { color: var(--blue); }
+.stat.amber .num { color: var(--amber); } .stat.purple .num { color: var(--purple); } .stat.gray .num { color: var(--gray); }
+.stat.bump { animation: bump .6s var(--ease); }
+@keyframes bump { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .35); } 100% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } }
+
+/* 主画布 + 下方两列 */
+.canvas-card { flex: none; }
+.bottom { flex: 1; min-height: 200px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
+.col > .card { flex: none; }
+.col > .card.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.card.grow > .card-b { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+
+/* 步骤说明 */
+.desc { font-size: 15px; line-height: 1.75; }
+.desc b { color: var(--blue); }
+.fade-in { animation: fadeIn var(--dur) var(--ease); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.tag { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-right: 6px; color: #fff; line-height: 20px; }
+.tag.pre { background: var(--purple); } .tag.hit { background: var(--green); } .tag.miss { background: var(--red); }
+.tag.info { background: var(--blue); } .tag.warn { background: var(--amber); }
+.phase { font-size: 12px; font-weight: 600; color: var(--blue); background: var(--blue-l); border-radius: 10px; padding: 1px 10px; }
+
+/* 通用：进入 / 闪烁动画 */
+.av-enter { animation: avEnter var(--dur) var(--ease); }
+@keyframes avEnter { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+.av-flash { animation: avFlash calc(var(--dur) * 1.6) var(--ease); }
+@keyframes avFlash { 0% { background: #fde68a; } 100% { background: transparent; } }
+
+/* 分隔条 */
+.splitter { position: relative; cursor: col-resize; }
+.splitter::after { content: ""; position: absolute; left: 5px; top: calc(50% - 30px); height: 60px; width: 3px; border-radius: 2px;
+  background: #cbd5e1; transition: background .15s; }
+.splitter:hover::after, .app.dragging .splitter::after { background: var(--blue); }
+.app.code-collapsed .splitter { cursor: default; }
+
+/* 代码位置：深色背景 + VS Code Dark Modern / Pylance 配色 */
+.right { min-width: 0; min-height: 0; display: flex; }
+.code-card { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #1f1f1f; border: 1px solid #2b2b2b;
+  border-radius: 12px; overflow: hidden; }
+.code-h { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #181818;
+  border-bottom: 1px solid #2b2b2b; color: #cccccc; font-size: 13px; white-space: nowrap; }
+.code-h .file { color: #e5e5e5; font-weight: 600; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; }
+.code-h .pyicon { width: 16px; height: 16px; border-radius: 3px; background: linear-gradient(135deg, #3572a5 50%, #ffd43b 50%); flex: none; }
+.code-h .pos { color: #8b949e; margin-left: auto; }
+.code-h button { background: transparent; border: 1px solid #3c3c3c; color: #cccccc; padding: 2px 8px; font-size: 12px; }
+.code-h button:hover { background: #2a2d2e; border-color: #555; }
+.code-h button.on { border-color: #0078d4; color: #fff; }
+.code-body { flex: 1; min-height: 0; position: relative; overflow-y: auto; overflow-x: hidden; padding: 8px 0 35vh;
+  font-family: Consolas, "Courier New", monospace; font-size: var(--code-fs); line-height: 1.45; color: #cccccc; }
+.code-body::-webkit-scrollbar { width: 12px; } .code-body::-webkit-scrollbar-thumb { background: #424242; }
+.code-body::-webkit-scrollbar-track { background: #1f1f1f; }
+.ln { display: flex; transition: background var(--dur) var(--ease); }
+.ln .g { flex: none; width: 4.4em; padding-right: 1.4em; text-align: right; color: #6e7681; user-select: none; position: relative;
+  transition: color var(--dur); }
+.ln .s { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all;
+  padding-left: calc(var(--ind) * 1ch + 4ch); text-indent: -4ch; padding-right: 12px;
+  background-image: repeating-linear-gradient(90deg, #404040 0 1px, transparent 1px 4ch);
+  background-size: calc(var(--ind) * 1ch) 100%; background-repeat: no-repeat; }
+.ln.on { background: rgba(255, 215, 0, .13); box-shadow: inset 3px 0 #ffd700; }
+.ln.on .g { color: #ffd700; }
+.ln.on .g::before { content: "➜"; position: absolute; left: .5em; color: #ffd700; }
+.code-body.no-cmt .ln.cmt { display: none; }
+.app.code-collapsed .code-body, .app.code-collapsed .code-h > :not(.collapse) { display: none; }
+.app.code-collapsed .code-h { flex: 1; flex-direction: column; justify-content: flex-start; padding: 10px 0; border: 0; }
+.app.code-collapsed .code-h .collapse::after { content: "代码位置"; display: block; writing-mode: vertical-rl; margin-top: 8px; letter-spacing: 2px; }
+.t-kw { color: #569cd6; } .t-ctl { color: #c586c0; } .t-fn { color: #dcdcaa; } .t-cls { color: #4ec9b0; }
+.t-str { color: #ce9178; } .t-num { color: #b5cea8; } .t-cmt { color: #6a9955; } .t-var { color: #9cdcfe; }
+.t-const { color: #4fc1ff; } .t-op { color: #d4d4d4; }
+.t-b0 { color: #ffd700; } .t-b1 { color: #da70d6; } .t-b2 { color: #179fff; }
+
+#av-check { display: none; }
+
+/* =====================================================================
+   DEMO STYLE —— 本题专用的可视化样式（生成新演示时替换这里）
+   ===================================================================== */
+.bev { position: relative; height: 200px; }
+.bev svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.bev svg > g path { fill: none; }
+.bev .lane { stroke: #cbd5e1; stroke-width: 1.5; }
+.bev .lane.mid { stroke-dasharray: 8 7; }
+.bev .road { fill: #f8fafc; }
+.bev .car { stroke-width: 2; transition: opacity var(--dur); }
+.bev .car.ego { fill: var(--blue-l); stroke: var(--blue); }
+.bev .car.lead { fill: #fee2e2; stroke: var(--red); }
+.bev .car.ghost { fill: none; stroke: var(--red); stroke-dasharray: 4 3; opacity: .55; }
+.bev text { font-size: 12px; font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round;
+  dominant-baseline: central; transition: opacity var(--dur), fill var(--dur); }
+.bev .data path { stroke: #94a3b8; stroke-width: 1; opacity: .22; transition: opacity var(--dur); }
+.bev .data.off path { opacity: 0; }
+.bev .ref path { stroke: #64748b; stroke-width: 2; stroke-dasharray: 6 5; transition: opacity var(--dur), stroke var(--dur), stroke-width var(--dur); }
+.bev .ref circle { fill: #fff; stroke: #64748b; stroke-width: 1.5; transition: opacity var(--dur); }
+.bev .ref.pert path { stroke: var(--purple); stroke-width: 1.5; opacity: .55; }
+.bev .ref.pert.hl path { opacity: 1; stroke-width: 2.5; }
+.bev .ref.off { opacity: 0; }
+.bev .ref { transition: opacity var(--dur); }
+.bev .exp path { stroke-width: 3; transition: opacity var(--dur); }
+.bev .exp.off { opacity: 0; }
+.bev .cand path { stroke-width: 2.5; transition: stroke var(--dur), stroke-width var(--dur), opacity var(--dur); }
+.bev .cand circle { stroke: #fff; stroke-width: 1; transition: fill var(--dur), opacity var(--dur); }
+.bev .cand.off { opacity: 0; }
+.bev .cand.noise path { stroke: #f87171; stroke-width: 1.5; opacity: .6; }
+.bev .cand.noise circle { fill: #f87171; }
+.bev .cand.f path { stroke: var(--amber); } .bev .cand.f circle { fill: var(--amber); }
+.bev .cand.o path { stroke: var(--blue); } .bev .cand.o circle { fill: var(--blue); }
+.bev .cand.dimc { opacity: .25; }
+.bev .cand.hl path { stroke-width: 4; }
+.bev .cand.best path { stroke: var(--green); stroke-width: 5; } .bev .cand.best circle { fill: var(--green); }
+.bev .cand { transition: opacity var(--dur); }
+.bev .arrows path { stroke-width: 1.8; transition: opacity var(--dur); }
+
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.legend i.dash { background: repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 9px) !important; height: 2px; }
+
+.formula { font-family: Consolas, monospace; font-size: 14px; line-height: 1.9; }
+.formula .p { color: var(--purple); font-weight: 700; } .formula .g { color: var(--green); font-weight: 800; }
+.formula .r { color: var(--red); font-weight: 700; } .formula .b { color: var(--blue); font-weight: 700; }
+.formula .a { color: var(--amber); font-weight: 700; } .formula .m { color: var(--muted); }
+
+.bars { font-size: 12px; font-family: Consolas, monospace; transition: opacity var(--dur); }
+.bars.off { opacity: .3; }
+.brow { display: grid; grid-template-columns: 46px 1fr 104px; align-items: center; height: 14px; gap: 8px; }
+.brow .t { color: var(--muted); text-align: right; }
+.brow .trk { position: relative; height: 10px; }
+.brow .trk div { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; transition: width var(--dur) var(--ease); }
+.brow .ab { background: #cbd5e1; } .brow .rs { background: var(--blue); }
+.brow .v { white-space: nowrap; color: var(--muted); }
+.stdline { margin-top: 4px; font-size: 12px; line-height: 16px; color: var(--muted); }
+.stdline b { color: var(--amber); }
+
+.tbl { font-size: 13px; font-family: Consolas, monospace; display: flex; flex-direction: column; height: 100%; }
+.tscroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative; }
+.trow { display: grid; grid-template-columns: .5fr 1.7fr 1fr 1fr 1.6fr 1fr; align-items: center; height: 26px;
+  border-bottom: 1px solid var(--line); text-align: center; border-radius: 5px; transition: background var(--dur), color var(--dur); }
+.trow.head { flex: none; color: var(--muted); font-weight: 600; font-family: inherit; }
+.trow.cur { background: var(--blue-l); }
+.trow.best { background: var(--green-l); color: var(--green); font-weight: 800; }
+.trow .f { color: var(--amber); } .trow .o { color: var(--blue); }
+</style>
+</head>
+<body>
+<header><h1 id="title"></h1><div class="sub" id="subtitle"></div></header>
+
+<div class="app" id="app">
+  <section class="left" id="left">
+    <div class="card toolbar">
+      <div class="row" id="inputs"></div>
+      <div class="row">
+        <button id="btnFirst" title="第一步">⏮</button>
+        <button id="btnPrev">◀ 上一步</button>
+        <button class="primary" id="btnPlay">▶ 播放</button>
+        <button id="btnNext">下一步 ▶</button>
+        <button id="btnLast" title="最后一步">⏭</button>
+        <span class="hint">慢</span><input id="speed" type="range" min="300" max="2600" value="1200" style="width:110px;direction:rtl"><span class="hint">快</span>
+        <div class="progress" id="progress" title="点击或拖动跳转"><div id="prog"></div><div class="thumb" id="thumb"></div><div class="tip" id="progTip"></div></div>
+        <span id="stepNo" class="hint mono"></span>
+        <span class="hint">← → 单步 · 空格 播放 · 进度条可拖动</span>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="card canvas-card">
+      <div class="card-h"><span id="canvasTitle"></span><span class="hint" id="canvasHint"></span></div>
+      <div id="canvas"></div>
+    </div>
+    <div class="bottom">
+      <div class="col">
+        <div class="card">
+          <div class="card-h"><span>当前步骤</span><span class="phase" id="phase"></span></div>
+          <div class="desc" id="desc"></div>
+        </div>
+        <div class="card grow" id="stateCard">
+          <div class="card-h"><span id="stateTitle"></span><span class="hint" id="stateHint"></span></div>
+          <div class="card-b" id="state"></div>
+        </div>
+      </div>
+      <div class="col" id="auxCol"></div>
+    </div>
+  </section>
+  <div class="splitter" id="splitter" title="拖动调整宽度，双击恢复"></div>
+  <aside class="right">
+    <div class="code-card">
+      <div class="code-h">
+        <button class="collapse" id="btnCollapse" title="折叠 / 展开代码">⇥</button>
+        <span class="file"><span class="pyicon"></span><span>代码位置 · <span id="fileName"></span></span></span>
+        <span class="pos" id="codePos"></span>
+        <button id="btnCmt" title="显示 / 隐藏纯注释行">注释</button>
+        <button id="btnFsDown" title="缩小字号">A−</button>
+        <button id="btnFsUp" title="放大字号">A+</button>
+      </div>
+      <div class="code-body" id="codeBody"></div>
+    </div>
+  </aside>
+</div>
+<pre id="av-check"></pre>
+
+<!-- 对应 .py 的完整源码，用 scripts/embed_source.py 写入（保持与源文件一致） -->
+<script type="text/plain" id="py-source">
+# 题目描述：
+# ResAD（Normalized Residual Trajectory Modeling, arXiv:2510.08562）的玩具复现。
+# 自车在 (0,0)，速度 V0（带一点横向漂移），同车道前方有一辆慢车。
+# 规划 4 秒 8 个航点：不直接预测轨迹，而是先用匀速模型外推"惯性参考"，
+# 再预测"为什么必须偏离惯性"的残差，最后选出最优候选。
+#
+# 思路（与论文第 3.2、3.3 节对应）：
+# 1. 惯性参考（式 3）：p_ti = p0 + v0·t_i，表示不做任何控制时车会去哪。
+# 2. 残差（式 4）：r = τgt − τref，即驾驶员施加的修正量。
+# 3. PRNorm（式 5、6）：对 x、y 两个分量分别在"整个训练集、所有航点"上
+#    取 min / max，把残差线性缩放到 [−γ, γ]。这里用合成的专家轨迹充当训练集。
+#    残差让目标分布集中在 0 附近；PRNorm 让 x、y 两个分量尺度一致，
+#    避免数值大的分量（这里是纵向）主导损失。
+# 4. 惯性参考扰动（式 7、8）：对初速度加 δv ~ N(0, diag(σvx², σvy²))，
+#    得到 K 条不同的惯性参考，每条对应一个意图假设。
+# 5. 去噪（式 9、10）：论文用学到的扩散解码器，这里换成"理想去噪器"：
+#    以该参考下两种驾驶意图（跟车 / 左变道超车）的归一化残差为高斯混合先验，
+#    闭式求后验均值；从纯高斯噪声出发做 2 步 DDIM。【简化】
+# 6. 排序器：论文用 Transformer 打分并蒸馏 PDM 各子指标，这里直接用
+#    规则版的 PDMS 近似（无碰撞 × 可行驶区域 × 进度/车道/舒适度加权）。【简化】
+#
+# 复杂度：训练集 M 条、K 个候选、N 个航点，统计 O(M·N)，去噪 O(K·N)。
+
+import math
+
+SEED = 7
+N, DT = 8, 0.5                  # 8 个航点，间隔 0.5 s，共 4 s（与 NAVSIM 一致）
+V0 = (8.0, 0.4)                 # 自车初速度 (vx, vy)，vy 表示航向略有偏差
+LEAD_X0, LEAD_V = 20.0, 4.0     # 前车初始纵向位置与速度（同车道 y = 0）
+LANE_W = 3.5                    # 车道宽，左侧车道中心 y = 3.5
+M_DATA = 40                     # 合成训练集大小，仅用来统计 PRNorm 的 min / max
+GAMMA, EPS0 = 1.0, 1e-6         # PRNorm 输出区间 [−γ, γ] 与防除零常数
+K = 6                           # 扰动出的惯性参考 / 候选轨迹条数
+SIGMA_VX, SIGMA_VY = 1.0, 0.3   # 速度扰动的纵向、横向标准差
+MODE_STD = 0.08                 # 理想去噪器中每种意图的先验标准差（归一化空间）
+ALPHAS = [0.05, 0.5, 1.0]       # ᾱ：从近似纯噪声 → 中间 → 干净，共 2 步 DDIM
+TS = [DT * (i + 1) for i in range(N)]
+
+
+def imul(a, b):
+    return (a * b) & 0xffffffff
+
+
+def mulberry32(seed):
+    # 与 JS 版逐位一致的 32 位随机数，保证 py 和 html 的结果相同
+    s = seed & 0xffffffff
+
+    def rnd():
+        nonlocal s
+        s = (s + 0x6D2B79F5) & 0xffffffff
+        t = imul(s ^ (s >> 15), s | 1)
+        t = ((t + imul(t ^ (t >> 7), t | 61)) & 0xffffffff) ^ t
+        return ((t ^ (t >> 14)) & 0xffffffff) / 4294967296
+    return rnd
+
+
+rnd = mulberry32(SEED)
+
+
+def gauss():
+    # Box-Muller，每次只取一个标准正态
+    u1 = max(rnd(), 1e-12)
+    u2 = rnd()
+    return math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+
+
+def inertial_ref(v):
+    # 式 (3)：没有任何控制输入时，车沿当前速度匀速前进
+    return [(v[0] * t, v[1] * t) for t in TS]
+
+
+def expert(v, mode, p):
+    # 合成的"专家"轨迹。mode 0：跟车，匀减速到速度 p 并回到本车道中心；
+    # mode 1：左变道超车，纵向加速度 p，3 秒内平滑移到左车道中心。
+    pts = []
+    for t in TS:
+        if mode == 0:
+            a = (v[0] - p) / TS[-1]
+            pts.append((v[0] * t - 0.5 * a * t * t, 0.0))
+        else:
+            u = min(t / 3.0, 1.0)
+            pts.append((v[0] * t + 0.5 * p * t * t, LANE_W * u * u * (3 - 2 * u)))
+    return pts
+
+
+def residual(gt, ref):
+    # 式 (4)：逐点相减，残差就是"必须偏离惯性多少"
+    return [(g[0] - r[0], g[1] - r[1]) for g, r in zip(gt, ref)]
+
+
+# ---------- 1. 合成训练集，统计 PRNorm 所需的 min / max（式 5） ----------
+data = []
+for _ in range(M_DATA):
+    v = (V0[0] + 1.5 * gauss(), 0.3 * gauss())
+    mode = 0 if rnd() < 0.5 else 1
+    p = 3.0 + 2.0 * rnd() if mode == 0 else 0.2 + 0.4 * rnd()
+    gt = expert(v, mode, p)
+    data.append((gt, residual(gt, inertial_ref(v))))
+
+# 按分量 d ∈ {x, y} 在所有轨迹、所有航点上取极值（论文的做法，不是逐时刻统计）
+rmin = [min(r[t][d] for _, r in data for t in range(N)) for d in range(2)]
+rmax = [max(r[t][d] for _, r in data for t in range(N)) for d in range(2)]
+
+
+def minmax(pts, lo, hi):
+    # 式 (6)：r̃ = 2γ(r − rmin)/(rmax − rmin + ε0) − γ
+    return [tuple(2 * GAMMA * (q[d] - lo[d]) / (hi[d] - lo[d] + EPS0) - GAMMA for d in range(2)) for q in pts]
+
+
+def prdenorm(z):
+    # PRNorm 的逆变换，把去噪得到的归一化残差还原成米
+    return [tuple((q[d] + GAMMA) * (rmax[d] - rmin[d] + EPS0) / (2 * GAMMA) + rmin[d] for d in range(2)) for q in z]
+
+
+def rms_per_t(seqs):
+    # 每个航点目标值的均方根（米）：直接回归绝对坐标时，越远的点数值越大
+    return [math.sqrt(sum(q[t][0] ** 2 + q[t][1] ** 2 for q in seqs) / len(seqs)) for t in range(N)]
+
+
+def std_per_dim(seqs):
+    # x、y 分量各自的标准差：不归一化时，纵向 x 的误差会压过横向 y
+    out = []
+    for d in range(2):
+        vals = [q[t][d] for q in seqs for t in range(N)]
+        mu = sum(vals) / len(vals)
+        out.append(math.sqrt(sum((x - mu) ** 2 for x in vals) / len(vals)))
+    return out
+
+
+# 残差建模把分布拉到 0 附近；PRNorm 再把 x、y 缩放到同一区间，平衡两个分量的损失
+rms_abs = rms_per_t([g for g, _ in data])
+rms_res = rms_per_t([r for _, r in data])
+std_res = std_per_dim([r for _, r in data])
+std_norm = std_per_dim([minmax(r, rmin, rmax) for _, r in data])
+
+# ---------- 2. 惯性参考扰动（式 7、8） ----------
+vs = [(V0[0] + SIGMA_VX * gauss(), V0[1] + SIGMA_VY * gauss()) for _ in range(K)]
+refs = [inertial_ref(v) for v in vs]
+
+
+def flat(pts):
+    return [c for q in pts for c in q]
+
+
+def denoise(z, ab, modes):
+    # 理想去噪器：先验为各意图归一化残差 m_j 处的各向同性高斯（等权重），
+    # z = √ᾱ·x0 + √(1−ᾱ)·ε 时，后验均值有闭式解。
+    var = ab * MODE_STD ** 2 + 1 - ab
+    logw = [-sum((zi - math.sqrt(ab) * mi) ** 2 for zi, mi in zip(z, m)) / (2 * var) for m in modes]
+    top = max(logw)
+    w = [math.exp(x - top) for x in logw]
+    w = [x / sum(w) for x in w]
+    gain = math.sqrt(ab) * MODE_STD ** 2 / var
+    x0 = [sum(w[j] * (modes[j][i] + gain * (z[i] - math.sqrt(ab) * modes[j][i])) for j in range(len(modes)))
+          for i in range(len(z))]
+    return x0, w
+
+
+# ---------- 3. 从纯噪声出发，2 步 DDIM 去噪（式 9、10） ----------
+cands = []
+for k in range(K):
+    # 条件 c：该扰动参考下的两种意图（论文中由参考的位置编码送入解码器）
+    modes = [flat(minmax(residual(expert(vs[k], j, LEAD_V if j == 0 else 0.4), refs[k]), rmin, rmax))
+             for j in range(2)]
+    z = [gauss() for _ in range(2 * N)]
+    for i in range(len(ALPHAS) - 1):
+        a, a2 = ALPHAS[i], ALPHAS[i + 1]
+        x0, w = denoise(z, a, modes)
+        eps = [(zi - math.sqrt(a) * xi) / math.sqrt(1 - a) for zi, xi in zip(z, x0)]
+        # DDIM 确定性更新：用预测的 x0 和 ε 跳到下一个噪声水平
+        z = [math.sqrt(a2) * xi + math.sqrt(1 - a2) * ei for xi, ei in zip(x0, eps)]
+    r = prdenorm([(z[2 * t], z[2 * t + 1]) for t in range(N)])
+    # 预测残差加回对应的扰动参考，得到候选轨迹
+    cands.append(([(f[0] + q[0], f[1] + q[1]) for f, q in zip(refs[k], r)], w))
+
+
+# ---------- 4. 排序器：规则版 PDMS 近似 ----------
+def score(traj, best_x):
+    nc = 1.0
+    for t, (x, y) in zip(TS, traj):
+        if abs(y) < 2.0 and abs(x - (LEAD_X0 + LEAD_V * t)) < 6.0:
+            nc = 0.0                       # 与前车包围盒重叠 → 碰撞
+    dac = 1.0 if all(-1.75 <= y <= LANE_W + 1.75 for _, y in traj) else 0.0
+    ep = traj[-1][0] / best_x              # 相对进度
+    lk = max(0.0, 1 - min(abs(traj[-1][1]), abs(traj[-1][1] - LANE_W)) / 1.0)
+    pts = [(0.0, 0.0)] + traj
+    acc = max(math.hypot(pts[i + 1][0] - 2 * pts[i][0] + pts[i - 1][0], pts[i + 1][1] - 2 * pts[i][1] + pts[i - 1][1])
+              for i in range(1, N)) / DT ** 2
+    c = 1.0 if acc <= 4.0 else 0.0         # 舒适度：最大加速度不超过 4 m/s²
+    return nc * dac * (5 * ep + 2 * lk + 2 * c) / 9
+
+
+best_x = max(tr[-1][0] for tr, _ in cands)
+scores = [score(tr, best_x) for tr, _ in cands]
+best = max(range(K), key=lambda k: scores[k])
+
+print("PRNorm rmin =", [f"{x:.4f}" for x in rmin], " rmax =", [f"{x:.4f}" for x in rmax])
+print("RMS |τgt| per t =", " ".join(f"{x:.4f}" for x in rms_abs))
+print("RMS |r|   per t =", " ".join(f"{x:.4f}" for x in rms_res))
+print(f"std(x, y) residual = ({std_res[0]:.4f}, {std_res[1]:.4f})  after PRNorm = ({std_norm[0]:.4f}, {std_norm[1]:.4f})")
+for k in range(K):
+    tr, w = cands[k]
+    print(f"cand {k}: v0'=({vs[k][0]:.4f}, {vs[k][1]:.4f})  w=[{w[0]:.4f}, {w[1]:.4f}]  "
+          f"end=({tr[-1][0]:.4f}, {tr[-1][1]:.4f})  score={scores[k]:.4f}")
+print(f"best = {best}  score = {scores[best]:.4f}")
+</script>
+
+<script>
+/* =====================================================================
+   ENGINE —— 播放器 / 布局 / 代码高亮 / 平滑过渡 / 自检（通用，勿改）
+   ===================================================================== */
+const AV = (() => {
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  let DUR = 420, instant = false;
+  const dur = () => (instant ? 0 : DUR);
+  const ease = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+  // ---------- 动画工具 ----------
+  const anims = new Map();
+  function animate(key, step, done, ms = dur()) {
+    if (anims.has(key)) cancelAnimationFrame(anims.get(key));
+    anims.delete(key);
+    if (ms <= 0) { step(1); done && done(); return; }
+    const t0 = performance.now();
+    const f = now => {
+      const p = Math.min(1, (now - t0) / ms);
+      step(ease(p));
+      if (p < 1) anims.set(key, requestAnimationFrame(f)); else { anims.delete(key); done && done(); }
+    };
+    anims.set(key, requestAnimationFrame(f));
+  }
+  function flash(node, cls) { if (instant) return; node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls); }
+  function setText(node, text, flashCls) {
+    const t = String(text);
+    if (node.textContent === t) return false;
+    node.textContent = t;
+    if (flashCls) flash(node, flashCls);
+    return true;
+  }
+  // 按 key 复用 DOM：移动 FLIP 平滑过渡，新增淡入，删除淡出（容器需 position:relative）
+  function keyed(box, items, keyOf, create, update) {
+    const ms = dur();
+    const old = new Map();
+    for (const c of [...box.children]) if (c.dataset.key != null && !c.classList.contains('av-leaving')) old.set(c.dataset.key, c);
+    const first = new Map();
+    if (ms) old.forEach((c, k) => first.set(k, c.getBoundingClientRect().top));
+    const want = new Set(items.map(it => String(keyOf(it))));
+    old.forEach((c, k) => {
+      if (want.has(k)) return;
+      if (!ms) { c.remove(); return; }
+      const st = { position: 'absolute', top: c.offsetTop + 'px', left: c.offsetLeft + 'px', width: c.offsetWidth + 'px' };
+      c.classList.add('av-leaving');
+      Object.assign(c.style, st, { transition: `opacity ${ms}ms, transform ${ms}ms`, pointerEvents: 'none' });
+      requestAnimationFrame(() => { c.style.opacity = 0; c.style.transform = 'translateX(18px)'; });
+      setTimeout(() => c.remove(), ms + 40);
+    });
+    const nodes = items.map(it => {
+      const k = String(keyOf(it));
+      let c = old.get(k), isNew = false;
+      if (!c) { c = create(it); c.dataset.key = k; isNew = true; }
+      update(c, it, isNew);
+      box.appendChild(c);
+      return c;
+    });
+    if (!ms) return;
+    nodes.forEach(c => {
+      const k = c.dataset.key;
+      if (!first.has(k)) { flash(c, 'av-enter'); return; }
+      const dy = first.get(k) - c.getBoundingClientRect().top;
+      if (Math.abs(dy) < .5) return;
+      c.style.transition = 'none';
+      c.style.transform = `translateY(${dy}px)`;
+      void c.offsetWidth;
+      c.style.transition = `transform ${ms}ms cubic-bezier(.4,0,.2,1), background ${ms}ms, color ${ms}ms`;
+      c.style.transform = '';
+      setTimeout(() => { c.style.transition = ''; }, ms + 20);
+    });
+  }
+
+  // ---------- Python 高亮（VS Code Dark Modern + Pylance 语义配色） ----------
+  const CTL = new Set('if elif else for while return import from as try except finally raise with break continue pass yield await async del global nonlocal assert match case'.split(' '));
+  const KW = new Set('def class lambda None True False and or not in is self cls'.split(' '));
+  const CLS = new Set('int float str bool list dict set tuple range object type bytes frozenset complex Exception ValueError KeyError IndexError TypeError deque defaultdict Counter OrderedDict'.split(' '));
+  function highlightPython(src) {
+    const lines = src.split('\n');
+    const modules = new Set();
+    for (const l of lines) {
+      let m = l.match(/^\s*import\s+([\w., ]+)/);
+      if (m) m[1].split(',').forEach(p => { const a = p.trim().split(/\s+as\s+/); modules.add((a[1] || a[0]).split('.')[0].trim()); });
+      m = l.match(/^\s*from\s+([\w.]+)\s+import/);
+      if (m) modules.add(m[1].split('.')[0]);
+    }
+    let depth = 0, triple = null;
+    const re = /(#.*)|([rRbBuUfF]{0,2})("""|'''|"(?:\\.|[^"\\])*"?|'(?:\\.|[^'\\])*'?)|(\d[\d_]*(?:\.\d*)?(?:[eE][+-]?\d+)?j?)|([A-Za-z_\u00c0-\uffff][\w\u00c0-\uffff]*)|([()[\]{}])|(\s+)|([\s\S])/y;
+    return lines.map(raw => {
+      const line = raw.replace(/\t/g, '    ');
+      const indent = line.match(/^ */)[0].length;
+      const toks = [];
+      let i = indent;
+      if (triple) {
+        const end = line.indexOf(triple, i);
+        if (end < 0) return { html: `<span class="t-str">${esc(line.slice(i))}</span>`, indent, cmt: false };
+        toks.push(['str', line.slice(i, end + 3)]); i = end + 3; triple = null;
+      }
+      while (i < line.length) {
+        re.lastIndex = i;
+        const m = re.exec(line);
+        if (!m) break;
+        if (m[1]) toks.push(['cmt', m[1]]);
+        else if (m[3] !== undefined && (m[3] || m[2])) {
+          if (m[2]) toks.push([/[fF]/.test(m[2]) ? 'kw' : 'str', m[2]]);
+          let s = m[3];
+          if (s === '"""' || s === "'''") {
+            const end = line.indexOf(s, re.lastIndex);
+            if (end < 0) { s = line.slice(m.index + m[2].length); triple = m[3]; re.lastIndex = line.length; }
+            else { s = line.slice(m.index + m[2].length, end + 3); re.lastIndex = end + 3; }
+          }
+          toks.push(['str', s]);
+        }
+        else if (m[4]) toks.push(['num', m[4]]);
+        else if (m[5]) toks.push(['id', m[5]]);
+        else if (m[6]) toks.push(['br', m[6]]);
+        else if (m[7]) toks.push(['ws', m[7]]);
+        else toks.push(['op', m[8]]);
+        i = re.lastIndex;
+      }
+      const sig = toks.map((t, k) => k).filter(k => toks[k][0] !== 'ws');
+      const html = toks.map((t, k) => {
+        const [type, w] = t;
+        if (type === 'ws') return w;
+        if (type === 'br') {
+          if ('([{'.includes(w)) { const c = depth % 3; depth++; return `<span class="t-b${c}">${w}</span>`; }
+          depth = Math.max(0, depth - 1); return `<span class="t-b${depth % 3}">${w}</span>`;
+        }
+        if (type !== 'id') return `<span class="t-${type}">${esc(w)}</span>`;
+        const p = sig.indexOf(k), prev = p > 0 ? toks[sig[p - 1]][1] : '', next = p < sig.length - 1 ? toks[sig[p + 1]][1] : '';
+        let c = 'var';
+        if (prev === 'def') c = 'fn';
+        else if (prev === 'class') c = 'cls';
+        else if (CTL.has(w)) c = 'ctl';
+        else if (KW.has(w)) c = 'kw';
+        else if (prev === '.') c = next === '(' ? 'fn' : 'var';
+        else if (modules.has(w)) c = 'cls';
+        else if (next === '(') c = CLS.has(w) || /^[A-Z]/.test(w) ? 'cls' : 'fn';
+        else if (CLS.has(w)) c = 'cls';
+        else if (/^[A-Z][A-Z0-9_]+$/.test(w)) c = 'const';
+        return `<span class="t-${c}">${esc(w)}</span>`;
+      }).join('');
+      return { html, indent, cmt: line.trim().startsWith('#') };
+    });
+  }
+
+  // ---------- 代码面板 ----------
+  let srcLines = [], codeEls = [];
+  function mountCode(fileName) {
+    const src = $('py-source').textContent.replace(/\r\n?/g, '\n').replace(/^\n/, '').replace(/\s+$/, '');
+    srcLines = src.split('\n');
+    $('fileName').textContent = fileName || '';
+    const body = $('codeBody');
+    body.innerHTML = '';
+    codeEls = highlightPython(src).map((h, k) => {
+      const ln = el('div', 'ln' + (h.cmt ? ' cmt' : ''));
+      ln.innerHTML = `<span class="g">${k + 1}</span><span class="s" style="--ind:${h.indent}">${h.html || ' '}</span>`;
+      body.appendChild(ln);
+      return ln;
+    });
+  }
+  // 按源码内容定位行号：lineOf('res += 1')，nth 表示第几处匹配（忽略注释部分）
+  function lineOf(text, nth = 1) {
+    let cnt = 0;
+    for (let k = 0; k < srcLines.length; k++) {
+      const code = srcLines[k].replace(/#.*$/, '');
+      if (code.includes(text) && ++cnt === nth) return k + 1;
+    }
+    console.error('[AV] lineOf 未找到：', text, nth);
+    return 0;
+  }
+  function setCodeLines(lines) {
+    lines = (lines || []).filter(Boolean);
+    const set = new Set(lines);
+    codeEls.forEach((e, k) => e.classList.toggle('on', set.has(k + 1)));
+    const sorted = [...set].sort((a, b) => a - b);
+    $('codePos').textContent = sorted.length ? `第 ${sorted.length > 1 && sorted.at(-1) - sorted[0] === sorted.length - 1 ? sorted[0] + '–' + sorted.at(-1) : sorted.join(', ')} 行` : '';
+    if (!sorted.length) return;
+    const body = $('codeBody'), a = codeEls[sorted[0] - 1], b = codeEls[sorted.at(-1) - 1];
+    const top = a.offsetTop, bottom = b.offsetTop + b.offsetHeight, vt = body.scrollTop, vh = body.clientHeight;
+    if (top < vt + vh * .12 || bottom > vt + vh * .82) body.scrollTo({ top: Math.max(0, top - vh * .3), behavior: instant ? 'auto' : 'smooth' });
+  }
+
+  // ---------- 播放器与布局 ----------
+  let D, data, steps = [], cur = 0, timer = null;
+  const statEls = {}, P = { aux: {}, auxCard: {} };
+  const speedMs = () => +$('speed').value;
+  function setSpeed() {
+    DUR = clamp(Math.round(speedMs() * .5), 180, 650);
+    document.documentElement.style.setProperty('--dur', DUR + 'ms');
+  }
+
+  function setStat(def, val) {
+    const t = statEls[def.key];
+    const o = val !== null && typeof val === 'object' ? val : { v: val };
+    const v = o.v ?? '—';
+    if (typeof v === 'number' && typeof t.cur === 'number' && t.cur !== v && !instant) {
+      const a = t.cur;
+      animate('stat-' + def.key, p => { t.n.textContent = Math.round(a + (v - a) * p); });
+      flash(t.box, 'bump');
+    } else {
+      if (anims.has('stat-' + def.key)) { cancelAnimationFrame(anims.get('stat-' + def.key)); anims.delete('stat-' + def.key); }
+      t.n.textContent = v;
+    }
+    t.cur = v;
+    t.unit.textContent = o.unit || '';
+    t.sub.textContent = o.sub || '';
+  }
+
+  function render(prev) {
+    const s = steps[cur];
+    const pct = (steps.length > 1 ? cur / (steps.length - 1) * 100 : 100) + '%';
+    $('prog').style.width = pct;
+    $('thumb').style.left = pct;
+    $('progTip').style.left = pct;
+    $('progTip').textContent = `第 ${cur + 1} 步`;
+    $('stepNo').textContent = `${cur + 1} / ${steps.length}`;
+    const html = (s.tag ? `<span class="tag ${s.tag.kind || 'info'}">${s.tag.text}</span>` : '') + s.desc;
+    if ($('desc').innerHTML !== html) { $('desc').innerHTML = html; flash($('desc'), 'fade-in'); }
+    setText($('phase'), s.phase || '');
+    (D.stats || []).forEach(def => setStat(def, s.stats ? s.stats[def.key] : undefined));
+    setCodeLines(s.lines);
+    D.render(s, prev, data, P);
+  }
+  function go(k) {
+    k = clamp(k, 0, steps.length - 1);
+    const prev = steps[cur];
+    cur = k;
+    render(prev === steps[cur] ? null : prev);
+  }
+  function stop() { clearTimeout(timer); timer = null; $('btnPlay').textContent = '▶ 播放'; }
+  function play() {
+    if (timer) return stop();
+    if (cur >= steps.length - 1) go(0);
+    $('btnPlay').textContent = '⏸ 暂停';
+    const tick = () => {
+      if (cur >= steps.length - 1) return stop();
+      go(cur + 1);
+      timer = setTimeout(tick, speedMs());
+    };
+    timer = setTimeout(tick, 120);
+  }
+  function withInstant(fn) { const was = instant; instant = true; document.body.classList.add('instant'); try { fn(); } finally { instant = was; if (!was) { void document.body.offsetWidth; document.body.classList.remove('instant'); } } }
+
+  function apply() {
+    stop();
+    const values = {};
+    (D.inputs || []).forEach(f => { values[f.id] = $('in-' + f.id).value; });
+    const r = D.parse(values);
+    if (r.error) { $('err').textContent = r.error; return false; }
+    $('err').textContent = '';
+    data = r;
+    steps = D.build(data);
+    for (const k in P.aux) P.aux[k].innerHTML = '';
+    $('canvas').innerHTML = ''; $('state').innerHTML = '';
+    withInstant(() => {
+      D.mount(data, P);
+      cur = 0;
+      D.layout && D.layout(data, P);
+      render(null);
+    });
+    return true;
+  }
+
+  function buildShell() {
+    document.title = D.title;
+    $('title').textContent = D.title;
+    $('subtitle').innerHTML = D.subtitle || '';
+    const inputs = $('inputs');
+    (D.inputs || []).forEach(f => {
+      inputs.appendChild(el('label', '', f.label));
+      const inp = el('input');
+      inp.type = f.type || 'text'; inp.id = 'in-' + f.id; inp.value = f.value;
+      if (f.width) inp.style.width = f.width + 'px';
+      if (f.flex) { inp.style.flex = '1'; inp.style.minWidth = '200px'; }
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') apply(); });
+      inputs.appendChild(inp);
+    });
+    const btn = el('button', 'primary', '生成演示'); btn.onclick = apply; inputs.appendChild(btn);
+    if (D.presets && D.presets.length) inputs.appendChild(el('span', 'hint', '预设：'));
+    (D.presets || []).forEach(p => {
+      const b = el('button', 'preset', p.label);
+      b.onclick = () => { for (const k in p.values) $('in-' + k).value = p.values[k]; apply(); };
+      inputs.appendChild(b);
+    });
+    inputs.appendChild(el('span', 'err')).id = 'err';
+
+    (D.stats || []).forEach(def => {
+      const box = el('div', 'stat ' + (def.color || 'blue'));
+      box.innerHTML = `<div class="lab">${def.label}</div><div class="num"><span class="n">—</span><small></small></div><div class="sub"></div>`;
+      $('stats').appendChild(box);
+      statEls[def.key] = { box, n: box.querySelector('.n'), unit: box.querySelector('small'), sub: box.querySelector('.sub'), cur: null };
+    });
+
+    const pn = D.panels || {};
+    $('canvasTitle').textContent = pn.canvas?.title || '';
+    $('canvasHint').textContent = pn.canvas?.hint || '';
+    $('stateTitle').textContent = pn.state?.title || '';
+    $('stateHint').textContent = pn.state?.hint || '';
+    P.canvas = $('canvas'); P.state = $('state'); P.stateHint = $('stateHint'); P.stateCard = $('stateCard');
+    (pn.aux || []).forEach(a => {
+      const card = el('div', 'card' + (a.grow ? ' grow' : ''));
+      card.innerHTML = `<div class="card-h"><span>${a.title}</span><span class="hint">${a.hint || ''}</span></div><div class="card-b"></div>`;
+      $('auxCol').appendChild(card);
+      P.aux[a.id] = card.querySelector('.card-b');
+      P.auxCard[a.id] = card;
+    });
+    mountCode(D.file);
+  }
+
+  function wire() {
+    $('btnFirst').onclick = () => { stop(); go(0); };
+    $('btnLast').onclick = () => { stop(); go(steps.length - 1); };
+    $('btnPrev').onclick = () => { stop(); go(cur - 1); };
+    $('btnNext').onclick = () => { stop(); go(cur + 1); };
+    $('btnPlay').onclick = play;
+    $('speed').oninput = setSpeed;
+    // 进度条：点击跳转 / 按住拖动逐步刷过（每经过一步都正常渲染，保持过渡）
+    const bar = $('progress');
+    const seek = e => {
+      const r = bar.getBoundingClientRect();
+      const k = Math.round(clamp((e.clientX - r.left) / r.width, 0, 1) * (steps.length - 1));
+      if (k !== cur) go(k);
+    };
+    bar.addEventListener('pointerdown', e => {
+      stop(); bar.setPointerCapture(e.pointerId); bar.classList.add('dragging'); seek(e);
+      const up = () => { bar.classList.remove('dragging'); bar.removeEventListener('pointermove', seek); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up); };
+      bar.addEventListener('pointermove', seek); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+    });
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight') { stop(); go(cur + 1); }
+      else if (e.key === 'ArrowLeft') { stop(); go(cur - 1); }
+      else if (e.key === ' ') { e.preventDefault(); play(); }
+      else if (e.key === 'Home') { stop(); go(0); }
+      else if (e.key === 'End') { stop(); go(steps.length - 1); }
+    });
+
+    // 代码面板：可拖动宽度 / 折叠 / 注释开关 / 字号
+    const app = $('app'), sp = $('splitter'), LS = 'algoviz.';
+    const defW = () => clamp(Math.round(window.innerWidth * .4), 420, 820);
+    const setW = w => app.style.setProperty('--code-w', clamp(w, 320, window.innerWidth - 700) + 'px');
+    setW(+localStorage.getItem(LS + 'codeW') || defW());
+    sp.addEventListener('pointerdown', e => {
+      if (app.classList.contains('code-collapsed')) return;
+      sp.setPointerCapture(e.pointerId); app.classList.add('dragging');
+      const right = app.getBoundingClientRect().right - 16;
+      const move = ev => setW(right - ev.clientX - 6);
+      const up = () => {
+        sp.removeEventListener('pointermove', move); sp.removeEventListener('pointerup', up);
+        app.classList.remove('dragging');
+        localStorage.setItem(LS + 'codeW', parseInt(app.style.getPropertyValue('--code-w')));
+      };
+      sp.addEventListener('pointermove', move); sp.addEventListener('pointerup', up);
+    });
+    sp.ondblclick = () => { localStorage.removeItem(LS + 'codeW'); setW(defW()); };
+    const setCollapsed = c => { app.classList.toggle('code-collapsed', c); $('btnCollapse').textContent = c ? '⇤' : '⇥'; localStorage.setItem(LS + 'collapsed', c ? 1 : ''); };
+    setCollapsed(!!localStorage.getItem(LS + 'collapsed'));
+    $('btnCollapse').onclick = () => setCollapsed(!app.classList.contains('code-collapsed'));
+    const setCmt = show => { $('codeBody').classList.toggle('no-cmt', !show); $('btnCmt').classList.toggle('on', show); localStorage.setItem(LS + 'hideCmt', show ? '' : 1); };
+    setCmt(!localStorage.getItem(LS + 'hideCmt'));
+    $('btnCmt').onclick = () => setCmt($('codeBody').classList.contains('no-cmt'));
+    let fs = +localStorage.getItem(LS + 'fs') || 14;
+    const setFs = v => { fs = clamp(v, 11, 20); document.documentElement.style.setProperty('--code-fs', fs + 'px'); localStorage.setItem(LS + 'fs', fs); };
+    setFs(fs);
+    $('btnFsDown').onclick = () => setFs(fs - 1);
+    $('btnFsUp').onclick = () => setFs(fs + 1);
+
+    // 画布尺寸变化（窗口缩放、拖动分隔条、折叠代码）时重新排版，不做过渡
+    let raf = 0;
+    new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => withInstant(() => { D.layout && D.layout(data, P); D.render(steps[cur], null, data, P); }));
+    }).observe($('canvas'));
+  }
+
+  // ---------- 自检：文字互相遮挡 / 左侧需滚动 / 代码横向滚动 ----------
+  function textRects(root) {
+    const out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    while (w.nextNode()) {
+      const node = w.currentNode;
+      if (!node.textContent.trim()) continue;
+      const host = node.parentElement;
+      if (host.closest('.av-leaving, svg defs, .slots .empty')) continue;
+      const cs = getComputedStyle(host);
+      if (cs.visibility === 'hidden' || +cs.opacity === 0) continue;
+      range.selectNodeContents(node);
+      // 被滚动容器裁掉（不可见）的部分不参与检查
+      let clip = null;
+      for (let a = host.parentElement; a && a !== root; a = a.parentElement) {
+        const o = getComputedStyle(a);
+        if (/(auto|scroll|hidden)/.test(o.overflowY + o.overflowX)) { clip = a.getBoundingClientRect(); break; }
+      }
+      for (const r0 of range.getClientRects()) {
+        let r = r0;
+        if (clip) {
+          const l = Math.max(r.left, clip.left), t = Math.max(r.top, clip.top), rr = Math.min(r.right, clip.right), b = Math.min(r.bottom, clip.bottom);
+          if (rr - l <= 1 || b - t <= 1) continue;
+          r = { left: l, top: t, right: rr, bottom: b, width: rr - l, height: b - t };
+        }
+        if (r.width > 1 && r.height > 1) out.push({ r, host, text: node.textContent.trim().slice(0, 16) });
+      }
+    }
+    return out;
+  }
+  const inter = (a, b, pad = 0) => Math.min(a.right + pad, b.right + pad) - Math.max(a.left - pad, b.left - pad) > 1.5 &&
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1.5;
+  function checkOnce(stepIdx, issues) {
+    const left = $('left');
+    const ts = textRects(left);
+    for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) {
+      const a = ts[i], b = ts[j];
+      if (a.host === b.host || a.host.contains(b.host) || b.host.contains(a.host)) continue;
+      if (inter(a.r, b.r)) issues.push({ step: stepIdx, type: '文字重叠', a: a.text, b: b.text });
+    }
+    const solids = [...left.querySelectorAll('[data-solid]')].map(e => {
+      const r = e.getBoundingClientRect(), g = +(e.dataset.ring || 0);
+      return { e, r: { left: r.left - g, right: r.right + g, top: r.top - g, bottom: r.bottom + g } };
+    });
+    for (const path of left.querySelectorAll('svg [marker-end], svg [marker-start]')) {
+      if (path.closest('.av-leaving') || +getComputedStyle(path.closest('g') || path).opacity === 0) continue;
+      const id = (path.getAttribute('marker-end') || path.getAttribute('marker-start')).match(/#([^)]+)/)?.[1];
+      const head = id && document.getElementById(id)?.querySelector('path, polygon');
+      const cs = head && getComputedStyle(head);
+      if (!cs || (cs.fill === 'none' && (cs.stroke === 'none' || parseFloat(cs.strokeWidth) === 0)))
+        issues.push({ step: stepIdx, type: '连线缺少箭头', a: id || '(无 marker)', b: path.getAttribute('d')?.slice(0, 20) || '' });
+    }
+    for (const t of ts) for (const s of solids) {
+      if (s.e.contains(t.host)) continue;
+      if (inter(t.r, s.r)) issues.push({ step: stepIdx, type: '元素遮挡文字', a: t.text, b: s.e.className });
+    }
+  }
+  function runCheck() {
+    const issues = [];
+    let total = 0;
+    // 逐个预设、逐步检查；没有预设时只检查当前输入
+    const runs = D.presets && D.presets.length ? D.presets : [null];
+    runs.forEach(p => {
+      if (p) { for (const k in p.values) $('in-' + k).value = p.values[k]; if (!apply()) return; }
+      const tagged = [];
+      withInstant(() => { for (let k = 0; k < steps.length; k++) { go(k); checkOnce(k, tagged); } go(0); });
+      total += steps.length;
+      tagged.forEach(it => { it.step = (p ? p.label + ' · ' : '') + 'step ' + it.step; issues.push(it); });
+    });
+    const left = $('left'), body = $('codeBody');
+    const uniq = [], seen = new Set();
+    for (const it of issues) { const key = it.type + it.a + '|' + it.b; if (!seen.has(key)) { seen.add(key); uniq.push(it); } }
+    const res = {
+      viewport: [window.innerWidth, window.innerHeight], steps: total, lastSteps: steps.length,
+      leftNeedsScroll: Math.max(0, left.scrollHeight - left.clientHeight),
+      codeHScroll: Math.max(0, body.scrollWidth - body.clientWidth),
+      overlaps: uniq.slice(0, 30), overlapCount: uniq.length,
+    };
+    $('av-check').textContent = JSON.stringify(res);
+    document.title = 'AVCHECK ' + (res.leftNeedsScroll || res.codeHScroll || res.overlapCount ? 'FAIL' : 'OK');
+  }
+
+  function start(demo) {
+    D = demo;
+    buildShell();
+    wire();
+    setSpeed();
+    apply();
+    const h = new URLSearchParams(location.hash.slice(1));
+    const pre = D.presets && D.presets[+h.get('preset')];
+    if (h.has('preset') && pre) { for (const k in pre.values) $('in-' + k).value = pre.values[k]; apply(); }
+    if (h.has('step')) withInstant(() => go(+h.get('step')));
+    if (h.has('check')) setTimeout(runCheck, 50);
+  }
+
+  return { $, el, esc, clamp, dur, animate, flash, setText, keyed, lineOf, start, isInstant: () => instant };
+})();
+</script>
+
+<script>
+/* =====================================================================
+   DEMO —— 本题专用：输入解析、步骤生成、可视化挂载与渲染（生成新演示时替换这里）
+   示例：文远1.py · Belady 最优缓存替换
+   ===================================================================== */
+/* =====================================================================
+   本题：ResAD.py · 惯性参考 + 归一化残差 + 2 步 DDIM + 排序
+   ===================================================================== */
+(() => {
+const { el, setText, flash, animate, lineOf: L } = AV;
+const f4 = x => (+x).toFixed(4), f2 = x => (+x).toFixed(2);
+const NS = 'http://www.w3.org/2000/svg', mkS = t => document.createElementNS(NS, t);
+const COLORS = { purple: '#7c3aed', gray: '#64748b', blue: '#2563eb', amber: '#d97706', green: '#16a34a' };
+let U = null;
+
+// ---------- 与 ResAD.py 逐行对应的计算 ----------
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), s | 1) >>> 0;
+    t = (((t + Math.imul(t ^ (t >>> 7), t | 61)) >>> 0) ^ t) >>> 0;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function solve(P) {
+  const { SEED, V0, LEAD_X0, LEAD_V, K, SIGMA_VX, SIGMA_VY } = P;
+  const N = 8, DT = 0.5, LANE_W = 3.5, M_DATA = 40, GAMMA = 1, EPS0 = 1e-6, MODE_STD = 0.08, ALPHAS = [0.05, 0.5, 1.0];
+  const TS = Array.from({ length: N }, (_, i) => DT * (i + 1));
+  const rnd = mulberry32(SEED);
+  const gauss = () => { const u1 = Math.max(rnd(), 1e-12), u2 = rnd(); return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2); };
+  const inertialRef = v => TS.map(t => [v[0] * t, v[1] * t]);
+  const expert = (v, mode, p) => TS.map(t => {
+    if (mode === 0) { const a = (v[0] - p) / TS[N - 1]; return [v[0] * t - 0.5 * a * t * t, 0]; }
+    const u = Math.min(t / 3, 1); return [v[0] * t + 0.5 * p * t * t, LANE_W * u * u * (3 - 2 * u)];
+  });
+  const residual = (gt, ref) => gt.map((g, i) => [g[0] - ref[i][0], g[1] - ref[i][1]]);
+  const data = [];
+  for (let m = 0; m < M_DATA; m++) {
+    const v = [V0[0] + 1.5 * gauss(), 0.3 * gauss()];
+    const mode = rnd() < 0.5 ? 0 : 1;
+    const p = mode === 0 ? 3 + 2 * rnd() : 0.2 + 0.4 * rnd();
+    const gt = expert(v, mode, p);
+    data.push({ gt, r: residual(gt, inertialRef(v)) });
+  }
+  const ext = (f, key) => [0, 1].map(d => f(...data.flatMap(q => q[key].map(pt => pt[d]))));
+  const rmin = ext(Math.min, 'r'), rmax = ext(Math.max, 'r');
+  const minmax = (pts, lo, hi) => pts.map(q => [0, 1].map(d => 2 * GAMMA * (q[d] - lo[d]) / (hi[d] - lo[d] + EPS0) - GAMMA));
+  const prdenorm = z => z.map(q => [0, 1].map(d => (q[d] + GAMMA) * (rmax[d] - rmin[d] + EPS0) / (2 * GAMMA) + rmin[d]));
+  const rmsPerT = seqs => TS.map((_, t) => Math.sqrt(seqs.reduce((s, q) => s + q[t][0] ** 2 + q[t][1] ** 2, 0) / seqs.length));
+  const stdPerDim = seqs => [0, 1].map(d => {
+    const vals = seqs.flatMap(q => q.map(pt => pt[d])), mu = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return Math.sqrt(vals.reduce((s, x) => s + (x - mu) ** 2, 0) / vals.length);
+  });
+  const rmsAbs = rmsPerT(data.map(q => q.gt)), rmsRes = rmsPerT(data.map(q => q.r));
+  const stdRes = stdPerDim(data.map(q => q.r)), stdNorm = stdPerDim(data.map(q => minmax(q.r, rmin, rmax)));
+  const vs = Array.from({ length: K }, () => [V0[0] + SIGMA_VX * gauss(), V0[1] + SIGMA_VY * gauss()]);
+  const refs = vs.map(inertialRef);
+  const flat = pts => pts.flat();
+  const unflat = z => TS.map((_, t) => [z[2 * t], z[2 * t + 1]]);
+  const denoise = (z, ab, modes) => {
+    const v = ab * MODE_STD ** 2 + 1 - ab;
+    const logw = modes.map(m => -z.reduce((s, zi, i) => s + (zi - Math.sqrt(ab) * m[i]) ** 2, 0) / (2 * v));
+    const top = Math.max(...logw);
+    let w = logw.map(x => Math.exp(x - top)); const sw = w.reduce((a, b) => a + b, 0); w = w.map(x => x / sw);
+    const gain = Math.sqrt(ab) * MODE_STD ** 2 / v;
+    const x0 = z.map((zi, i) => modes.reduce((s, m, j) => s + w[j] * (m[i] + gain * (zi - Math.sqrt(ab) * m[i])), 0));
+    return { x0, w };
+  };
+  const cands = [];
+  for (let k = 0; k < K; k++) {
+    const modes = [0, 1].map(j => flat(minmax(residual(expert(vs[k], j, j === 0 ? LEAD_V : 0.4), refs[k]), rmin, rmax)));
+    let z = Array.from({ length: 2 * N }, gauss);
+    const hist = [{ ab: ALPHAS[0], z: [...z] }];
+    let w = null;
+    for (let i = 0; i < ALPHAS.length - 1; i++) {
+      const a = ALPHAS[i], a2 = ALPHAS[i + 1];
+      const r = denoise(z, a, modes); w = r.w;
+      const eps = z.map((zi, q) => (zi - Math.sqrt(a) * r.x0[q]) / Math.sqrt(1 - a));
+      z = r.x0.map((xi, q) => Math.sqrt(a2) * xi + Math.sqrt(1 - a2) * eps[q]);
+      hist.push({ ab: a2, x0: r.x0, w: r.w, z: [...z] });
+    }
+    const toTraj = zz => prdenorm(unflat(zz)).map((q, t) => [refs[k][t][0] + q[0], refs[k][t][1] + q[1]]);
+    cands.push({ k, v: vs[k], hist, w, toTraj, traj: toTraj(z), res: prdenorm(unflat(z)) });
+  }
+  const bestX = Math.max(...cands.map(c => c.traj[N - 1][0]));
+  const scoreOf = traj => {
+    let nc = 1;
+    traj.forEach(([x, y], i) => { if (Math.abs(y) < 2 && Math.abs(x - (LEAD_X0 + LEAD_V * TS[i])) < 6) nc = 0; });
+    const dac = traj.every(([, y]) => y >= -1.75 && y <= LANE_W + 1.75) ? 1 : 0;
+    const ep = traj[N - 1][0] / bestX;
+    const ye = traj[N - 1][1], lk = Math.max(0, 1 - Math.min(Math.abs(ye), Math.abs(ye - LANE_W)));
+    const pts = [[0, 0], ...traj];
+    let acc = 0;
+    for (let i = 1; i < N; i++) acc = Math.max(acc, Math.hypot(pts[i + 1][0] - 2 * pts[i][0] + pts[i - 1][0], pts[i + 1][1] - 2 * pts[i][1] + pts[i - 1][1]));
+    acc /= DT ** 2;
+    const c = acc <= 4 ? 1 : 0;
+    return { nc, dac, ep, lk, c, acc, s: nc * dac * (5 * ep + 2 * lk + 2 * c) / 9 };
+  };
+  cands.forEach(c => { c.sc = scoreOf(c.traj); });
+  let best = 0; cands.forEach((c, k) => { if (c.sc.s > cands[best].sc.s) best = k; });
+  const ref0 = inertialRef(V0), ex = [expert(V0, 0, LEAD_V), expert(V0, 1, 0.4)];
+  return { N, TS, LANE_W, ALPHAS, data, rmin, rmax, rmsAbs, rmsRes, stdRes, stdNorm, vs, refs, cands, best, ref0, ex, residual };
+}
+
+const DEMO = {
+  file: 'ResAD.py',
+  title: 'ResAD · 惯性参考 + 归一化残差轨迹建模（玩具版）',
+  subtitle: '不问"未来轨迹是什么"，而问"为什么必须偏离惯性"：匀速外推得到惯性参考，扩散模型只生成残差；PRNorm 平衡 x/y 尺度；扰动初速度得到多个意图假设，2 步 DDIM 后由排序器选优',
+  inputs: [
+    { id: 'seed', label: 'seed', value: '7', type: 'number', width: 60 },
+    { id: 'vx', label: 'v0 = (', value: '8', type: 'number', width: 62 },
+    { id: 'vy', label: ',', value: '0.4', type: 'number', width: 62 },
+    { id: 'lx', label: ')　前车 x0', value: '20', type: 'number', width: 60 },
+    { id: 'lv', label: 'v', value: '4', type: 'number', width: 56 },
+    { id: 'k', label: 'K', value: '6', type: 'number', width: 52 },
+    { id: 'sx', label: 'σvx', value: '1', type: 'number', width: 56 },
+    { id: 'sy', label: 'σvy', value: '0.3', type: 'number', width: 56 },
+  ],
+  presets: [
+    { label: '默认（同 py）', values: { seed: 7, vx: 8, vy: 0.4, lx: 20, lv: 4, k: 6, sx: 1, sy: 0.3 } },
+    { label: '前车很近', values: { seed: 7, vx: 8, vy: 0.4, lx: 13, lv: 4, k: 6, sx: 1, sy: 0.3 } },
+    { label: '高速大扰动', values: { seed: 11, vx: 11, vy: -0.3, lx: 24, lv: 5, k: 8, sx: 2, sy: 0.5 } },
+    { label: '不扰动 σ=0', values: { seed: 3, vx: 8, vy: 0.4, lx: 20, lv: 4, k: 4, sx: 0, sy: 0 } },
+  ],
+  stats: [
+    { key: 'rms', label: '第 8 点 RMS（m）', color: 'gray' },
+    { key: 'ratio', label: 'x : y 标准差比', color: 'amber' },
+    { key: 'ab', label: '噪声水平 ᾱ', color: 'purple' },
+    { key: 'k', label: '候选 / 排序', color: 'blue' },
+    { key: 'best', label: '最佳得分', color: 'red' },
+  ],
+  panels: {
+    canvas: { title: '鸟瞰图（x 向前，y 向左；单位 m）', hint: '灰虚线 = 惯性参考；紫虚线 = 扰动后的参考；箭头 = 残差' },
+    state: { title: '当前计算' },
+    aux: [
+      { id: 'bars', title: '残差 vs 绝对坐标：每个航点的 RMS', hint: '灰 = |τgt|，蓝 = |r|' },
+      { id: 'tbl', title: '候选轨迹', hint: 'w = 去噪器对两种意图的后验权重', grow: true },
+    ],
+  },
+
+  parse(v) {
+    const num = k => Number(v[k]);
+    const P = { SEED: parseInt(v.seed, 10), V0: [num('vx'), num('vy')], LEAD_X0: num('lx'), LEAD_V: num('lv'), K: parseInt(v.k, 10), SIGMA_VX: num('sx'), SIGMA_VY: num('sy') };
+    if (!Number.isInteger(P.SEED) || P.SEED < 0) return { error: 'seed 为非负整数' };
+    if (!(P.V0[0] >= 3 && P.V0[0] <= 14)) return { error: 'vx 取 3 ~ 14 m/s' };
+    if (!(Math.abs(P.V0[1]) <= 1.5)) return { error: 'vy 取 −1.5 ~ 1.5 m/s' };
+    if (!(P.LEAD_X0 >= 8 && P.LEAD_X0 <= 40)) return { error: '前车 x0 取 8 ~ 40 m' };
+    if (!(P.LEAD_V >= 0 && P.LEAD_V <= 10)) return { error: '前车速度取 0 ~ 10 m/s' };
+    if (!(P.K >= 1 && P.K <= 8)) return { error: 'K 取 1 ~ 8' };
+    if (!(P.SIGMA_VX >= 0 && P.SIGMA_VX <= 3 && P.SIGMA_VY >= 0 && P.SIGMA_VY <= 1)) return { error: 'σvx 取 0 ~ 3，σvy 取 0 ~ 1' };
+    return { P, R: solve(P) };
+  },
+
+  build({ P, R }) {
+    const steps = [], { N, TS, cands, best } = R, K = P.K;
+    const ratio0 = R.stdRes[0] / R.stdRes[1], ratio1 = R.stdNorm[0] / R.stdNorm[1];
+    let st = { rms: '—', ratio: '—', ab: '—', k: '—', best: '—' };
+    let barsOn = false;
+    // RMS 条形图一旦在"训练集"一步算出，后续步骤一直保留
+    const S = o => { if (o.show && o.show.bars) barsOn = true; if (barsOn && o.show) o.show.bars = true; return { stats: { ...st }, ...o }; };
+    const ph = ['准备 · 惯性参考与残差', '训练 · PRNorm 统计', '推理 · 扰动参考', '推理 · 2 步 DDIM 去噪', '推理 · 排序选优'];
+    const modeName = w => (w[1] > w[0] ? '超车' : '跟车');
+
+    steps.push(S({ phase: ph[0], tag: { text: '场景', kind: 'info' }, show: {},
+      lines: [L('SEED = 7'), L('N, DT = 8, 0.5'), L('V0 = (8.0, 0.4)'), L('LEAD_X0, LEAD_V = 20.0, 4.0'), L('LANE_W = 3.5')],
+      formula: `自车 p0 = (0, 0)，v0 = (<span class="b">${P.V0[0]}</span>, <span class="b">${P.V0[1]}</span>) m/s<br>前车 x0 = ${P.LEAD_X0} m，速度 ${P.LEAD_V} m/s（同车道）<br>规划 N = 8 个航点，Δt = 0.5 s，共 4 s`,
+      desc: `自车比前车快，并且航向略偏左（vy = ${P.V0[1]}）。要规划未来 4 s 的 8 个航点。ResAD 不直接回归这 8 个坐标，而是先算"什么都不做会怎样"。` }));
+
+    steps.push(S({ phase: ph[0], tag: { text: '惯性参考', kind: 'pre' }, show: { ref0: true },
+      lines: [L('def inertial_ref(v)'), L('return [(v[0] * t, v[1] * t) for t in TS]')],
+      formula: `式 (3)：p<sub>ti</sub> = p0 + v0 · t<sub>i</sub><br>终点 = (${f2(P.V0[0] * 4)}, ${f2(P.V0[1] * 4)})`,
+      desc: `用匀速模型外推：不踩油门刹车、不打方向时 4 s 后会到 (${f2(P.V0[0] * 4)}, ${f2(P.V0[1] * 4)})。它<b>会追上前车</b>，横向也在漂移——这就是"必须改变"的理由。` }));
+
+    [0, 1].forEach(j => {
+      const r = R.residual(R.ex[j], R.ref0), e = r[N - 1];
+      steps.push(S({ phase: ph[0], tag: { text: j ? '残差 · 超车' : '残差 · 跟车', kind: 'hit' }, show: { ref0: true, ex: [j], arrows: { from: R.ref0, to: R.ex[j], color: j ? 'blue' : 'amber' } },
+        lines: [L('def expert(v, mode, p)'), j ? L('pts.append((v[0] * t + 0.5 * p * t * t') : L('pts.append((v[0] * t - 0.5 * a * t * t, 0.0))'), L('def residual(gt, ref)'), L('return [(g[0] - r[0], g[1] - r[1])')],
+        formula: `式 (4)：r = τgt − τref<br>第 8 点残差 = (<span class="${j ? 'b' : 'a'}">${f2(e[0])}</span>, <span class="${j ? 'b' : 'a'}">${f2(e[1])}</span>) m`,
+        desc: j ? `另一种专家意图：<b>左变道超车</b>，轻微加速、3 s 内移到左车道中心。残差主要在 y 方向（向左修正），远处还要补上惯性参考的横向漂移。`
+                : `一种专家意图：<b>跟车减速</b>到前车速度、回到本车道中心。箭头从参考点指向专家点：纵向往回拉（刹车），横向抵消漂移。残差就是"驾驶员施加的修正"。` }));
+    });
+
+    st = { ...st, rms: { v: f2(R.rmsAbs[N - 1]), unit: '→ ' + f2(R.rmsRes[N - 1]), sub: '绝对坐标 → 残差' } };
+    steps.push(S({ phase: ph[1], tag: { text: '训练集', kind: 'pre' }, show: { data: true, ref0: true, bars: true },
+      lines: [L('for _ in range(M_DATA)'), L('data.append((gt, residual(gt, inertial_ref(v))))'), L('rms_abs = rms_per_t'), L('rms_res = rms_per_t')],
+      formula: `40 条合成专家轨迹（不同初速度、两种意图）<br>第 8 点 RMS：|τgt| = <span class="m">${f2(R.rmsAbs[N - 1])}</span> m → |r| = <span class="b">${f2(R.rmsRes[N - 1])}</span> m`,
+      desc: `直接回归绝对坐标时，远处航点数值大（右侧灰条）。换成残差后，目标都集中在 0 附近（蓝条），因为匀速外推已经解释掉了"沿当前速度前进"这部分。` }));
+
+    st = { ...st, ratio: { v: f2(ratio0), unit: '→ ' + f2(ratio1), sub: 'PRNorm 前 → 后' } };
+    steps.push(S({ phase: ph[1], tag: { text: 'PRNorm', kind: 'pre' }, show: { data: true, ref0: true, bars: true, std: true },
+      lines: [L('rmin = [min(r[t][d]'), L('rmax = [max(r[t][d]'), L('def minmax(pts, lo, hi)'), L('return [tuple(2 * GAMMA'), L('std_norm = std_per_dim')],
+      formula: `式 (5)(6)：r̃<sup>d</sup> = 2γ(r<sup>d</sup> − r<sup>d</sup><sub>min</sub>) / (r<sup>d</sup><sub>max</sub> − r<sup>d</sup><sub>min</sub> + ε) − γ<br>x ∈ [${f2(R.rmin[0])}, ${f2(R.rmax[0])}]　y ∈ [${f2(R.rmin[1])}, ${f2(R.rmax[1])}] → [−1, 1]<br>std(x) : std(y) = <span class="a">${f2(ratio0)}</span> → <span class="g">${f2(ratio1)}</span>`,
+      desc: `PRNorm 按分量 x、y 在<b>整个训练集的所有航点</b>上取极值，各自缩放到 [−γ, γ]。不归一化时纵向 x 的方差是 y 的 ${f2(ratio0 ** 2)} 倍，MSE 被纵向误差主导；归一化后两者相当，横向的细小修正也能学好。` }));
+
+    st = { ...st, k: { v: K, unit: '条', sub: `σv = (${P.SIGMA_VX}, ${P.SIGMA_VY})` } };
+    steps.push(S({ phase: ph[2], tag: { text: '扰动初速度', kind: 'pre' }, show: { ref0: true, refs: true },
+      lines: [L('vs = [(V0[0] + SIGMA_VX * gauss()'), L('refs = [inertial_ref(v) for v in vs]')],
+      formula: `式 (7)(8)：δv<sub>k</sub> ~ N(0, diag(${P.SIGMA_VX}², ${P.SIGMA_VY}²))，v0' = v0 + δv<sub>k</sub><br>` + R.vs.map((v, k) => `#${k} (${f2(v[0])}, ${f2(v[1])})`).join('　'),
+      desc: `推理时<b>不靠固定的轨迹词表</b>，而是给初速度加 ${K} 个高斯扰动，各自匀速外推，得到 ${K} 条惯性参考（紫虚线）。每条对应一个意图假设，同时让模型对 GPS / IMU 噪声更鲁棒。` }));
+
+    const decode = (c, zz) => c.toTraj(zz);
+    st = { ...st, ab: { v: '0.05', sub: '起点：几乎纯噪声' } };
+    steps.push(S({ phase: ph[3], tag: { text: '纯噪声 z_T', kind: 'miss' }, show: { refs: true, cands: cands.map(c => ({ k: c.k, pts: decode(c, c.hist[0].z), cls: 'noise' })) },
+      lines: [L('modes = [flat(minmax(residual(expert(vs[k]'), L('z = [gauss() for _ in range(2 * N)]')],
+      formula: `z<sub>T</sub> ~ N(0, I)，维度 2N = 16（归一化残差空间）<br>按"残差 + 参考"直接解码，轨迹杂乱无章`,
+      desc: `每个候选从<b>纯高斯噪声</b>出发。论文的扩散解码器以编码特征和该条参考的位置编码为条件；这里换成理想去噪器，它的条件就是"该参考下跟车 / 超车两种意图的归一化残差"。` }));
+
+    [1, 2].forEach(i => {
+      const a = R.ALPHAS[i - 1], a2 = R.ALPHAS[i];
+      st = { ...st, ab: { v: f2(a2), sub: i === 1 ? '第 1 步后' : '第 2 步后：干净' } };
+      steps.push(S({ phase: ph[3], tag: { text: `DDIM 第 ${i} 步`, kind: 'info' }, ddim: i,
+        show: { refs: true, cands: cands.map(c => ({ k: c.k, pts: decode(c, c.hist[i].x0), cls: c.hist[i].w[1] > c.hist[i].w[0] ? 'o' : 'f' })) },
+        lines: [L('for i in range(len(ALPHAS) - 1)'), L('x0, w = denoise(z, a, modes)'), L('eps = [(zi - math.sqrt(a) * xi)'), L('z = [math.sqrt(a2) * xi')],
+        formula: `ᾱ: ${a} → <span class="p">${a2}</span><br>x̂0 = Σ w<sub>j</sub>·E[x0 | z, 意图 j]，ε̂ = (z − √ᾱ·x̂0)/√(1−ᾱ)<br>z' = √ᾱ'·x̂0 + √(1−ᾱ')·ε̂`,
+        desc: i === 1
+          ? `第 1 步：去噪器根据当前噪声更接近哪种意图给出后验权重 w，预测干净残差 x̂0（图中画的就是 x̂0 解码后的轨迹，琥珀 = 偏跟车，蓝 = 偏超车）。噪声的随机性决定了每个候选落入哪种意图。`
+          : `第 2 步把 ᾱ 推到 1，z 就等于 x̂0。论文同样只用 <b>2 步 DDIM</b>：参考已经提供了强先验，残差分布简单，少步就够。` }));
+    });
+
+    steps.push(S({ phase: ph[3], tag: { text: '加回参考', kind: 'hit' }, show: { refs: true, cands: cands.map(c => ({ k: c.k, pts: c.traj, cls: c.w[1] > c.w[0] ? 'o' : 'f' })),
+        arrows: { multi: cands.map(c => ({ from: R.refs[c.k], to: c.traj, color: c.w[1] > c.w[0] ? 'blue' : 'amber' })), idx: [3, N - 1] } },
+      lines: [L('r = prdenorm('), L('def prdenorm(z)'), L('cands.append(([(f[0] + q[0], f[1] + q[1])')],
+      formula: `r̂ = PRNorm⁻¹(z)，τ̂<sub>k</sub> = τref,k + r̂<sub>k</sub><br>${cands.filter(c => c.w[1] > c.w[0]).length} 条偏超车，${cands.filter(c => c.w[1] <= c.w[0]).length} 条偏跟车`,
+      desc: `把归一化残差反变换回米，再加回<b>各自的扰动参考</b>（箭头只画了第 4、8 个航点）。同一种意图在不同参考上落地的位置略有不同，这就是多模态候选。` }));
+
+    const rows = [];
+    cands.forEach((c, k) => {
+      const sc = c.sc;
+      rows.push(k);
+      st = { ...st, k: { v: `${k + 1} / ${K}`, sub: `#${k} 得分 ${f4(sc.s)}` }, best: { v: f4(Math.max(...cands.slice(0, k + 1).map(q => q.sc.s))), sub: '目前最高' } };
+      steps.push(S({ phase: ph[4], tag: { text: `打分 #${k}`, kind: sc.nc ? 'info' : 'miss' }, scored: k + 1, hl: k,
+        show: { refs: true, cands: cands.map(q => ({ k: q.k, pts: q.traj, cls: (q.w[1] > q.w[0] ? 'o' : 'f') + (q.k === k ? ' hl' : ' dimc') })) },
+        lines: [L('def score(traj, best_x)'), L('nc = 0.0'), L('dac = 1.0 if all'), L('ep = traj[-1][0] / best_x'), L('lk = max(0.0'), L('c = 1.0 if acc <= 4.0'), L('return nc * dac')],
+        formula: `NC = ${sc.nc}　DAC = ${sc.dac}　EP = ${f4(sc.ep)}　LK = ${f4(sc.lk)}　C = ${sc.c}（a<sub>max</sub> = ${f2(sc.acc)}）<br>score = NC·DAC·(5·EP + 2·LK + 2·C)/9 = <span class="${sc.nc ? 'g' : 'r'}">${f4(sc.s)}</span>`,
+        desc: `候选 #${k}（偏${modeName(c.w)}）：${sc.nc ? '不与前车重叠' : '<b style="color:var(--red)">与前车重叠，NC = 0</b>'}，进度 ${f2(sc.ep * 100)}%，终点${sc.lk > 0.5 ? '在车道中心附近' : '偏离车道中心'}。论文的排序器是 Transformer 打分、蒸馏 PDM 各子指标；这里直接用规则近似。` }));
+    });
+
+    st = { ...st, best: { v: f4(cands[best].sc.s), sub: `选中 #${best}（${modeName(cands[best].w)}）` } };
+    steps.push(S({ phase: ph[4], tag: { text: '完成', kind: 'warn' }, done: true, scored: K, hl: best,
+      show: { cands: cands.map(q => ({ k: q.k, pts: q.traj, cls: q.k === best ? 'best' : (q.w[1] > q.w[0] ? 'o' : 'f') + ' dimc' })) },
+      lines: [L('best = max(range(K)'), L('print(f"best = {best}')],
+      formula: `best = #<span class="g">${best}</span>，score = <span class="r">${f4(cands[best].sc.s)}</span><br>终点 (${f2(cands[best].traj[N - 1][0])}, ${f2(cands[best].traj[N - 1][1])})`,
+      desc: `排序器选出 <b>#${best}</b>（${modeName(cands[best].w)}）。整条链路：匀速外推给出物理先验 → 只生成"必须偏离多少" → 扰动参考得到多意图 → 2 步去噪 → 打分选优。` }));
+    return steps;
+  },
+
+  mount({ P, R }, P2) {
+    const { N, cands } = R;
+    const mk = Object.entries(COLORS).map(([k, c]) =>
+      `<marker id="mk-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:${c};stroke:none"/></marker>`).join('');
+    P2.canvas.innerHTML = `<div class="bev"><svg><defs>${mk}</defs><g class="roadg"></g><g class="data"></g><g class="refs"></g><g class="exps"></g><g class="cands"></g><g class="arrows"></g><g class="cars"></g></svg></div>
+      <div class="legend"><span><i class="dash" style="color:#64748b"></i>惯性参考</span><span><i class="dash" style="color:var(--purple)"></i>扰动参考</span>
+      <span><i style="background:var(--amber)"></i>跟车意图</span><span><i style="background:var(--blue)"></i>超车意图</span><span><i style="background:#f87171"></i>噪声解码</span><span><i style="background:var(--green)"></i>选中轨迹</span></div>`;
+    const svg = P2.canvas.querySelector('svg'), g = c => svg.querySelector('.' + c);
+    const path = (parent, cls) => { const p = mkS('path'); if (cls) p.setAttribute('class', cls); parent.appendChild(p); return p; };
+    const road = g('roadg');
+    const roadRect = mkS('rect'); roadRect.setAttribute('class', 'road'); road.appendChild(roadRect);
+    const lanes = [-1.75, 1.75, 5.25].map((y, i) => ({ y, p: path(road, 'lane' + (i === 1 ? ' mid' : '')) }));
+    const dataP = R.data.map(() => path(g('data')));
+    const mkRef = cls => { const gg = mkS('g'); gg.setAttribute('class', cls); g('refs').appendChild(gg); const p = path(gg); const cs = Array.from({ length: N }, () => { const c = mkS('circle'); c.setAttribute('r', 2.5); gg.appendChild(c); return c; }); return { g: gg, p, cs }; };
+    const ref0 = mkRef('ref');
+    const refs = R.refs.map(() => mkRef('ref pert'));
+    refs.forEach(r => r.cs.forEach(c => c.remove()));
+    const exps = R.ex.map((_, j) => { const gg = mkS('g'); gg.setAttribute('class', 'exp off'); g('exps').appendChild(gg); const p = path(gg); p.style.stroke = j ? COLORS.blue : COLORS.amber; return { g: gg, p }; });
+    const cps = cands.map(() => { const gg = mkS('g'); gg.setAttribute('class', 'cand off'); g('cands').appendChild(gg); const p = path(gg); const cs = Array.from({ length: N }, () => { const c = mkS('circle'); c.setAttribute('r', 3); gg.appendChild(c); return c; }); return { g: gg, p, cs, cur: null }; });
+    const car = (cls, label) => { const r = mkS('rect'); r.setAttribute('class', 'car ' + cls); g('cars').appendChild(r); const t = mkS('text'); t.textContent = label; t.style.fill = cls === 'ego' ? COLORS.blue : '#dc2626'; g('cars').appendChild(t); return { r, t }; };
+    const cars = { ego: car('ego', '自车'), lead: car('lead', '前车 t=0'), ghost: car('ghost', '前车 t=4s') };
+    const lab = mkS('text'); g('cars').appendChild(lab);
+    P2.state.innerHTML = '<div class="formula"></div>';
+    P2.aux.bars.innerHTML = `<div class="bars">${R.TS.map(t => `<div class="brow"><span class="t">${t.toFixed(1)}s</span><div class="trk"><div class="ab"></div><div class="rs"></div></div><span class="v"></span></div>`).join('')}<div class="stdline"></div></div>`;
+    P2.aux.tbl.innerHTML = `<div class="tbl"><div class="trow head"><span>#</span><span>v0'</span><span>w跟车</span><span>w超车</span><span>终点</span><span>得分</span></div><div class="tscroll"></div></div>`;
+    P2.aux.tbl.style.overflow = 'hidden';
+    const tb = P2.aux.tbl.querySelector('.tscroll');
+    const trows = cands.map(() => tb.appendChild(el('div', 'trow', '<span></span>'.repeat(6))));
+    U = { bev: P2.canvas.querySelector('.bev'), roadRect, lanes, dataP, ref0, refs, exps, cps, cars, lab, gA: g('arrows'), arrows: new Map(),
+      formula: P2.state.querySelector('.formula'), bars: P2.aux.bars.querySelector('.bars'), brows: [...P2.aux.bars.querySelectorAll('.brow')], stdline: P2.aux.bars.querySelector('.stdline'), trows };
+  },
+
+  layout({ P, R }) {
+    const W = U.bev.clientWidth, H = U.bev.clientHeight;
+    const xs = [40, ...R.cands.map(c => c.traj[R.N - 1][0]), P.LEAD_X0 + P.LEAD_V * 4 + 3];
+    const x0 = -3, x1 = Math.max(...xs) + 2, y0 = -3.2, y1 = 7;
+    const s = Math.min(W / (x1 - x0), H / (y1 - y0));
+    U.X = x => (x - x0) * s; U.Y = y => H - (y - y0) * s; U.s = s; U.xr = [x0, Math.max(x1, x0 + W / s)];
+    U.roadRect.setAttribute('x', 0); U.roadRect.setAttribute('width', W); U.roadRect.setAttribute('y', U.Y(5.25)); U.roadRect.setAttribute('height', U.Y(-1.75) - U.Y(5.25));
+    U.lanes.forEach(l => l.p.setAttribute('d', `M0,${U.Y(l.y)} H${W}`));
+    const poly = pts => 'M' + [[0, 0], ...pts].map(([x, y]) => `${U.X(x).toFixed(1)},${U.Y(y).toFixed(1)}`).join(' L');
+    U.poly = poly;
+    R.data.forEach((q, i) => U.dataP[i].setAttribute('d', poly(q.gt)));
+    U.ref0.p.setAttribute('d', poly(R.ref0));
+    U.ref0.cs.forEach((c, t) => { c.setAttribute('cx', U.X(R.ref0[t][0])); c.setAttribute('cy', U.Y(R.ref0[t][1])); });
+    U.refs.forEach((r, k) => r.p.setAttribute('d', poly(R.refs[k])));
+    U.exps.forEach((e, j) => e.p.setAttribute('d', poly(R.ex[j])));
+    const carAt = (o, x, y, ty) => {
+      o.r.setAttribute('x', U.X(x - 2.3)); o.r.setAttribute('y', U.Y(y + 0.95)); o.r.setAttribute('width', 4.6 * s); o.r.setAttribute('height', 1.9 * s); o.r.setAttribute('rx', 3);
+      o.t.setAttribute('x', U.X(x)); o.t.setAttribute('y', U.Y(y) + ty); o.t.setAttribute('text-anchor', 'middle');
+    };
+    carAt(U.cars.ego, 0, 0, 0.95 * s + 10);
+    carAt(U.cars.lead, P.LEAD_X0, 0, -(0.95 * s + 10));
+    carAt(U.cars.ghost, P.LEAD_X0 + P.LEAD_V * 4, 0, 0.95 * s + 10);
+    U.cps.forEach(c => { c.cur = null; });
+  },
+
+  render(s, prev, { P, R }) {
+    const sh = s.show || {}, { N } = R;
+    U.dataP[0].parentNode.classList.toggle('off', !sh.data);
+    U.ref0.g.classList.toggle('off', !sh.ref0);
+    U.refs.forEach((r, k) => { r.g.classList.toggle('off', !sh.refs); r.g.classList.toggle('hl', s.hl === k && !s.done); });
+    U.exps.forEach((e, j) => e.g.classList.toggle('off', !(sh.ex && sh.ex.includes(j))));
+    // 候选轨迹：点位补间
+    const want = new Map((sh.cands || []).map(c => [c.k, c]));
+    U.cps.forEach((c, k) => {
+      const w = want.get(k);
+      c.g.setAttribute('class', 'cand ' + (w ? w.cls : 'off'));
+      if (!w) { c.cur = null; return; }
+      const to = w.pts, from = c.cur || to.map(() => [0, 0]);
+      animate('cand' + k, p => {
+        const cur = to.map((q, t) => [from[t][0] + (q[0] - from[t][0]) * p, from[t][1] + (q[1] - from[t][1]) * p]);
+        c.cur = cur;
+        c.p.setAttribute('d', U.poly(cur));
+        c.cs.forEach((ci, t) => { ci.setAttribute('cx', U.X(cur[t][0])); ci.setAttribute('cy', U.Y(cur[t][1])); });
+      });
+    });
+    // 当前候选 / 最终候选的编号标签
+    const lk = s.hl != null && sh.cands ? s.hl : null;
+    U.lab.style.opacity = lk == null ? 0 : 1;
+    if (lk != null) {
+      const e = R.cands[lk].traj[N - 1];
+      U.lab.setAttribute('x', U.X(e[0]) + 8); U.lab.setAttribute('y', U.Y(e[1]) + (e[1] > 1.75 ? -12 : 12));
+      U.lab.textContent = `#${lk}${s.done ? ' 选中' : ''}`;
+      U.lab.style.fill = s.done ? COLORS.green : COLORS.blue;
+    }
+    // 残差箭头
+    const T = [];
+    if (sh.arrows) {
+      const list = sh.arrows.multi || [sh.arrows], idx = sh.arrows.idx || [...Array(N).keys()];
+      list.forEach((a, q) => idx.forEach(t => {
+        const A = a.from[t], B = a.to[t];
+        if (Math.hypot(B[0] - A[0], B[1] - A[1]) * U.s < 8) return;
+        T.push({ key: `${q}-${t}`, A, B, color: a.color });
+      }));
+    }
+    const keys = new Set(T.map(t => t.key));
+    U.arrows.forEach((p, k) => { if (!keys.has(k)) { p.remove(); U.arrows.delete(k); } });
+    T.forEach(t => {
+      let p = U.arrows.get(t.key);
+      if (!p) { p = mkS('path'); U.gA.appendChild(p); U.arrows.set(t.key, p); if (!AV.isInstant()) { p.style.opacity = 0; requestAnimationFrame(() => { p.style.opacity = 1; }); } }
+      const ax = U.X(t.A[0]), ay = U.Y(t.A[1]), bx = U.X(t.B[0]), by = U.Y(t.B[1]), l = Math.hypot(bx - ax, by - ay);
+      p.setAttribute('d', `M${ax},${ay} L${bx - (bx - ax) / l * 3},${by - (by - ay) / l * 3}`);
+      p.style.stroke = COLORS[t.color];
+      p.setAttribute('marker-end', `url(#mk-${t.color})`);
+    });
+
+    if (U.formula.innerHTML !== s.formula) { U.formula.innerHTML = s.formula; flash(U.formula, 'fade-in'); }
+
+    // RMS 条形
+    U.bars.classList.toggle('off', !sh.bars);
+    const mx = Math.max(...R.rmsAbs);
+    U.brows.forEach((r, t) => {
+      r.querySelector('.ab').style.width = (sh.bars ? R.rmsAbs[t] / mx * 100 : 0) + '%';
+      r.querySelector('.rs').style.width = (sh.bars ? R.rmsRes[t] / mx * 100 : 0) + '%';
+      setText(r.querySelector('.v'), sh.bars ? `${f2(R.rmsAbs[t])} / ${f2(R.rmsRes[t])}` : '');
+    });
+    const sl = sh.std ? `std(x, y)：残差 (${f2(R.stdRes[0])}, ${f2(R.stdRes[1])}) m → PRNorm 后 (<b>${f2(R.stdNorm[0])}, ${f2(R.stdNorm[1])}</b>)` : 'PRNorm 前后 x、y 尺度对比在"PRNorm"一步给出';
+    if (U.stdline.innerHTML !== sl) U.stdline.innerHTML = sl;
+
+    // 候选表
+    R.cands.forEach((c, k) => {
+      const row = U.trows[k], sp = row.children;
+      const showW = s.ddim >= 1 || (sh.cands && !s.ddim && sh.cands[0] && sh.cands[0].cls !== 'noise');
+      const w = s.ddim ? c.hist[s.ddim].w : c.w;
+      const vals = [k, sh.refs || s.done ? `(${f2(c.v[0])}, ${f2(c.v[1])})` : '·', showW ? f2(w[0]) : '·', showW ? f2(w[1]) : '·',
+        showW && !s.ddim ? `(${f2(c.traj[N - 1][0])}, ${f2(c.traj[N - 1][1])})` : '·', s.scored > k ? f4(c.sc.s) : '·'];
+      vals.forEach((v, q) => setText(sp[q], v));
+      sp[2].className = showW && w[0] >= w[1] ? 'f' : ''; sp[3].className = showW && w[1] > w[0] ? 'o' : '';
+      row.className = 'trow' + (s.done && k === R.best ? ' best' : s.hl === k ? ' cur' : '');
+    });
+  },
+};
+
+AV.start(DEMO);
+})();
+</script>
+</body>
+</html>

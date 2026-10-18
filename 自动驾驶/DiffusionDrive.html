@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>算法动态演示</title>
+<style>
+/* =====================================================================
+   ENGINE STYLE —— 通用布局与风格（固定，生成新演示时不要改动）
+   ===================================================================== */
+:root {
+  --bg: #f5f7fb; --card: #fff; --line: #e5e7eb; --text: #1f2937; --muted: #6b7280;
+  --blue: #2563eb; --green: #16a34a; --red: #dc2626; --amber: #d97706; --purple: #7c3aed; --gray: #64748b;
+  --blue-l: #eff6ff; --green-l: #f0fdf4; --red-l: #fef2f2; --amber-l: #fffbeb; --purple-l: #f5f3ff;
+  --dur: 420ms; --ease: cubic-bezier(.4, 0, .2, 1);
+  --code-w: 720px; --code-fs: 14px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; }
+body.instant *, body.instant *::before, body.instant *::after { transition: none !important; animation: none !important; }
+
+header { flex: none; display: flex; align-items: baseline; gap: 14px; padding: 12px 20px 8px; min-width: 0; }
+header h1 { margin: 0; font-size: 19px; white-space: nowrap; }
+header .sub { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--code-w);
+  padding: 0 16px 14px 20px; transition: grid-template-columns var(--dur) var(--ease); }
+.app.dragging { transition: none; user-select: none; }
+.app.code-collapsed { grid-template-columns: minmax(0, 1fr) 12px 44px; }
+.left { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; min-width: 0; }
+.card-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px;
+  font-weight: 600; font-size: 15px; }
+.card-h .hint { font-weight: 400; text-align: right; }
+.hint { color: var(--muted); font-size: 12px; }
+.mono { font-family: Consolas, "Courier New", monospace; }
+.dim { opacity: .5; transition: opacity var(--dur); }
+
+/* 工具栏 */
+.toolbar { flex: none; display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.toolbar label { color: var(--muted); }
+input[type=text], input[type=number] { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px;
+  font-family: inherit; transition: border-color .15s, box-shadow .15s; }
+input[type=text]:focus, input[type=number]:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px #dbeafe; }
+button { padding: 6px 12px; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; cursor: pointer;
+  font-size: 14px; font-family: inherit; color: var(--text); transition: background .15s, border-color .15s; }
+button:hover { background: #eef2ff; border-color: #a5b4fc; }
+button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+button.primary:hover { background: #1d4ed8; }
+button.preset { font-size: 12px; padding: 3px 9px; }
+.progress { flex: 1; min-width: 140px; height: 8px; background: var(--line); border-radius: 4px; cursor: pointer;
+  position: relative; touch-action: none; margin: 0 8px; }
+.progress::before { content: ""; position: absolute; left: -8px; right: -8px; top: -9px; bottom: -9px; }
+.progress #prog { height: 100%; background: var(--blue); border-radius: 4px; transition: width var(--dur) var(--ease); }
+.progress .thumb { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--blue); box-shadow: 0 1px 4px rgba(0, 0, 0, .2); cursor: grab;
+  transition: left var(--dur) var(--ease), transform .15s; }
+.progress:hover .thumb, .progress.dragging .thumb { transform: scale(1.2); }
+.progress.dragging .thumb { cursor: grabbing; }
+.progress.dragging #prog, .progress.dragging .thumb { transition: none; }
+.progress .tip { position: absolute; bottom: 18px; transform: translateX(-50%); background: var(--text); color: #fff;
+  font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.progress.dragging .tip { opacity: 1; }
+.err { color: var(--red); font-size: 13px; }
+
+/* 统计卡片（保持这一风格：标题 + 大号彩色数字） */
+.stats { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 16px; transition: box-shadow .3s; }
+.stat .lab { font-size: 14px; font-weight: 600; line-height: 20px; }
+.stat .num { font-size: 32px; font-weight: 800; line-height: 1.45; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat .num small { font-size: 15px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+.stat .sub { font-size: 12px; color: var(--muted); height: 18px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat.red .num { color: var(--red); } .stat.green .num { color: var(--green); } .stat.blue .num { color: var(--blue); }
+.stat.amber .num { color: var(--amber); } .stat.purple .num { color: var(--purple); } .stat.gray .num { color: var(--gray); }
+.stat.bump { animation: bump .6s var(--ease); }
+@keyframes bump { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .35); } 100% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } }
+
+/* 主画布 + 下方两列 */
+.canvas-card { flex: none; }
+.bottom { flex: 1; min-height: 200px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
+.col > .card { flex: none; }
+.col > .card.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.card.grow > .card-b { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+
+/* 步骤说明 */
+.desc { font-size: 15px; line-height: 1.75; }
+.desc b { color: var(--blue); }
+.fade-in { animation: fadeIn var(--dur) var(--ease); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.tag { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-right: 6px; color: #fff; line-height: 20px; }
+.tag.pre { background: var(--purple); } .tag.hit { background: var(--green); } .tag.miss { background: var(--red); }
+.tag.info { background: var(--blue); } .tag.warn { background: var(--amber); }
+.phase { font-size: 12px; font-weight: 600; color: var(--blue); background: var(--blue-l); border-radius: 10px; padding: 1px 10px; }
+
+/* 通用：进入 / 闪烁动画 */
+.av-enter { animation: avEnter var(--dur) var(--ease); }
+@keyframes avEnter { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+.av-flash { animation: avFlash calc(var(--dur) * 1.6) var(--ease); }
+@keyframes avFlash { 0% { background: #fde68a; } 100% { background: transparent; } }
+
+/* 分隔条 */
+.splitter { position: relative; cursor: col-resize; }
+.splitter::after { content: ""; position: absolute; left: 5px; top: calc(50% - 30px); height: 60px; width: 3px; border-radius: 2px;
+  background: #cbd5e1; transition: background .15s; }
+.splitter:hover::after, .app.dragging .splitter::after { background: var(--blue); }
+.app.code-collapsed .splitter { cursor: default; }
+
+/* 代码位置：深色背景 + VS Code Dark Modern / Pylance 配色 */
+.right { min-width: 0; min-height: 0; display: flex; }
+.code-card { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #1f1f1f; border: 1px solid #2b2b2b;
+  border-radius: 12px; overflow: hidden; }
+.code-h { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #181818;
+  border-bottom: 1px solid #2b2b2b; color: #cccccc; font-size: 13px; white-space: nowrap; }
+.code-h .file { color: #e5e5e5; font-weight: 600; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; }
+.code-h .pyicon { width: 16px; height: 16px; border-radius: 3px; background: linear-gradient(135deg, #3572a5 50%, #ffd43b 50%); flex: none; }
+.code-h .pos { color: #8b949e; margin-left: auto; }
+.code-h button { background: transparent; border: 1px solid #3c3c3c; color: #cccccc; padding: 2px 8px; font-size: 12px; }
+.code-h button:hover { background: #2a2d2e; border-color: #555; }
+.code-h button.on { border-color: #0078d4; color: #fff; }
+.code-body { flex: 1; min-height: 0; position: relative; overflow-y: auto; overflow-x: hidden; padding: 8px 0 35vh;
+  font-family: Consolas, "Courier New", monospace; font-size: var(--code-fs); line-height: 1.45; color: #cccccc; }
+.code-body::-webkit-scrollbar { width: 12px; } .code-body::-webkit-scrollbar-thumb { background: #424242; }
+.code-body::-webkit-scrollbar-track { background: #1f1f1f; }
+.ln { display: flex; transition: background var(--dur) var(--ease); }
+.ln .g { flex: none; width: 4.4em; padding-right: 1.4em; text-align: right; color: #6e7681; user-select: none; position: relative;
+  transition: color var(--dur); }
+.ln .s { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all;
+  padding-left: calc(var(--ind) * 1ch + 4ch); text-indent: -4ch; padding-right: 12px;
+  background-image: repeating-linear-gradient(90deg, #404040 0 1px, transparent 1px 4ch);
+  background-size: calc(var(--ind) * 1ch) 100%; background-repeat: no-repeat; }
+.ln.on { background: rgba(255, 215, 0, .13); box-shadow: inset 3px 0 #ffd700; }
+.ln.on .g { color: #ffd700; }
+.ln.on .g::before { content: "➜"; position: absolute; left: .5em; color: #ffd700; }
+.code-body.no-cmt .ln.cmt { display: none; }
+.app.code-collapsed .code-body, .app.code-collapsed .code-h > :not(.collapse) { display: none; }
+.app.code-collapsed .code-h { flex: 1; flex-direction: column; justify-content: flex-start; padding: 10px 0; border: 0; }
+.app.code-collapsed .code-h .collapse::after { content: "代码位置"; display: block; writing-mode: vertical-rl; margin-top: 8px; letter-spacing: 2px; }
+.t-kw { color: #569cd6; } .t-ctl { color: #c586c0; } .t-fn { color: #dcdcaa; } .t-cls { color: #4ec9b0; }
+.t-str { color: #ce9178; } .t-num { color: #b5cea8; } .t-cmt { color: #6a9955; } .t-var { color: #9cdcfe; }
+.t-const { color: #4fc1ff; } .t-op { color: #d4d4d4; }
+.t-b0 { color: #ffd700; } .t-b1 { color: #da70d6; } .t-b2 { color: #179fff; }
+
+#av-check { display: none; }
+
+/* =====================================================================
+   DEMO STYLE —— 本题专用的可视化样式（生成新演示时替换这里）
+   ===================================================================== */
+.bev { position: relative; }
+.bev svg { display: block; width: 100%; overflow: hidden; border-radius: 8px; }
+.bev svg > g path { fill: none; }
+.bev .road-bg { fill: #eef1f5; }
+.bev .lane-edge { stroke: #94a3b8; stroke-width: 2; }
+.bev .lane-mid { stroke: #cbd5e1; stroke-width: 2; stroke-dasharray: 12 10; }
+.bev .car-ego { fill: var(--blue); stroke: #1e3a8a; stroke-width: 1.5; }
+.bev .car-obs { fill: #475569; stroke: #1f2937; stroke-width: 1.5; transition: opacity var(--dur); }
+.bev .safe { fill: rgba(220, 38, 38, .06); stroke: var(--red); stroke-width: 1.5; stroke-dasharray: 5 4; transition: opacity var(--dur); }
+.bev g { transition: opacity var(--dur); }
+.bev .expert path { stroke-width: 1.4; opacity: .5; transition: stroke var(--dur), opacity var(--dur); }
+.bev .mode path { stroke: #16a34a; stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; opacity: .14; transition: opacity var(--dur); }
+.bev .anchor path { stroke-width: 2.2; stroke-dasharray: 7 5; transition: stroke var(--dur), opacity var(--dur), stroke-width var(--dur); }
+.bev .traj path, .bev .pure path { stroke-width: 2.6; stroke-linejoin: round; transition: stroke var(--dur), opacity var(--dur), stroke-width var(--dur); }
+.bev .traj path.best { stroke-width: 4.5; }
+.bev circle.wp { stroke: #fff; stroke-width: 1; transition: fill var(--dur), opacity var(--dur); }
+.bev text { font-size: 12px; font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round;
+  dominant-baseline: central; transition: transform var(--dur) var(--ease), opacity var(--dur), fill var(--dur); }
+.bev text.cap { font-size: 12px; fill: var(--text); }
+.bev text.ax { font-size: 11px; font-weight: 600; fill: var(--muted); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+
+.st { display: flex; gap: 14px; height: 100%; min-height: 0; }
+.st .left2 { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.formula { font-family: Consolas, monospace; font-size: 13px; line-height: 1.7; }
+.formula .p { color: var(--purple); font-weight: 700; } .formula .g { color: var(--green); font-weight: 800; }
+.formula .r { color: var(--red); font-weight: 700; } .formula .b { color: var(--blue); font-weight: 700; }
+.formula .m { color: var(--muted); }
+.resp { font-size: 12px; font-family: Consolas, monospace; }
+.rrow { display: grid; grid-template-columns: 44px repeat(var(--m), minmax(0, 1fr)); gap: 3px; height: 20px; margin-bottom: 3px; align-items: center; }
+.rrow > span { text-align: center; border-radius: 4px; height: 20px; line-height: 20px; white-space: nowrap; overflow: hidden;
+  transition: background var(--dur), color var(--dur); }
+.rrow.head > span { color: var(--muted); font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-weight: 600; }
+.rrow > span.k { font-weight: 700; }
+.rrow.best > span.k { color: var(--green); }
+.abchart { flex: none; width: 210px; }
+.abchart svg { display: block; width: 210px; height: 128px; overflow: visible; }
+.abchart .curve { fill: none; stroke: var(--purple); stroke-width: 2; }
+.abchart .axis { stroke: #cbd5e1; stroke-width: 1; }
+.abchart .tick { stroke: #cbd5e1; stroke-dasharray: 3 3; }
+.abchart circle { fill: var(--blue); stroke: #fff; stroke-width: 2; transition: opacity var(--dur); }
+.abchart text { font-size: 11px; fill: var(--muted); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+.abchart text.cur { fill: var(--blue); font-weight: 700; }
+
+.tbl { font-size: 13px; font-family: Consolas, monospace; display: flex; flex-direction: column; height: 100%; }
+.tscroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative; }
+.trow { display: grid; grid-template-columns: .5fr 1.3fr 1.3fr .8fr .8fr .9fr; align-items: center; height: 26px;
+  border-bottom: 1px solid var(--line); text-align: center; border-radius: 5px; transition: background var(--dur), color var(--dur); }
+.trow > span { white-space: nowrap; overflow: hidden; }
+.trow.head { flex: none; color: var(--muted); font-weight: 600; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+.trow .na { color: #d1d5db; }
+.trow .bad { color: var(--red); font-weight: 700; }
+.trow.best { background: var(--green-l); color: var(--green); font-weight: 800; }
+.trow .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<header><h1 id="title"></h1><div class="sub" id="subtitle"></div></header>
+
+<div class="app" id="app">
+  <section class="left" id="left">
+    <div class="card toolbar">
+      <div class="row" id="inputs"></div>
+      <div class="row">
+        <button id="btnFirst" title="第一步">⏮</button>
+        <button id="btnPrev">◀ 上一步</button>
+        <button class="primary" id="btnPlay">▶ 播放</button>
+        <button id="btnNext">下一步 ▶</button>
+        <button id="btnLast" title="最后一步">⏭</button>
+        <span class="hint">慢</span><input id="speed" type="range" min="300" max="2600" value="1200" style="width:110px;direction:rtl"><span class="hint">快</span>
+        <div class="progress" id="progress" title="点击或拖动跳转"><div id="prog"></div><div class="thumb" id="thumb"></div><div class="tip" id="progTip"></div></div>
+        <span id="stepNo" class="hint mono"></span>
+        <span class="hint">← → 单步 · 空格 播放 · 进度条可拖动</span>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="card canvas-card">
+      <div class="card-h"><span id="canvasTitle"></span><span class="hint" id="canvasHint"></span></div>
+      <div id="canvas"></div>
+    </div>
+    <div class="bottom">
+      <div class="col">
+        <div class="card">
+          <div class="card-h"><span>当前步骤</span><span class="phase" id="phase"></span></div>
+          <div class="desc" id="desc"></div>
+        </div>
+        <div class="card grow" id="stateCard">
+          <div class="card-h"><span id="stateTitle"></span><span class="hint" id="stateHint"></span></div>
+          <div class="card-b" id="state"></div>
+        </div>
+      </div>
+      <div class="col" id="auxCol"></div>
+    </div>
+  </section>
+  <div class="splitter" id="splitter" title="拖动调整宽度，双击恢复"></div>
+  <aside class="right">
+    <div class="code-card">
+      <div class="code-h">
+        <button class="collapse" id="btnCollapse" title="折叠 / 展开代码">⇥</button>
+        <span class="file"><span class="pyicon"></span><span>代码位置 · <span id="fileName"></span></span></span>
+        <span class="pos" id="codePos"></span>
+        <button id="btnCmt" title="显示 / 隐藏纯注释行">注释</button>
+        <button id="btnFsDown" title="缩小字号">A−</button>
+        <button id="btnFsUp" title="放大字号">A+</button>
+      </div>
+      <div class="code-body" id="codeBody"></div>
+    </div>
+  </aside>
+</div>
+<pre id="av-check"></pre>
+
+<!-- 对应 .py 的完整源码，用 scripts/embed_source.py 写入（保持与源文件一致） -->
+<script type="text/plain" id="py-source">
+# 题目描述：
+# 三车道 BEV 场景：车道宽 LANE_W，车道中心 y = +LANE_W（左）、0（中）、-LANE_W（右）。
+# 自车在中间车道原点、朝 +x、速度 V0；障碍车静止在 OBS_LANE 车道、纵向位置 OBS_X 处
+# （OBS_LANE = None 表示没有障碍车）。规划未来 H 个航点（间隔 DT 秒）的轨迹。
+# 用 DiffusionDrive（CVPR 2025）的"截断扩散 + 锚点"思想做一个玩具但忠实的实现：
+#   1. 锚点词表：合成一批专家轨迹，k-means 聚成 K 条锚点轨迹；
+#   2. 截断扩散：给每条锚点只加 T_TRUNC 步的小噪声，再用 DDIM 只去噪 2 步；
+#   3. 打分：cost（碰撞 / 偏离车道 / 舒适度 / 效率）→ 置信度 softmax(−cost)，选最高者；
+#   4. 对比：从纯高斯噪声出发同样走 2 步，观察"模式平均"。
+#
+# 思路：
+# 1. 轨迹 = 2H 维向量 (x1, y1, ..., xH, yH)，除以 (SX, SY) 归一化后再做扩散。
+# 2. 去噪网络用"理想去噪器"代替：当前场景下专家轨迹分布是高斯混合（左变道 / 右变道 /
+#    巡航 / 减速跟停，权重由场景决定），E[x0 | xt] 有闭式解。训练充分的网络在
+#    均方误差下学到的正是这个后验均值，所以它是网络的"满分替身"。
+# 3. 截断的意义：锚点已在某个模式附近，只加少量噪声时后验几乎只落在最近的模式上，
+#    2 步就能去噪到干净、多样的轨迹；纯噪声出发时后验在各模式间摊开，
+#    2 步得到的是各模式的加权平均——两条车道之间、或直接撞向障碍车。
+#
+# 复杂度：k-means O(ITER·N·K·H)；每条轨迹每步去噪 O(M·H)，M 为混合成分数。
+
+import math
+
+# ---------------- 参数 ----------------
+H, DT, T_LC = 8, 0.5, 3.0       # 航点数、航点间隔(s)、变道用时(s)
+V0, LANE_W = 10.0, 3.5          # 自车速度(m/s)、车道宽(m)
+OBS_LANE, OBS_X = 0, 22.0       # 障碍车所在车道（1 左 / 0 中 / -1 右 / None 无）与纵向位置
+N_EXPERT, K, KM_ITERS = 48, 6, 5
+SX, SY = 20.0, 2.0              # 归一化尺度：纵向 / 横向
+SIG = 0.05                      # 混合成分的标准差（归一化后）
+T, T_TRUNC = 1000, 50
+SEED = 2025
+
+
+# ---------------- 随机数：mulberry32 + Box-Muller（与网页 JS 版逐位一致） ----------------
+state = SEED & 0xffffffff
+
+
+def imul(a, b):
+    # 模拟 JS 的 Math.imul：32 位整数乘法只保留低 32 位
+    return (a * b) & 0xffffffff
+
+
+def rand():
+    global state
+    state = (state + 0x6D2B79F5) & 0xffffffff
+    t = imul(state ^ (state >> 15), state | 1)
+    t = ((t + imul(t ^ (t >> 7), t | 61)) & 0xffffffff) ^ t
+    return (t ^ (t >> 14)) / 4294967296
+
+
+def gauss():
+    # 1 - rand() 落在 (0, 1]，避免 log(0)
+    u1, u2 = 1 - rand(), rand()
+    return math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+
+
+# ---------------- 轨迹生成与坐标归一化 ----------------
+def rollout(v, a, dy):
+    # 纵向匀加速（减到 0 就停住，不倒车）；横向用 smoothstep 在 T_LC 秒内平滑移动 dy
+    pts = []
+    for i in range(1, H + 1):
+        t = i * DT
+        x = -v * v / (2 * a) if a < 0 and v + a * t < 0 else v * t + 0.5 * a * t * t
+        u = min(t / T_LC, 1.0)
+        pts += [x, dy * (3 * u * u - 2 * u ** 3)]
+    return pts
+
+
+def norm(p):
+    return [p[i] / (SX if i % 2 == 0 else SY) for i in range(2 * H)]
+
+
+def denorm(p):
+    return [p[i] * (SX if i % 2 == 0 else SY) for i in range(2 * H)]
+
+
+def dist2(p, q):
+    return sum((p[i] - q[i]) ** 2 for i in range(len(p)))
+
+
+# ---------------- 1. 专家数据 → k-means 锚点词表 ----------------
+# 四种行为轮流生成：0 巡航、1 左变道、2 右变道、3 减速，速度与幅度带随机扰动
+experts = []
+for n in range(N_EXPERT):
+    m, v = n % 4, V0 + 1.5 * gauss()
+    a = -2.5 + 0.5 * gauss() if m == 3 else 0.4 * gauss()
+    dy = [0, LANE_W, -LANE_W, 0][m] + 0.2 * gauss()
+    experts.append(norm(rollout(v, a, dy)))
+
+# 取前 K 条为初始中心：行为轮流生成，前 K 条一定覆盖四种行为
+centers = [list(e) for e in experts[:K]]
+for it in range(KM_ITERS):
+    # 分配：每条专家轨迹归到最近的中心
+    assign = [min(range(K), key=lambda k: dist2(e, centers[k])) for e in experts]
+    # 更新：中心 = 成员均值；空簇保留原中心
+    for k in range(K):
+        mem = [experts[n] for n in range(N_EXPERT) if assign[n] == k]
+        if mem:
+            centers[k] = [sum(e[i] for e in mem) / len(mem) for i in range(2 * H)]
+anchors = centers
+
+# ---------------- 2. 场景条件下的专家分布：高斯混合 ----------------
+# 权重由场景决定：被障碍车占的车道不会变道进去；本车道有障碍时巡航权重为 0，改为跟停
+# 权重不必归一化：后验责任里会被约掉
+blocked = OBS_LANE == 0
+gap = OBS_X - 8.0                                  # 跟停时离障碍车留 8 m（车长 + 安全距离）
+modes = []                                         # (名称, 权重, 归一化均值)
+for name, lane in [('左变道', 1), ('右变道', -1)]:
+    if OBS_LANE != lane:
+        modes.append((name, 0.35 if blocked else 0.15, norm(rollout(V0, 0.0, lane * LANE_W))))
+if blocked:
+    modes.append(('减速跟停', 0.3, norm(rollout(V0, -V0 * V0 / (2 * gap), 0.0))))
+else:
+    modes.append(('巡航', 0.6, norm(rollout(V0, 0.0, 0.0))))
+    modes.append(('减速', 0.1, norm(rollout(V0, -1.5, 0.0))))
+
+# ---------------- 3. DDPM 线性 β 调度 ----------------
+# ab[t] = ᾱ_t = Π(1 − β_i)，ab[0] = 1 表示完全干净
+ab = [1.0]
+for i in range(1, T + 1):
+    beta = 1e-4 + (0.02 - 1e-4) * (i - 1) / (T - 1)
+    ab.append(ab[-1] * (1 - beta))
+
+
+def denoise(xt, t):
+    # 理想去噪器 E[x0 | xt]：xt = √ᾱ x0 + √(1−ᾱ) ε，x0 ~ Σ w_m N(μ_m, SIG² I)
+    # 成分 m 下 xt 的边缘分布是 N(√ᾱ μ_m, s² I)，s² = ᾱ SIG² + 1 − ᾱ
+    a = ab[t]
+    s2 = a * SIG * SIG + 1 - a
+    logw = [math.log(w) - dist2(xt, [math.sqrt(a) * u for u in mu]) / (2 * s2) for _, w, mu in modes]
+    mx = max(logw)                                 # log-sum-exp，防止 exp 下溢
+    r = [math.exp(l - mx) for l in logw]
+    r = [x / sum(r) for x in r]
+    # 成分内后验均值：μ_m + c (xt − √ᾱ μ_m)，c = √ᾱ SIG² / s²；再按责任 r 加权
+    c = math.sqrt(a) * SIG * SIG / s2
+    out = [0.0] * (2 * H)
+    for (_, _, mu), rm in zip(modes, r):
+        for i in range(2 * H):
+            out[i] += rm * (mu[i] + c * (xt[i] - math.sqrt(a) * mu[i]))
+    return out, r
+
+
+def ddim(xt, ts):
+    # DDIM（η = 0）：先预测 x0，再反推 ε，确定性地跳到下一个时间步
+    for t, s in zip(ts, ts[1:]):
+        x0, _ = denoise(xt, t)
+        eps = [(xt[i] - math.sqrt(ab[t]) * x0[i]) / math.sqrt(1 - ab[t]) for i in range(2 * H)]
+        xt = [math.sqrt(ab[s]) * x0[i] + math.sqrt(1 - ab[s]) * eps[i] for i in range(2 * H)]
+    return xt
+
+
+# ---------------- 4. 打分：cost 与置信度 ----------------
+def cost(p):
+    xs, ys = p[0::2], p[1::2]
+    col = lane = comf = 0.0
+    vx, vy = V0, 0.0
+    px = py = 0.0
+    for i in range(H):
+        # 碰撞：航点落进障碍车椭圆安全域（纵 6 m、横 2.2 m）的深度
+        if OBS_LANE is not None:
+            col += max(0.0, 1 - ((xs[i] - OBS_X) / 6) ** 2 - ((ys[i] - OBS_LANE * LANE_W) / 2.2) ** 2)
+        # 舒适度：由相邻航点差分出速度、再差分出加速度
+        nvx, nvy = (xs[i] - px) / DT, (ys[i] - py) / DT
+        comf += ((nvx - vx) / DT) ** 2 + ((nvy - vy) / DT) ** 2
+        vx, vy, px, py = nvx, nvy, xs[i], ys[i]
+    # 偏离车道：最后 3 个航点到最近车道中心的距离；骑线行驶最差
+    for y in ys[-3:]:
+        lane += min(abs(y - k * LANE_W) for k in (-1, 0, 1)) ** 2
+    prog = max(0.0, 1 - xs[-1] / (V0 * H * DT))    # 效率：比匀速少走的比例
+    return 20 * col + 0.5 * lane + 0.1 * comf / H + 3 * prog
+
+
+def score(trajs):
+    cs = [cost(p) for p in trajs]
+    mx = max(-c for c in cs)
+    e = [math.exp(-c - mx) for c in cs]
+    return cs, [x / sum(e) for x in e]
+
+
+# ---------------- 5. 截断扩散：锚点 + 小噪声 → DDIM 2 步 ----------------
+# 前向加噪只到 T_TRUNC：x_T' = √ᾱ a_k + √(1−ᾱ) ε，锚点的形状基本保留
+a50 = ab[T_TRUNC]
+noisy = [[math.sqrt(a50) * v + math.sqrt(1 - a50) * gauss() for v in a] for a in anchors]
+plans = [denorm(ddim(x, [T_TRUNC, T_TRUNC // 2, 0])) for x in noisy]
+costs, conf = score(plans)
+best = max(range(K), key=lambda k: conf[k])
+
+# ---------------- 6. 对比：纯高斯噪声出发，同样只走 2 步 ----------------
+pure = [denorm(ddim([gauss() for _ in range(2 * H)], [T, T // 2, 0])) for _ in range(K)]
+pcosts = [cost(p) for p in pure]
+
+print('锚点（k-means 中心）终点：')
+for k in range(K):
+    e = denorm(anchors[k])
+    print(f'  a{k}: ({e[-2]:.4f}, {e[-1]:.4f})')
+print(f'截断扩散 t: {T_TRUNC} -> {T_TRUNC // 2} -> 0，ᾱ_{T_TRUNC} = {a50:.4f}')
+for k in range(K):
+    p = plans[k]
+    print(f'  模态 {k}: 终点 ({p[-2]:.4f}, {p[-1]:.4f})  cost {costs[k]:.4f}  置信度 {conf[k]:.4f}')
+print(f'选中模态 {best}：cost {costs[best]:.4f}，置信度 {conf[best]:.4f}')
+print(f'纯噪声 t: {T} -> {T // 2} -> 0，ᾱ_{T} = {ab[T]:.6f}')
+for k in range(K):
+    p = pure[k]
+    print(f'  样本 {k}: 终点 ({p[-2]:.4f}, {p[-1]:.4f})  cost {pcosts[k]:.4f}')
+print(f'纯噪声最优 cost {min(pcosts):.4f}  vs  截断扩散最优 cost {costs[best]:.4f}')
+</script>
+
+<script>
+/* =====================================================================
+   ENGINE —— 播放器 / 布局 / 代码高亮 / 平滑过渡 / 自检（通用，勿改）
+   ===================================================================== */
+const AV = (() => {
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  let DUR = 420, instant = false;
+  const dur = () => (instant ? 0 : DUR);
+  const ease = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+  // ---------- 动画工具 ----------
+  const anims = new Map();
+  function animate(key, step, done, ms = dur()) {
+    if (anims.has(key)) cancelAnimationFrame(anims.get(key));
+    anims.delete(key);
+    if (ms <= 0) { step(1); done && done(); return; }
+    const t0 = performance.now();
+    const f = now => {
+      const p = Math.min(1, (now - t0) / ms);
+      step(ease(p));
+      if (p < 1) anims.set(key, requestAnimationFrame(f)); else { anims.delete(key); done && done(); }
+    };
+    anims.set(key, requestAnimationFrame(f));
+  }
+  function flash(node, cls) { if (instant) return; node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls); }
+  function setText(node, text, flashCls) {
+    const t = String(text);
+    if (node.textContent === t) return false;
+    node.textContent = t;
+    if (flashCls) flash(node, flashCls);
+    return true;
+  }
+  // 按 key 复用 DOM：移动 FLIP 平滑过渡，新增淡入，删除淡出（容器需 position:relative）
+  function keyed(box, items, keyOf, create, update) {
+    const ms = dur();
+    const old = new Map();
+    for (const c of [...box.children]) if (c.dataset.key != null && !c.classList.contains('av-leaving')) old.set(c.dataset.key, c);
+    const first = new Map();
+    if (ms) old.forEach((c, k) => first.set(k, c.getBoundingClientRect().top));
+    const want = new Set(items.map(it => String(keyOf(it))));
+    old.forEach((c, k) => {
+      if (want.has(k)) return;
+      if (!ms) { c.remove(); return; }
+      const st = { position: 'absolute', top: c.offsetTop + 'px', left: c.offsetLeft + 'px', width: c.offsetWidth + 'px' };
+      c.classList.add('av-leaving');
+      Object.assign(c.style, st, { transition: `opacity ${ms}ms, transform ${ms}ms`, pointerEvents: 'none' });
+      requestAnimationFrame(() => { c.style.opacity = 0; c.style.transform = 'translateX(18px)'; });
+      setTimeout(() => c.remove(), ms + 40);
+    });
+    const nodes = items.map(it => {
+      const k = String(keyOf(it));
+      let c = old.get(k), isNew = false;
+      if (!c) { c = create(it); c.dataset.key = k; isNew = true; }
+      update(c, it, isNew);
+      box.appendChild(c);
+      return c;
+    });
+    if (!ms) return;
+    nodes.forEach(c => {
+      const k = c.dataset.key;
+      if (!first.has(k)) { flash(c, 'av-enter'); return; }
+      const dy = first.get(k) - c.getBoundingClientRect().top;
+      if (Math.abs(dy) < .5) return;
+      c.style.transition = 'none';
+      c.style.transform = `translateY(${dy}px)`;
+      void c.offsetWidth;
+      c.style.transition = `transform ${ms}ms cubic-bezier(.4,0,.2,1), background ${ms}ms, color ${ms}ms`;
+      c.style.transform = '';
+      setTimeout(() => { c.style.transition = ''; }, ms + 20);
+    });
+  }
+
+  // ---------- Python 高亮（VS Code Dark Modern + Pylance 语义配色） ----------
+  const CTL = new Set('if elif else for while return import from as try except finally raise with break continue pass yield await async del global nonlocal assert match case'.split(' '));
+  const KW = new Set('def class lambda None True False and or not in is self cls'.split(' '));
+  const CLS = new Set('int float str bool list dict set tuple range object type bytes frozenset complex Exception ValueError KeyError IndexError TypeError deque defaultdict Counter OrderedDict'.split(' '));
+  function highlightPython(src) {
+    const lines = src.split('\n');
+    const modules = new Set();
+    for (const l of lines) {
+      let m = l.match(/^\s*import\s+([\w., ]+)/);
+      if (m) m[1].split(',').forEach(p => { const a = p.trim().split(/\s+as\s+/); modules.add((a[1] || a[0]).split('.')[0].trim()); });
+      m = l.match(/^\s*from\s+([\w.]+)\s+import/);
+      if (m) modules.add(m[1].split('.')[0]);
+    }
+    let depth = 0, triple = null;
+    const re = /(#.*)|([rRbBuUfF]{0,2})("""|'''|"(?:\\.|[^"\\])*"?|'(?:\\.|[^'\\])*'?)|(\d[\d_]*(?:\.\d*)?(?:[eE][+-]?\d+)?j?)|([A-Za-z_\u00c0-\uffff][\w\u00c0-\uffff]*)|([()[\]{}])|(\s+)|([\s\S])/y;
+    return lines.map(raw => {
+      const line = raw.replace(/\t/g, '    ');
+      const indent = line.match(/^ */)[0].length;
+      const toks = [];
+      let i = indent;
+      if (triple) {
+        const end = line.indexOf(triple, i);
+        if (end < 0) return { html: `<span class="t-str">${esc(line.slice(i))}</span>`, indent, cmt: false };
+        toks.push(['str', line.slice(i, end + 3)]); i = end + 3; triple = null;
+      }
+      while (i < line.length) {
+        re.lastIndex = i;
+        const m = re.exec(line);
+        if (!m) break;
+        if (m[1]) toks.push(['cmt', m[1]]);
+        else if (m[3] !== undefined && (m[3] || m[2])) {
+          if (m[2]) toks.push([/[fF]/.test(m[2]) ? 'kw' : 'str', m[2]]);
+          let s = m[3];
+          if (s === '"""' || s === "'''") {
+            const end = line.indexOf(s, re.lastIndex);
+            if (end < 0) { s = line.slice(m.index + m[2].length); triple = m[3]; re.lastIndex = line.length; }
+            else { s = line.slice(m.index + m[2].length, end + 3); re.lastIndex = end + 3; }
+          }
+          toks.push(['str', s]);
+        }
+        else if (m[4]) toks.push(['num', m[4]]);
+        else if (m[5]) toks.push(['id', m[5]]);
+        else if (m[6]) toks.push(['br', m[6]]);
+        else if (m[7]) toks.push(['ws', m[7]]);
+        else toks.push(['op', m[8]]);
+        i = re.lastIndex;
+      }
+      const sig = toks.map((t, k) => k).filter(k => toks[k][0] !== 'ws');
+      const html = toks.map((t, k) => {
+        const [type, w] = t;
+        if (type === 'ws') return w;
+        if (type === 'br') {
+          if ('([{'.includes(w)) { const c = depth % 3; depth++; return `<span class="t-b${c}">${w}</span>`; }
+          depth = Math.max(0, depth - 1); return `<span class="t-b${depth % 3}">${w}</span>`;
+        }
+        if (type !== 'id') return `<span class="t-${type}">${esc(w)}</span>`;
+        const p = sig.indexOf(k), prev = p > 0 ? toks[sig[p - 1]][1] : '', next = p < sig.length - 1 ? toks[sig[p + 1]][1] : '';
+        let c = 'var';
+        if (prev === 'def') c = 'fn';
+        else if (prev === 'class') c = 'cls';
+        else if (CTL.has(w)) c = 'ctl';
+        else if (KW.has(w)) c = 'kw';
+        else if (prev === '.') c = next === '(' ? 'fn' : 'var';
+        else if (modules.has(w)) c = 'cls';
+        else if (next === '(') c = CLS.has(w) || /^[A-Z]/.test(w) ? 'cls' : 'fn';
+        else if (CLS.has(w)) c = 'cls';
+        else if (/^[A-Z][A-Z0-9_]+$/.test(w)) c = 'const';
+        return `<span class="t-${c}">${esc(w)}</span>`;
+      }).join('');
+      return { html, indent, cmt: line.trim().startsWith('#') };
+    });
+  }
+
+  // ---------- 代码面板 ----------
+  let srcLines = [], codeEls = [];
+  function mountCode(fileName) {
+    const src = $('py-source').textContent.replace(/\r\n?/g, '\n').replace(/^\n/, '').replace(/\s+$/, '');
+    srcLines = src.split('\n');
+    $('fileName').textContent = fileName || '';
+    const body = $('codeBody');
+    body.innerHTML = '';
+    codeEls = highlightPython(src).map((h, k) => {
+      const ln = el('div', 'ln' + (h.cmt ? ' cmt' : ''));
+      ln.innerHTML = `<span class="g">${k + 1}</span><span class="s" style="--ind:${h.indent}">${h.html || ' '}</span>`;
+      body.appendChild(ln);
+      return ln;
+    });
+  }
+  // 按源码内容定位行号：lineOf('res += 1')，nth 表示第几处匹配（忽略注释部分）
+  function lineOf(text, nth = 1) {
+    let cnt = 0;
+    for (let k = 0; k < srcLines.length; k++) {
+      const code = srcLines[k].replace(/#.*$/, '');
+      if (code.includes(text) && ++cnt === nth) return k + 1;
+    }
+    console.error('[AV] lineOf 未找到：', text, nth);
+    return 0;
+  }
+  function setCodeLines(lines) {
+    lines = (lines || []).filter(Boolean);
+    const set = new Set(lines);
+    codeEls.forEach((e, k) => e.classList.toggle('on', set.has(k + 1)));
+    const sorted = [...set].sort((a, b) => a - b);
+    $('codePos').textContent = sorted.length ? `第 ${sorted.length > 1 && sorted.at(-1) - sorted[0] === sorted.length - 1 ? sorted[0] + '–' + sorted.at(-1) : sorted.join(', ')} 行` : '';
+    if (!sorted.length) return;
+    const body = $('codeBody'), a = codeEls[sorted[0] - 1], b = codeEls[sorted.at(-1) - 1];
+    const top = a.offsetTop, bottom = b.offsetTop + b.offsetHeight, vt = body.scrollTop, vh = body.clientHeight;
+    if (top < vt + vh * .12 || bottom > vt + vh * .82) body.scrollTo({ top: Math.max(0, top - vh * .3), behavior: instant ? 'auto' : 'smooth' });
+  }
+
+  // ---------- 播放器与布局 ----------
+  let D, data, steps = [], cur = 0, timer = null;
+  const statEls = {}, P = { aux: {}, auxCard: {} };
+  const speedMs = () => +$('speed').value;
+  function setSpeed() {
+    DUR = clamp(Math.round(speedMs() * .5), 180, 650);
+    document.documentElement.style.setProperty('--dur', DUR + 'ms');
+  }
+
+  function setStat(def, val) {
+    const t = statEls[def.key];
+    const o = val !== null && typeof val === 'object' ? val : { v: val };
+    const v = o.v ?? '—';
+    if (typeof v === 'number' && typeof t.cur === 'number' && t.cur !== v && !instant) {
+      const a = t.cur;
+      animate('stat-' + def.key, p => { t.n.textContent = Math.round(a + (v - a) * p); });
+      flash(t.box, 'bump');
+    } else {
+      if (anims.has('stat-' + def.key)) { cancelAnimationFrame(anims.get('stat-' + def.key)); anims.delete('stat-' + def.key); }
+      t.n.textContent = v;
+    }
+    t.cur = v;
+    t.unit.textContent = o.unit || '';
+    t.sub.textContent = o.sub || '';
+  }
+
+  function render(prev) {
+    const s = steps[cur];
+    const pct = (steps.length > 1 ? cur / (steps.length - 1) * 100 : 100) + '%';
+    $('prog').style.width = pct;
+    $('thumb').style.left = pct;
+    $('progTip').style.left = pct;
+    $('progTip').textContent = `第 ${cur + 1} 步`;
+    $('stepNo').textContent = `${cur + 1} / ${steps.length}`;
+    const html = (s.tag ? `<span class="tag ${s.tag.kind || 'info'}">${s.tag.text}</span>` : '') + s.desc;
+    if ($('desc').innerHTML !== html) { $('desc').innerHTML = html; flash($('desc'), 'fade-in'); }
+    setText($('phase'), s.phase || '');
+    (D.stats || []).forEach(def => setStat(def, s.stats ? s.stats[def.key] : undefined));
+    setCodeLines(s.lines);
+    D.render(s, prev, data, P);
+  }
+  function go(k) {
+    k = clamp(k, 0, steps.length - 1);
+    const prev = steps[cur];
+    cur = k;
+    render(prev === steps[cur] ? null : prev);
+  }
+  function stop() { clearTimeout(timer); timer = null; $('btnPlay').textContent = '▶ 播放'; }
+  function play() {
+    if (timer) return stop();
+    if (cur >= steps.length - 1) go(0);
+    $('btnPlay').textContent = '⏸ 暂停';
+    const tick = () => {
+      if (cur >= steps.length - 1) return stop();
+      go(cur + 1);
+      timer = setTimeout(tick, speedMs());
+    };
+    timer = setTimeout(tick, 120);
+  }
+  function withInstant(fn) { const was = instant; instant = true; document.body.classList.add('instant'); try { fn(); } finally { instant = was; if (!was) { void document.body.offsetWidth; document.body.classList.remove('instant'); } } }
+
+  function apply() {
+    stop();
+    const values = {};
+    (D.inputs || []).forEach(f => { values[f.id] = $('in-' + f.id).value; });
+    const r = D.parse(values);
+    if (r.error) { $('err').textContent = r.error; return false; }
+    $('err').textContent = '';
+    data = r;
+    steps = D.build(data);
+    for (const k in P.aux) P.aux[k].innerHTML = '';
+    $('canvas').innerHTML = ''; $('state').innerHTML = '';
+    withInstant(() => {
+      D.mount(data, P);
+      cur = 0;
+      D.layout && D.layout(data, P);
+      render(null);
+    });
+    return true;
+  }
+
+  function buildShell() {
+    document.title = D.title;
+    $('title').textContent = D.title;
+    $('subtitle').innerHTML = D.subtitle || '';
+    const inputs = $('inputs');
+    (D.inputs || []).forEach(f => {
+      inputs.appendChild(el('label', '', f.label));
+      const inp = el('input');
+      inp.type = f.type || 'text'; inp.id = 'in-' + f.id; inp.value = f.value;
+      if (f.width) inp.style.width = f.width + 'px';
+      if (f.flex) { inp.style.flex = '1'; inp.style.minWidth = '200px'; }
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') apply(); });
+      inputs.appendChild(inp);
+    });
+    const btn = el('button', 'primary', '生成演示'); btn.onclick = apply; inputs.appendChild(btn);
+    if (D.presets && D.presets.length) inputs.appendChild(el('span', 'hint', '预设：'));
+    (D.presets || []).forEach(p => {
+      const b = el('button', 'preset', p.label);
+      b.onclick = () => { for (const k in p.values) $('in-' + k).value = p.values[k]; apply(); };
+      inputs.appendChild(b);
+    });
+    inputs.appendChild(el('span', 'err')).id = 'err';
+
+    (D.stats || []).forEach(def => {
+      const box = el('div', 'stat ' + (def.color || 'blue'));
+      box.innerHTML = `<div class="lab">${def.label}</div><div class="num"><span class="n">—</span><small></small></div><div class="sub"></div>`;
+      $('stats').appendChild(box);
+      statEls[def.key] = { box, n: box.querySelector('.n'), unit: box.querySelector('small'), sub: box.querySelector('.sub'), cur: null };
+    });
+
+    const pn = D.panels || {};
+    $('canvasTitle').textContent = pn.canvas?.title || '';
+    $('canvasHint').textContent = pn.canvas?.hint || '';
+    $('stateTitle').textContent = pn.state?.title || '';
+    $('stateHint').textContent = pn.state?.hint || '';
+    P.canvas = $('canvas'); P.state = $('state'); P.stateHint = $('stateHint'); P.stateCard = $('stateCard');
+    (pn.aux || []).forEach(a => {
+      const card = el('div', 'card' + (a.grow ? ' grow' : ''));
+      card.innerHTML = `<div class="card-h"><span>${a.title}</span><span class="hint">${a.hint || ''}</span></div><div class="card-b"></div>`;
+      $('auxCol').appendChild(card);
+      P.aux[a.id] = card.querySelector('.card-b');
+      P.auxCard[a.id] = card;
+    });
+    mountCode(D.file);
+  }
+
+  function wire() {
+    $('btnFirst').onclick = () => { stop(); go(0); };
+    $('btnLast').onclick = () => { stop(); go(steps.length - 1); };
+    $('btnPrev').onclick = () => { stop(); go(cur - 1); };
+    $('btnNext').onclick = () => { stop(); go(cur + 1); };
+    $('btnPlay').onclick = play;
+    $('speed').oninput = setSpeed;
+    // 进度条：点击跳转 / 按住拖动逐步刷过（每经过一步都正常渲染，保持过渡）
+    const bar = $('progress');
+    const seek = e => {
+      const r = bar.getBoundingClientRect();
+      const k = Math.round(clamp((e.clientX - r.left) / r.width, 0, 1) * (steps.length - 1));
+      if (k !== cur) go(k);
+    };
+    bar.addEventListener('pointerdown', e => {
+      stop(); bar.setPointerCapture(e.pointerId); bar.classList.add('dragging'); seek(e);
+      const up = () => { bar.classList.remove('dragging'); bar.removeEventListener('pointermove', seek); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up); };
+      bar.addEventListener('pointermove', seek); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+    });
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight') { stop(); go(cur + 1); }
+      else if (e.key === 'ArrowLeft') { stop(); go(cur - 1); }
+      else if (e.key === ' ') { e.preventDefault(); play(); }
+      else if (e.key === 'Home') { stop(); go(0); }
+      else if (e.key === 'End') { stop(); go(steps.length - 1); }
+    });
+
+    // 代码面板：可拖动宽度 / 折叠 / 注释开关 / 字号
+    const app = $('app'), sp = $('splitter'), LS = 'algoviz.';
+    const defW = () => clamp(Math.round(window.innerWidth * .4), 420, 820);
+    const setW = w => app.style.setProperty('--code-w', clamp(w, 320, window.innerWidth - 700) + 'px');
+    setW(+localStorage.getItem(LS + 'codeW') || defW());
+    sp.addEventListener('pointerdown', e => {
+      if (app.classList.contains('code-collapsed')) return;
+      sp.setPointerCapture(e.pointerId); app.classList.add('dragging');
+      const right = app.getBoundingClientRect().right - 16;
+      const move = ev => setW(right - ev.clientX - 6);
+      const up = () => {
+        sp.removeEventListener('pointermove', move); sp.removeEventListener('pointerup', up);
+        app.classList.remove('dragging');
+        localStorage.setItem(LS + 'codeW', parseInt(app.style.getPropertyValue('--code-w')));
+      };
+      sp.addEventListener('pointermove', move); sp.addEventListener('pointerup', up);
+    });
+    sp.ondblclick = () => { localStorage.removeItem(LS + 'codeW'); setW(defW()); };
+    const setCollapsed = c => { app.classList.toggle('code-collapsed', c); $('btnCollapse').textContent = c ? '⇤' : '⇥'; localStorage.setItem(LS + 'collapsed', c ? 1 : ''); };
+    setCollapsed(!!localStorage.getItem(LS + 'collapsed'));
+    $('btnCollapse').onclick = () => setCollapsed(!app.classList.contains('code-collapsed'));
+    const setCmt = show => { $('codeBody').classList.toggle('no-cmt', !show); $('btnCmt').classList.toggle('on', show); localStorage.setItem(LS + 'hideCmt', show ? '' : 1); };
+    setCmt(!localStorage.getItem(LS + 'hideCmt'));
+    $('btnCmt').onclick = () => setCmt($('codeBody').classList.contains('no-cmt'));
+    let fs = +localStorage.getItem(LS + 'fs') || 14;
+    const setFs = v => { fs = clamp(v, 11, 20); document.documentElement.style.setProperty('--code-fs', fs + 'px'); localStorage.setItem(LS + 'fs', fs); };
+    setFs(fs);
+    $('btnFsDown').onclick = () => setFs(fs - 1);
+    $('btnFsUp').onclick = () => setFs(fs + 1);
+
+    // 画布尺寸变化（窗口缩放、拖动分隔条、折叠代码）时重新排版，不做过渡
+    let raf = 0;
+    new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => withInstant(() => { D.layout && D.layout(data, P); D.render(steps[cur], null, data, P); }));
+    }).observe($('canvas'));
+  }
+
+  // ---------- 自检：文字互相遮挡 / 左侧需滚动 / 代码横向滚动 ----------
+  function textRects(root) {
+    const out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    while (w.nextNode()) {
+      const node = w.currentNode;
+      if (!node.textContent.trim()) continue;
+      const host = node.parentElement;
+      if (host.closest('.av-leaving, svg defs, .slots .empty')) continue;
+      const cs = getComputedStyle(host);
+      if (cs.visibility === 'hidden' || +cs.opacity === 0) continue;
+      range.selectNodeContents(node);
+      // 被滚动容器裁掉（不可见）的部分不参与检查
+      let clip = null;
+      for (let a = host.parentElement; a && a !== root; a = a.parentElement) {
+        const o = getComputedStyle(a);
+        if (/(auto|scroll|hidden)/.test(o.overflowY + o.overflowX)) { clip = a.getBoundingClientRect(); break; }
+      }
+      for (const r0 of range.getClientRects()) {
+        let r = r0;
+        if (clip) {
+          const l = Math.max(r.left, clip.left), t = Math.max(r.top, clip.top), rr = Math.min(r.right, clip.right), b = Math.min(r.bottom, clip.bottom);
+          if (rr - l <= 1 || b - t <= 1) continue;
+          r = { left: l, top: t, right: rr, bottom: b, width: rr - l, height: b - t };
+        }
+        if (r.width > 1 && r.height > 1) out.push({ r, host, text: node.textContent.trim().slice(0, 16) });
+      }
+    }
+    return out;
+  }
+  const inter = (a, b, pad = 0) => Math.min(a.right + pad, b.right + pad) - Math.max(a.left - pad, b.left - pad) > 1.5 &&
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1.5;
+  function checkOnce(stepIdx, issues) {
+    const left = $('left');
+    const ts = textRects(left);
+    for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) {
+      const a = ts[i], b = ts[j];
+      if (a.host === b.host || a.host.contains(b.host) || b.host.contains(a.host)) continue;
+      if (inter(a.r, b.r)) issues.push({ step: stepIdx, type: '文字重叠', a: a.text, b: b.text });
+    }
+    const solids = [...left.querySelectorAll('[data-solid]')].map(e => {
+      const r = e.getBoundingClientRect(), g = +(e.dataset.ring || 0);
+      return { e, r: { left: r.left - g, right: r.right + g, top: r.top - g, bottom: r.bottom + g } };
+    });
+    for (const path of left.querySelectorAll('svg [marker-end], svg [marker-start]')) {
+      if (path.closest('.av-leaving') || +getComputedStyle(path.closest('g') || path).opacity === 0) continue;
+      const id = (path.getAttribute('marker-end') || path.getAttribute('marker-start')).match(/#([^)]+)/)?.[1];
+      const head = id && document.getElementById(id)?.querySelector('path, polygon');
+      const cs = head && getComputedStyle(head);
+      if (!cs || (cs.fill === 'none' && (cs.stroke === 'none' || parseFloat(cs.strokeWidth) === 0)))
+        issues.push({ step: stepIdx, type: '连线缺少箭头', a: id || '(无 marker)', b: path.getAttribute('d')?.slice(0, 20) || '' });
+    }
+    for (const t of ts) for (const s of solids) {
+      if (s.e.contains(t.host)) continue;
+      if (inter(t.r, s.r)) issues.push({ step: stepIdx, type: '元素遮挡文字', a: t.text, b: s.e.className });
+    }
+  }
+  function runCheck() {
+    const issues = [];
+    let total = 0;
+    // 逐个预设、逐步检查；没有预设时只检查当前输入
+    const runs = D.presets && D.presets.length ? D.presets : [null];
+    runs.forEach(p => {
+      if (p) { for (const k in p.values) $('in-' + k).value = p.values[k]; if (!apply()) return; }
+      const tagged = [];
+      withInstant(() => { for (let k = 0; k < steps.length; k++) { go(k); checkOnce(k, tagged); } go(0); });
+      total += steps.length;
+      tagged.forEach(it => { it.step = (p ? p.label + ' · ' : '') + 'step ' + it.step; issues.push(it); });
+    });
+    const left = $('left'), body = $('codeBody');
+    const uniq = [], seen = new Set();
+    for (const it of issues) { const key = it.type + it.a + '|' + it.b; if (!seen.has(key)) { seen.add(key); uniq.push(it); } }
+    const res = {
+      viewport: [window.innerWidth, window.innerHeight], steps: total, lastSteps: steps.length,
+      leftNeedsScroll: Math.max(0, left.scrollHeight - left.clientHeight),
+      codeHScroll: Math.max(0, body.scrollWidth - body.clientWidth),
+      overlaps: uniq.slice(0, 30), overlapCount: uniq.length,
+    };
+    $('av-check').textContent = JSON.stringify(res);
+    document.title = 'AVCHECK ' + (res.leftNeedsScroll || res.codeHScroll || res.overlapCount ? 'FAIL' : 'OK');
+  }
+
+  function start(demo) {
+    D = demo;
+    buildShell();
+    wire();
+    setSpeed();
+    apply();
+    const h = new URLSearchParams(location.hash.slice(1));
+    const pre = D.presets && D.presets[+h.get('preset')];
+    if (h.has('preset') && pre) { for (const k in pre.values) $('in-' + k).value = pre.values[k]; apply(); }
+    if (h.has('step')) withInstant(() => go(+h.get('step')));
+    if (h.has('check')) setTimeout(runCheck, 50);
+  }
+
+  return { $, el, esc, clamp, dur, animate, flash, setText, keyed, lineOf, start, isInstant: () => instant };
+})();
+</script>
+
+<script>
+/* =====================================================================
+   DEMO —— 本题专用：输入解析、步骤生成、可视化挂载与渲染（生成新演示时替换这里）
+   示例：文远1.py · Belady 最优缓存替换
+   ===================================================================== */
+/* =====================================================================
+   本题：DiffusionDrive.py · 截断扩散 + 锚点的端到端轨迹规划（玩具版）
+   ===================================================================== */
+(() => {
+const { el, clamp, animate, setText, flash, lineOf: L } = AV;
+
+// ---------------- 与 DiffusionDrive.py 完全相同的常量与算法 ----------------
+const H = 8, DT = 0.5, T_LC = 3.0, V0 = 10.0, LANE_W = 3.5;
+const N_EXPERT = 48, KM_ITERS = 5, SX = 20.0, SY = 2.0, SIG = 0.05, T = 1000, T_TRUNC = 50;
+
+function compute({ obsLane, obsX, K, seed }) {
+  let state = seed >>> 0;
+  const rand = () => {
+    state = (state + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(state ^ (state >>> 15), state | 1) >>> 0;
+    t = ((t + Math.imul(t ^ (t >>> 7), t | 61)) ^ t) >>> 0;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const gauss = () => { const u1 = 1 - rand(), u2 = rand(); return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2); };
+  const rollout = (v, a, dy) => {
+    const pts = [];
+    for (let i = 1; i <= H; i++) {
+      const t = i * DT;
+      const x = a < 0 && v + a * t < 0 ? -v * v / (2 * a) : v * t + 0.5 * a * t * t;
+      const u = Math.min(t / T_LC, 1.0);
+      pts.push(x, dy * (3 * u * u - 2 * u ** 3));
+    }
+    return pts;
+  };
+  const norm = p => p.map((v, i) => v / (i % 2 === 0 ? SX : SY));
+  const denorm = p => p.map((v, i) => v * (i % 2 === 0 ? SX : SY));
+  const dist2 = (p, q) => { let s = 0; for (let i = 0; i < p.length; i++) s += (p[i] - q[i]) ** 2; return s; };
+
+  // 1. 专家数据 → k-means
+  const experts = [], expMode = [];
+  for (let n = 0; n < N_EXPERT; n++) {
+    const m = n % 4, v = V0 + 1.5 * gauss();
+    const a = m === 3 ? -2.5 + 0.5 * gauss() : 0.4 * gauss();
+    const dy = [0, LANE_W, -LANE_W, 0][m] + 0.2 * gauss();
+    experts.push(norm(rollout(v, a, dy))); expMode.push(m);
+  }
+  let centers = experts.slice(0, K).map(e => [...e]);
+  const km = [{ centers: centers.map(c => [...c]), assign: null }];
+  for (let it = 0; it < KM_ITERS; it++) {
+    const assign = experts.map(e => { let b = 0; for (let k = 1; k < K; k++) if (dist2(e, centers[k]) < dist2(e, centers[b])) b = k; return b; });
+    for (let k = 0; k < K; k++) {
+      const mem = experts.filter((e, n) => assign[n] === k);
+      if (mem.length) centers[k] = Array.from({ length: 2 * H }, (_, i) => mem.reduce((s, e) => s + e[i], 0) / mem.length);
+    }
+    km.push({ centers: centers.map(c => [...c]), assign });
+  }
+  const anchors = centers;
+
+  // 2. 场景 GMM
+  const blocked = obsLane === 0, gap = obsX - 8.0, modes = [];
+  for (const [name, lane] of [['左变道', 1], ['右变道', -1]])
+    if (obsLane !== lane) modes.push({ name, w: blocked ? 0.35 : 0.15, mu: norm(rollout(V0, 0.0, lane * LANE_W)) });
+  if (blocked) modes.push({ name: '减速跟停', w: 0.3, mu: norm(rollout(V0, -V0 * V0 / (2 * gap), 0.0)) });
+  else { modes.push({ name: '巡航', w: 0.6, mu: norm(rollout(V0, 0.0, 0.0)) }); modes.push({ name: '减速', w: 0.1, mu: norm(rollout(V0, -1.5, 0.0)) }); }
+
+  // 3. β 调度
+  const ab = [1.0];
+  for (let i = 1; i <= T; i++) { const beta = 1e-4 + (0.02 - 1e-4) * (i - 1) / (T - 1); ab.push(ab[ab.length - 1] * (1 - beta)); }
+
+  const denoise = (xt, t) => {
+    const a = ab[t], s2 = a * SIG * SIG + 1 - a;
+    const logw = modes.map(({ w, mu }) => Math.log(w) - dist2(xt, mu.map(u => Math.sqrt(a) * u)) / (2 * s2));
+    const mx = Math.max(...logw);
+    let r = logw.map(l => Math.exp(l - mx));
+    const sr = r.reduce((s, x) => s + x, 0);
+    r = r.map(x => x / sr);
+    const c = Math.sqrt(a) * SIG * SIG / s2;
+    const out = new Array(2 * H).fill(0.0);
+    modes.forEach(({ mu }, m) => { for (let i = 0; i < 2 * H; i++) out[i] += r[m] * (mu[i] + c * (xt[i] - Math.sqrt(a) * mu[i])); });
+    return [out, r];
+  };
+  // 返回每一步之后的 x 与该步的后验责任 r
+  const ddim = (xt, ts) => {
+    const hist = [];
+    for (let k = 0; k + 1 < ts.length; k++) {
+      const t = ts[k], s = ts[k + 1];
+      const [x0, r] = denoise(xt, t);
+      const eps = xt.map((v, i) => (v - Math.sqrt(ab[t]) * x0[i]) / Math.sqrt(1 - ab[t]));
+      xt = x0.map((v, i) => Math.sqrt(ab[s]) * v + Math.sqrt(1 - ab[s]) * eps[i]);
+      hist.push({ x: xt, r });
+    }
+    return hist;
+  };
+
+  // 4. 打分（拆出各项便于展示）
+  const cost = p => {
+    const xs = p.filter((_, i) => i % 2 === 0), ys = p.filter((_, i) => i % 2 === 1);
+    let col = 0.0, lane = 0.0, comf = 0.0, vx = V0, vy = 0.0, px = 0.0, py = 0.0;
+    for (let i = 0; i < H; i++) {
+      if (obsLane !== null) col += Math.max(0.0, 1 - ((xs[i] - obsX) / 6) ** 2 - ((ys[i] - obsLane * LANE_W) / 2.2) ** 2);
+      const nvx = (xs[i] - px) / DT, nvy = (ys[i] - py) / DT;
+      comf += ((nvx - vx) / DT) ** 2 + ((nvy - vy) / DT) ** 2;
+      vx = nvx; vy = nvy; px = xs[i]; py = ys[i];
+    }
+    for (const y of ys.slice(-3)) lane += Math.min(...[-1, 0, 1].map(k => Math.abs(y - k * LANE_W))) ** 2;
+    const prog = Math.max(0.0, 1 - xs[H - 1] / (V0 * H * DT));
+    return { c: 20 * col + 0.5 * lane + 0.1 * comf / H + 3 * prog, col, lane, comf: comf / H, prog };
+  };
+  const score = trajs => {
+    const cs = trajs.map(p => cost(p).c), mx = Math.max(...cs.map(c => -c));
+    const e = cs.map(c => Math.exp(-c - mx)), se = e.reduce((s, x) => s + x, 0);
+    return [cs, e.map(x => x / se)];
+  };
+
+  // 5. 截断扩散
+  const a50 = ab[T_TRUNC];
+  const noisy = anchors.map(a => a.map(v => Math.sqrt(a50) * v + Math.sqrt(1 - a50) * gauss()));
+  const tr = noisy.map(x => ddim(x, [T_TRUNC, Math.floor(T_TRUNC / 2), 0]));
+  const plans = tr.map(h => denorm(h[1].x));
+  const [costs, conf] = score(plans);
+  let best = 0; for (let k = 1; k < K; k++) if (conf[k] > conf[best]) best = k;
+
+  // 6. 纯噪声
+  const pureX = [], pureH = [];
+  for (let k = 0; k < K; k++) {
+    const x = Array.from({ length: 2 * H }, () => gauss());
+    pureX.push(x); pureH.push(ddim(x, [T, Math.floor(T / 2), 0]));
+  }
+  const pure = pureH.map(h => denorm(h[1].x));
+  const pcosts = pure.map(p => cost(p).c);
+
+  return { experts: experts.map(denorm), expMode, km: km.map(s => ({ centers: s.centers.map(denorm), assign: s.assign })),
+    anchors: anchors.map(denorm), modes: modes.map(m => ({ name: m.name, w: m.w, mu: denorm(m.mu) })), ab, a50,
+    noisy: noisy.map(denorm), x25: tr.map(h => denorm(h[0].x)), r1: tr.map(h => h[0].r), r2: tr.map(h => h[1].r),
+    plans, costs, conf, best, parts: plans.map(cost),
+    pureX: pureX.map(denorm), pure500: pureH.map(h => denorm(h[0].x)), pr1: pureH.map(h => h[0].r), pr2: pureH.map(h => h[1].r),
+    pure, pcosts, pparts: pure.map(cost) };
+}
+
+// ---------------- 可视化 ----------------
+const PAL = ['#2563eb', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#4f46e5'];
+const MK = { ...Object.fromEntries(PAL.map((c, i) => ['p' + i, c])), green: '#16a34a', red: '#dc2626', gray: '#94a3b8' };
+const XMIN = -5, XMAX = 51, YR = 6.6;
+const f4 = x => (+x).toFixed(4), f2 = x => (+x).toFixed(2);
+const end = p => `(${f2(p[2 * H - 2])}, ${f2(p[2 * H - 1])})`;
+const bad = pt => pt.col > 0 || pt.lane > 1.2;
+let U = null;
+
+const DEMO = {
+  file: 'DiffusionDrive.py',
+  title: 'DiffusionDrive · 截断扩散 + 锚点轨迹规划（玩具版）',
+  subtitle: 'k-means 锚点词表 → 锚点只加 50 步小噪声 → 理想去噪器 DDIM 只走 2 步 → cost 打分选模态；对比纯噪声 2 步会"模式平均"',
+  inputs: [
+    { id: 'lane', label: '障碍车道(1 左/0 中/-1 右/none)', value: '0', width: 64 },
+    { id: 'ox', label: '障碍 x(m)', value: '22', width: 60 },
+    { id: 'K', label: '锚点数 K', value: '6', type: 'number', width: 54 },
+    { id: 'seed', label: 'SEED', value: '2025', type: 'number', width: 76 },
+  ],
+  presets: [
+    { label: '默认·障碍在本车道', values: { lane: '0', ox: '22', K: 6, seed: 2025 } },
+    { label: '障碍在左车道', values: { lane: '1', ox: '18', K: 6, seed: 2025 } },
+    { label: '障碍在右车道', values: { lane: '-1', ox: '18', K: 6, seed: 2025 } },
+    { label: '无障碍', values: { lane: 'none', ox: '22', K: 8, seed: 7 } },
+  ],
+  stats: [
+    { key: 't', label: '扩散步 t', color: 'blue' },
+    { key: 'ab', label: 'ᾱ_t（信号占比²）', color: 'purple' },
+    { key: 'cost', label: '最优 cost', color: 'amber' },
+    { key: 'conf', label: '选中模态置信度', color: 'green' },
+    { key: 'bad', label: '碰撞 / 骑线轨迹', color: 'red' },
+  ],
+  panels: {
+    canvas: { title: 'BEV 俯视图（x 向前、y 向左；纵横比例不同）', hint: '箭头 = 轨迹行进方向；绿色宽带 = 场景下专家分布的各模式均值' },
+    state: { title: '后验责任 r（去噪器认为轨迹属于哪个模式）' },
+    aux: [{ id: 'tbl', title: '各模态', hint: '置信度 = softmax(−cost)', grow: true }],
+  },
+
+  parse(v) {
+    const ls = String(v.lane).trim().toLowerCase();
+    const obsLane = ls === 'none' || ls === '' ? null : Number(ls);
+    if (obsLane !== null && ![-1, 0, 1].includes(obsLane)) return { error: '障碍车道取 1 / 0 / -1 / none' };
+    const obsX = Number(v.ox), K = parseInt(v.K, 10), seed = Number(v.seed);
+    if (!(obsX >= 12 && obsX <= 40)) return { error: '障碍 x 取 12 ~ 40 m（保证在画面内）' };
+    if (!(K >= 3 && K <= 8)) return { error: 'K 取 3 ~ 8（保证一屏放下）' };
+    if (!Number.isInteger(seed) || seed < 0) return { error: 'SEED 需为非负整数' };
+    const R = compute({ obsLane, obsX, K, seed });
+    return { obsLane, obsX, K, seed, ...R };
+  },
+
+  build(d) {
+    const { K, km, modes, ab, a50, obsLane, obsX } = d;
+    const steps = [];
+    const cnt = parts => parts.filter(bad).length;
+    const S = o => ({ experts: 0, expColor: null, centers: null, anchorFaint: false, showModes: false, traj: null, trajFaint: false,
+      pure: null, best: null, resp: null, respKind: '', table: {}, t: null, ...o });
+    const stT = (t, sub) => (t == null ? { t: '—', ab: '—' } : { t: { v: t, sub }, ab: { v: f4(ab[t]), sub: `噪声占比² ${f4(1 - ab[t])}` } });
+    const P0 = '准备', P1 = '锚点词表', P2 = '截断扩散', P3 = '打分选择', P4 = '对比：纯噪声', P5 = '结论';
+    const sceneTxt = obsLane === null ? '无障碍车' : `障碍车在${['右', '中间', '左'][obsLane + 1]}车道 x = ${obsX} m`;
+
+    steps.push(S({ phase: P0, tag: { text: '读入场景', kind: 'info' }, stats: { ...stT(null), cost: '—', conf: '—', bad: '—' },
+      lines: [L('H, DT, T_LC = 8'), L('V0, LANE_W = 10.0'), L('OBS_LANE, OBS_X = '), L('N_EXPERT, K, KM_ITERS')],
+      formula: `H = ${H} 个航点 × DT = ${DT}s（规划 ${H * DT}s）<br>V0 = ${V0} m/s，车道宽 ${LANE_W} m<br>${sceneTxt}，锚点 K = ${K}`,
+      desc: `三车道 BEV：自车（蓝）在中间车道原点朝 +x，${sceneTxt}。要输出未来 ${H * DT}s 的 <b>${H} 个航点</b>。轨迹是 ${2 * H} 维向量，多种合理走法并存——这正是用扩散模型建模的原因。` }));
+
+    steps.push(S({ phase: P1, tag: { text: '专家数据', kind: 'pre' }, experts: 1, stats: { ...stT(null), cost: '—', conf: '—', bad: '—' },
+      lines: [L('m, v = n % 4'), L('a = -2.5 + 0.5'), L('dy = [0, LANE_W'), L('experts.append(norm(rollout')],
+      formula: `${N_EXPERT} 条专家轨迹：巡航 / 左变道 / 右变道 / 减速 轮流<br>v ~ ${V0} + 1.5·N(0,1)，减速 a ~ −2.5 + 0.5·N(0,1)`,
+      desc: `合成 <b>${N_EXPERT}</b> 条专家轨迹（灰）。四种行为轮流生成并加随机扰动，模拟真实驾驶数据集。随机数用 mulberry32 + Box-Muller，网页与 py 逐位一致。` }));
+
+    steps.push(S({ phase: P1, tag: { text: 'k-means 初始化', kind: 'pre' }, experts: 1, centers: km[0].centers, stats: { ...stT(null), cost: '—', conf: '—', bad: '—' },
+      lines: [L('centers = [list(e) for e in experts[:K]]')],
+      formula: `centers = experts[0 : ${K}]`,
+      desc: `取前 K = ${K} 条专家轨迹作初始中心（虚线）。行为是轮流生成的，前 K 条一定覆盖四种行为，避免某种行为没有锚点。` }));
+
+    for (let it = 1; it <= KM_ITERS; it++) {
+      const s = km[it], sizes = Array.from({ length: K }, (_, k) => s.assign.filter(a => a === k).length);
+      steps.push(S({ phase: P1, tag: { text: `k-means 第 ${it} 轮`, kind: 'pre' }, experts: 1, expColor: s.assign, centers: s.centers,
+        stats: { ...stT(null), cost: '—', conf: '—', bad: '—' },
+        lines: [L('for it in range(KM_ITERS)'), L('assign = [min('), L('mem = [experts[n]'), L('centers[k] = [sum(')],
+        formula: `簇大小：${sizes.map((z, k) => `<span style="color:${PAL[k]}">#${k}:${z}</span>`).join('　')}`,
+        desc: it === 1 ? `<b>分配</b>：每条专家轨迹按 ${2 * H} 维欧氏距离归到最近中心（同色）；<b>更新</b>：中心移到成员均值。空簇保留原中心。`
+          : it === KM_ITERS ? `第 ${it} 轮后中心基本不动。这 ${K} 条中心就是<b>锚点词表</b>：离线算好、与场景无关（论文 K = 20）。`
+          : `继续迭代：分配 → 更新，中心逐渐收敛到各行为簇的均值。` }));
+    }
+
+    steps.push(S({ phase: P2, tag: { text: '场景分布 = 高斯混合', kind: 'info' }, centers: d.anchors, anchorFaint: false, showModes: true,
+      resp: 'w', stats: { ...stT(null), cost: '—', conf: '—', bad: '—' },
+      lines: [L('blocked = OBS_LANE == 0'), L("modes.append((name"), L("modes.append(('减速跟停'"), L("modes.append(('巡航'"), L("modes.append(('减速'")],
+      formula: modes.map(m => `${m.name}：w = <span class="g">${m.w}</span>`).join('　') + `<br>每个成分 N(μ_m, SIG²·I)，SIG = ${SIG}（归一化后）`,
+      desc: `当前场景下专家会怎么开？设为高斯混合（绿色宽带）。${obsLane === 0 ? '本车道被堵，巡航权重为 0，换成减速跟停' : obsLane === null ? '无障碍时以巡航为主' : '被占车道不会变道进去'}。理想去噪器 E[x0|xt] 有闭式解，就是<b>训练充分的网络</b>会学到的东西。` }));
+
+    steps.push(S({ phase: P2, tag: { text: 'β 调度', kind: 'info' }, centers: d.anchors, showModes: true, resp: 'w',
+      stats: { ...stT(T_TRUNC, '截断点'), cost: '—', conf: '—', bad: '—' },
+      lines: [L('ab = [1.0]'), L('beta = 1e-4'), L('ab.append(ab[-1]')],
+      formula: `β_i 从 1e-4 线性增到 0.02，T = ${T}<br>ᾱ_${T_TRUNC} = <span class="p">${f4(ab[T_TRUNC])}</span>　ᾱ_${T / 2} = ${f4(ab[T / 2])}　ᾱ_${T} = ${ab[T].toFixed(6)}`,
+      desc: `DDPM 线性 β 调度。右侧曲线：t = ${T_TRUNC} 时 ᾱ 仍有 <b>${f4(ab[T_TRUNC])}</b>，即只加了很少噪声；t = ${T} 时信号几乎完全淹没。截断扩散只用曲线最左端的一小段。` }));
+
+    steps.push(S({ phase: P2, tag: { text: '截断加噪', kind: 'warn' }, centers: d.anchors, anchorFaint: true, showModes: true, traj: d.noisy, resp: 'w',
+      stats: { ...stT(T_TRUNC, `锚点 → x_${T_TRUNC}`), cost: '—', conf: '—', bad: '—' }, table: { noisy: 1 },
+      lines: [L('a50 = ab[T_TRUNC]'), L('noisy = [[math.sqrt(a50)')],
+      formula: `x_${T_TRUNC} = √ᾱ·a_k + √(1−ᾱ)·ε<br>　 = <span class="p">${f4(Math.sqrt(a50))}</span>·a_k + <span class="r">${f4(Math.sqrt(1 - a50))}</span>·ε　（归一化坐标）`,
+      desc: `对每条锚点只加 <b>${T_TRUNC}</b> 步噪声（而不是 ${T} 步）：轨迹抖动了（纵向 ±${f2(SX * Math.sqrt(1 - a50))} m、横向 ±${f2(SY * Math.sqrt(1 - a50))} m 量级），但仍然留在锚点所在的模式附近。` }));
+
+    steps.push(S({ phase: P2, tag: { text: `DDIM 第 1 步 ${T_TRUNC}→${T_TRUNC / 2}`, kind: 'info' }, centers: d.anchors, anchorFaint: true, showModes: true, traj: d.x25,
+      resp: d.r1, respKind: '截断', stats: { ...stT(T_TRUNC / 2, `${T_TRUNC} → ${T_TRUNC / 2}`), cost: '—', conf: '—', bad: '—' }, table: { noisy: 1 },
+      lines: [L('x0, _ = denoise(xt, t)'), L('logw = [math.log(w)'), L('out[i] += rm'), L('eps = [(xt[i]'), L('xt = [math.sqrt(ab[s])')],
+      formula: `x̂0 = Σ r_m·(μ_m + c·(x_t − √ᾱ μ_m))，c = ${f4(Math.sqrt(a50) * SIG * SIG / (a50 * SIG * SIG + 1 - a50))}<br>ε̂ = (x_t − √ᾱ_t x̂0)/√(1−ᾱ_t)，x_${T_TRUNC / 2} = √ᾱ_s x̂0 + √(1−ᾱ_s) ε̂`,
+      desc: `去噪器先算后验责任 r（下方矩阵）：噪声很小，r 几乎是 <b>one-hot</b>，每条轨迹被拉向离它最近的那个模式。DDIM(η=0) 确定性地跳到 t = ${T_TRUNC / 2}。` }));
+
+    steps.push(S({ phase: P2, tag: { text: `DDIM 第 2 步 ${T_TRUNC / 2}→0`, kind: 'hit' }, centers: d.anchors, anchorFaint: true, showModes: true, traj: d.plans,
+      resp: d.r2, respKind: '截断', stats: { ...stT(0, '去噪完成'), cost: '—', conf: '—', bad: { v: cnt(d.parts), sub: `共 ${K} 条（截断扩散）` } }, table: { plan: 1 },
+      lines: [L('plans = [denorm(ddim(x, [T_TRUNC'), L('x0, _ = denoise(xt, t)'), L('xt = [math.sqrt(ab[s])')],
+      formula: `ᾱ_0 = 1 ⇒ x_0 = x̂0（第 2 步直接输出干净轨迹）<br>总共只调用去噪网络 <span class="g">2</span> 次`,
+      desc: `第 2 步后得到 ${K} 条干净轨迹，<b>多样</b>（覆盖不同行为）且<b>贴合场景</b>。若某条锚点离所有场景模式都远（如本车道被堵时的快速直行锚点），r 会摊开，结果不理想——交给打分头淘汰。` }));
+
+    const bc = d.costs[d.best];
+    steps.push(S({ phase: P3, tag: { text: '打分', kind: 'info' }, centers: d.anchors, anchorFaint: true, traj: d.plans, resp: d.r2, respKind: '截断',
+      stats: { ...stT(0, '去噪完成'), cost: { v: f4(Math.min(...d.costs)), sub: `模态 #${d.best}` }, conf: '—', bad: { v: cnt(d.parts), sub: `共 ${K} 条（截断扩散）` } },
+      table: { plan: 1, cost: 1 },
+      lines: [L('def cost(p)'), L('col += max(0.0'), L('comf += ((nvx'), L('lane += min('), L('return 20 * col'), L('costs, conf = score(plans)')],
+      formula: `cost = 20·碰撞 + 0.5·偏离车道 + 0.1·舒适度 + 3·效率<br>#${d.best}：碰撞 ${f4(d.parts[d.best].col)}　偏离 ${f4(d.parts[d.best].lane)}　加速度² ${f4(d.parts[d.best].comf)}　效率 ${f4(d.parts[d.best].prog)}`,
+      desc: `给每条轨迹算 cost：碰撞（进入障碍车椭圆安全域的深度）、偏离车道（末 3 点到最近车道中心）、舒适度（差分加速度²）、效率（比匀速少走的比例）。` }));
+
+    steps.push(S({ phase: P3, tag: { text: '选择', kind: 'hit' }, centers: d.anchors, anchorFaint: true, traj: d.plans, best: d.best, resp: d.r2, respKind: '截断',
+      stats: { ...stT(0, '去噪完成'), cost: { v: f4(bc), sub: `模态 #${d.best}` }, conf: { v: f4(d.conf[d.best]), sub: `模态 #${d.best} · softmax(−cost)` }, bad: { v: cnt(d.parts), sub: `共 ${K} 条（截断扩散）` } },
+      table: { plan: 1, cost: 1, conf: 1 },
+      lines: [L('mx = max(-c for c in cs)'), L('e = [math.exp(-c - mx)'), L('return cs, [x / sum(e)'), L('best = max(range(K)')],
+      formula: `置信度 = softmax(−cost)<br>选中 <span class="g">#${d.best}</span>：cost ${f4(bc)}，置信度 <span class="g">${f4(d.conf[d.best])}</span>，终点 ${end(d.plans[d.best])}`,
+      desc: `置信度 = softmax(−cost)，对应论文中每个锚点的<b>分类头</b>。选最高者 <b style="color:var(--green)">#${d.best}</b>（绿色粗线）作为最终规划。` }));
+
+    const pStats = (t, sub, extra) => ({ ...stT(t, sub), cost: { v: f4(bc), sub: `截断扩散 #${d.best}` }, conf: { v: f4(d.conf[d.best]), sub: `模态 #${d.best}` }, ...extra });
+    steps.push(S({ phase: P4, tag: { text: '纯噪声 x_T', kind: 'warn' }, traj: d.plans, trajFaint: true, best: d.best, showModes: true, pure: d.pureX, resp: 'w',
+      stats: pStats(T, '纯高斯噪声', { bad: '—' }), table: { plan: 1, cost: 1, conf: 1 },
+      lines: [L('pure = [denorm(ddim([gauss()')],
+      formula: `x_${T} ~ N(0, I)，ᾱ_${T} = ${ab[T].toFixed(6)}<br>（反归一化后纵向 ±${SX} m、横向 ±${SY} m 量级，超出画面部分被裁掉）`,
+      desc: `对比：普通扩散从纯高斯噪声出发（红色），同样<b>只走 2 步</b>（${T}→${T / 2}→0）。这里没有锚点提供"大致走哪条道"的先验。` }));
+
+    steps.push(S({ phase: P4, tag: { text: `纯噪声 第 1 步 ${T}→${T / 2}`, kind: 'warn' }, traj: d.plans, trajFaint: true, best: d.best, showModes: true, pure: d.pure500,
+      resp: d.pr1, respKind: '纯噪声', stats: pStats(T / 2, `${T} → ${T / 2}`, { bad: '—' }), table: { plan: 1, cost: 1, conf: 1 },
+      lines: [L('x0, _ = denoise(xt, t)'), L('logw = [math.log(w)'), L('out[i] += rm'), L('xt = [math.sqrt(ab[s])')],
+      formula: `t = ${T} 时 x_t 几乎不含信号 ⇒ r ≈ 先验权重 w<br>x̂0 ≈ Σ w_m μ_m：<span class="r">所有模式的加权平均</span>`,
+      desc: `第 1 步的后验责任 r ≈ 先验权重 w（下方矩阵各行相近）：去噪器只能给出<b>各模式的平均</b>，然后 DDIM 跳到 t = ${T / 2}，噪声仍占主导。` }));
+
+    const pb = d.pcosts.indexOf(Math.min(...d.pcosts));
+    steps.push(S({ phase: P4, tag: { text: `纯噪声 第 2 步 ${T / 2}→0`, kind: 'miss' }, traj: d.plans, trajFaint: true, best: d.best, showModes: true, pure: d.pure,
+      resp: d.pr2, respKind: '纯噪声', stats: pStats(0, '纯噪声 2 步完成', { bad: { v: cnt(d.pparts), sub: `共 ${K} 条（纯噪声）` } }),
+      table: { plan: 1, cost: 1, conf: 1, pure: 1 },
+      lines: [L('pure = [denorm(ddim([gauss()'), L('pcosts = [cost(p) for p in pure]')],
+      formula: `纯噪声最优 cost <span class="r">${f4(d.pcosts[pb])}</span>（样本 ${pb}）<br>截断扩散最优 cost <span class="g">${f4(bc)}</span>（模态 #${d.best}）`,
+      desc: `t = ${T / 2} 时 ᾱ 只有 ${f4(ab[T / 2])}，r 仍摊在多个模式上 ⇒ 输出是<b>模式平均</b>：${obsLane === 0 ? '挤在两车道之间、或直冲障碍车' : '巡航占主导（近似单峰），平均的危害小，但轨迹偏离车道中心、在车道间犹豫，也给不出变道这类少数派候选'}。${cnt(d.pparts)} / ${K} 条碰撞或骑线。` }));
+
+    steps.push(S({ phase: P5, tag: { text: '结论', kind: 'hit' }, centers: d.anchors, anchorFaint: true, traj: d.plans, best: d.best, pure: d.pure, pureFaint: true, resp: d.r2, respKind: '截断',
+      stats: { ...stT(0, '截断扩散'), cost: { v: f4(bc), sub: `纯噪声最优 ${f4(d.pcosts[pb])}` }, conf: { v: f4(d.conf[d.best]), sub: `模态 #${d.best}` }, bad: { v: cnt(d.parts), sub: `纯噪声为 ${cnt(d.pparts)} 条` } },
+      table: { plan: 1, cost: 1, conf: 1, pure: 1 },
+      lines: [L("print(f'选中模态"), L("print(f'纯噪声最优")],
+      formula: `选中 #${d.best}：终点 ${end(d.plans[d.best])}，cost ${f4(bc)}，置信度 ${f4(d.conf[d.best])}<br>同样 2 步：截断扩散 ${f4(bc)} vs 纯噪声 ${f4(d.pcosts[pb])}`,
+      desc: `<b>锚点</b>把"走哪个模式"的离散选择提前固定，<b>截断</b>让去噪从模式附近开始 ⇒ 2 步就得到多样、干净的候选，再由分类头挑选。这就是 DiffusionDrive 能实时运行（论文 45 FPS）的原因。${obsLane === 0 ? '' : '（本场景近似单峰，纯噪声的平均碰巧也不差；换到“障碍在本车道”预设可看到差距。）'}` }));
+    return steps;
+  },
+
+  mount(d, P) {
+    const { K, modes, experts } = d;
+    const ns = 'http://www.w3.org/2000/svg', mk = (t, cls, par) => { const e = document.createElementNS(ns, t); if (cls) e.setAttribute('class', cls); if (par) par.appendChild(e); return e; };
+    const marks = Object.entries(MK).map(([k, c]) =>
+      `<marker id="dd-${k}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:${c};stroke:none"/></marker>`).join('');
+    P.canvas.innerHTML = `<div class="bev"><svg><defs>${marks}<clipPath id="dd-clip"><rect class="cliprect"/></clipPath></defs></svg></div>
+      <div class="legend"><span><i style="background:#94a3b8"></i>专家轨迹</span><span><i style="background:repeating-linear-gradient(90deg,#2563eb 0 6px,transparent 6px 9px)"></i>锚点（k-means 中心）</span>
+      <span><i style="background:rgba(22,163,74,.35);height:8px"></i>场景模式均值</span><span><i style="background:#7c3aed"></i>去噪中的轨迹（按锚点着色）</span>
+      <span><i style="background:var(--green);height:5px"></i>选中模态</span><span><i style="background:var(--red)"></i>纯噪声出发</span></div>`;
+    const svg = P.canvas.querySelector('svg');
+    const G = name => { const g = mk('g', name, svg); g.setAttribute('clip-path', 'url(#dd-clip)'); return g; };
+    const road = G('road'), gExp = G('expert'), gMode = G('mode'), gAnc = G('anchor'), gTraj = G('traj'), gPure = G('pure'), gLab = mk('g', 'labels', svg);
+    const roadBg = mk('rect', 'road-bg', road);
+    const lanes = [-1.5, -0.5, 0.5, 1.5].map(k => mk('line', Math.abs(k) > 1 ? 'lane-edge' : 'lane-mid', road));
+    const safe = mk('ellipse', 'safe', road), obs = mk('rect', 'car-obs', road), ego = mk('rect', 'car-ego', road);
+    const ticks = [0, 10, 20, 30, 40, 50].map(x => { const t = mk('text', 'ax', road); t.textContent = x + 'm'; return t; });
+    const expP = experts.map(() => mk('path', '', gExp));
+    const modeP = modes.map(() => mk('path', '', gMode));
+    const ancP = Array.from({ length: K }, (_, k) => { const p = mk('path', '', gAnc); p.setAttribute('stroke', PAL[k]); p.setAttribute('marker-end', `url(#dd-p${k})`); return p; });
+    const mkTraj = (g, color, mkId) => Array.from({ length: K }, (_, k) => {
+      const p = mk('path', '', g); p.setAttribute('stroke', color(k)); p.setAttribute('marker-end', `url(#dd-${mkId(k)})`);
+      const dots = Array.from({ length: H }, () => { const c = mk('circle', 'wp', g); c.setAttribute('r', 3); c.setAttribute('fill', color(k)); return c; });
+      return { p, dots };
+    });
+    const trajE = mkTraj(gTraj, k => PAL[k], k => 'p' + k), pureE = mkTraj(gPure, () => '#dc2626', () => 'red');
+    const capEgo = mk('text', 'cap', gLab), capObs = mk('text', 'cap', gLab);
+    capEgo.textContent = '自车'; capObs.textContent = '障碍车';
+    const labT = Array.from({ length: K }, (_, k) => { const t = mk('text', '', gLab); t.textContent = '#' + k; t.style.fill = PAL[k]; return t; });
+    const labP = Array.from({ length: K }, (_, k) => { const t = mk('text', '', gLab); t.textContent = '噪' + k; t.style.fill = '#dc2626'; return t; });
+
+    // 状态卡：后验责任矩阵 + ᾱ 曲线
+    P.state.innerHTML = `<div class="st"><div class="left2"><div class="formula"></div><div class="resp"></div></div><div class="abchart"><svg></svg></div></div>`;
+    const resp = P.state.querySelector('.resp');
+    resp.style.setProperty('--m', modes.length);
+    const head = el('div', 'rrow head', `<span></span>` + modes.map(m => `<span>${m.name} ${m.w}</span>`).join(''));
+    resp.appendChild(head);
+    const rRows = Array.from({ length: K }, () => {
+      const r = el('div', 'rrow', `<span class="k"></span>` + modes.map(() => '<span></span>').join(''));
+      resp.appendChild(r); return r;
+    });
+    const ac = P.state.querySelector('.abchart svg');
+    const cw = 210, chh = 128, x0 = 30, y0 = 8, w = cw - x0 - 24, h = chh - y0 - 26;
+    const cx = t => x0 + t / T * w, cy = a => y0 + (1 - a) * h;
+    let dd = '';
+    for (let t = 0; t <= T; t += 10) dd += (t ? ' L' : 'M') + cx(t).toFixed(1) + ',' + cy(d.ab[t]).toFixed(1);
+    ac.innerHTML = `<line class="axis" x1="${x0}" y1="${y0 + h}" x2="${x0 + w}" y2="${y0 + h}"/><line class="axis" x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0 + h}"/>
+      <line class="tick" x1="${cx(T / 2)}" y1="${y0}" x2="${cx(T / 2)}" y2="${y0 + h}"/>
+      <path class="curve" d="${dd}"/><text x="${x0 - 4}" y="${y0 + 4}" text-anchor="end">1</text><text x="${x0 - 4}" y="${y0 + h}" text-anchor="end">0</text>
+      <text x="${x0 - 22}" y="${y0 + h / 2 + 4}">ᾱ</text>
+      <text x="${x0}" y="${y0 + h + 14}" text-anchor="middle">0</text><text x="${cx(T / 2)}" y="${y0 + h + 14}" text-anchor="middle">${T / 2}</text>
+      <text x="${x0 + w}" y="${y0 + h + 14}" text-anchor="middle">${T}</text><text x="${x0 + w / 4}" y="${y0 + h + 14}" text-anchor="middle">t</text>
+      <circle r="5"/><text class="cur" text-anchor="start"></text>`;
+    P.aux.tbl.innerHTML = `<div class="tbl"><div class="trow head"><span>k</span><span>锚点终点</span><span>规划终点</span><span>cost</span><span>置信度</span><span>纯噪声 cost</span></div><div class="tscroll"></div></div>`;
+    P.aux.tbl.style.overflow = 'hidden';
+    const tb = P.aux.tbl.querySelector('.tscroll');
+    const tRows = Array.from({ length: K }, (_, k) => {
+      const r = el('div', 'trow', `<span><i class="sw" style="background:${PAL[k]}"></i>${k}</span><span>${end(d.anchors[k])}</span><span></span><span></span><span></span><span></span>`);
+      tb.appendChild(r); return r;
+    });
+    U = { svg, roadBg, lanes, safe, obs, ego, ticks, expP, modeP, ancP, trajE, pureE, capEgo, capObs, labT, labP, gExp, gMode, gAnc, gTraj, gPure,
+      formula: P.state.querySelector('.formula'), rRows, acDot: ac.querySelector('circle'), acTxt: ac.querySelector('text.cur'), cx, cy,
+      tRows, cur: { traj: null, pure: null, anc: null }, clip: svg.querySelector('.cliprect') };
+  },
+
+  layout(d) {
+    const W = U.svg.parentNode.clientWidth, Hc = clamp(Math.round(window.innerHeight * 0.29), 190, 330);
+    U.svg.setAttribute('height', Hc); U.svg.setAttribute('viewBox', `0 0 ${W} ${Hc}`);
+    const sx = W / (XMAX - XMIN), sy = Hc / (2 * YR);
+    U.X = x => (x - XMIN) * sx; U.Y = y => Hc / 2 - y * sy; U.W = W; U.Hc = Hc;
+    const { X, Y } = U;
+    U.clip.setAttribute('width', W); U.clip.setAttribute('height', Hc);
+    U.roadBg.setAttribute('x', 0); U.roadBg.setAttribute('width', W); U.roadBg.setAttribute('y', Y(1.5 * LANE_W)); U.roadBg.setAttribute('height', 3 * LANE_W * sy);
+    [-1.5, -0.5, 0.5, 1.5].forEach((k, i) => { const l = U.lanes[i]; l.setAttribute('x1', 0); l.setAttribute('x2', W); l.setAttribute('y1', Y(k * LANE_W)); l.setAttribute('y2', Y(k * LANE_W)); });
+    const car = (r, cx, cy) => { r.setAttribute('x', X(cx - 2.3)); r.setAttribute('y', Y(cy + 0.95)); r.setAttribute('width', 4.6 * sx); r.setAttribute('height', 1.9 * sy); r.setAttribute('rx', 4); };
+    car(U.ego, -1.3, 0);
+    const oy = d.obsLane === null ? 0 : d.obsLane * LANE_W;
+    car(U.obs, d.obsX, oy);
+    U.safe.setAttribute('cx', X(d.obsX)); U.safe.setAttribute('cy', Y(oy)); U.safe.setAttribute('rx', 6 * sx); U.safe.setAttribute('ry', 2.2 * sy);
+    const vis = d.obsLane === null ? 0 : 1;
+    U.obs.style.opacity = vis; U.safe.style.opacity = vis; U.capObs.style.opacity = vis;
+    U.ticks.forEach((t, i) => { t.setAttribute('x', X(i * 10)); t.setAttribute('y', Hc - 8); t.setAttribute('text-anchor', 'middle'); });
+    U.fixed = [
+      { x: X(-1.3), y: Y(1.6), w: 30, el: U.capEgo },
+      { x: X(d.obsX), y: Y(oy + (oy > 0 ? -1 : 1) * 1.55), w: 44, el: U.capObs },
+    ];
+    U.fixed.forEach(f => { f.el.setAttribute('text-anchor', 'middle'); f.el.style.transform = `translate(${f.x}px, ${f.y}px)`; });
+    U.capEgo.style.opacity = 1;
+    d.experts.forEach((p, n) => U.expP[n].setAttribute('d', U.path(p)));
+    d.modes.forEach((m, i) => U.modeP[i].setAttribute('d', U.path(m.mu)));
+    U.cur = { traj: null, pure: null, anc: null };
+  },
+
+  render(s, prev, d, P) {
+    const { K } = d, { X, Y } = U;
+    // 专家轨迹：灰 / 按簇着色
+    U.gExp.style.opacity = s.experts ? (s.centers && s.expColor ? 0.9 : 0.75) : 0;
+    U.expP.forEach((p, n) => p.setAttribute('stroke', s.expColor ? PAL[s.expColor[n]] : '#94a3b8'));
+    U.gMode.style.opacity = s.showModes ? 1 : 0;
+    // 锚点：补间移动
+    U.gAnc.style.opacity = s.centers ? (s.anchorFaint ? 0.4 : 1) : 0;
+    const tw = (key, from, to, apply) => {
+      if (!to) { U.cur[key] = null; return; }
+      const f = from || to;
+      animate('dd-' + key, p => { const c = to.map((tr, k) => tr.map((v, i) => f[k][i] + (v - f[k][i]) * p)); U.cur[key] = c; apply(c); });
+    };
+    tw('anc', U.cur.anc, s.centers, c => c.forEach((pts, k) => U.ancP[k].setAttribute('d', U.path(pts))));
+    // 当前轨迹 / 纯噪声轨迹
+    const drawSet = (E, c) => c.forEach((pts, k) => {
+      E[k].p.setAttribute('d', U.path(pts));
+      E[k].dots.forEach((dot, i) => { dot.setAttribute('cx', X(pts[2 * i])); dot.setAttribute('cy', Y(pts[2 * i + 1])); });
+    });
+    U.gTraj.style.opacity = s.traj ? 1 : 0;
+    if (s.traj && !U.cur.traj) U.cur.traj = s.centers ? s.centers.map(a => [...a]) : s.traj;
+    tw('traj', U.cur.traj, s.traj, c => drawSet(U.trajE, c));
+    U.trajE.forEach((E, k) => {
+      const isBest = s.best === k, faded = (s.best != null && !isBest) || s.trajFaint;
+      const col = isBest ? '#16a34a' : PAL[k];
+      E.p.setAttribute('stroke', col); E.p.setAttribute('marker-end', `url(#dd-${isBest ? 'green' : 'p' + k})`);
+      E.p.setAttribute('class', isBest ? 'best' : '');
+      E.p.style.opacity = faded ? (s.trajFaint && !isBest ? 0.25 : 0.35) : 1;
+      E.dots.forEach(c => { c.setAttribute('fill', col); c.style.opacity = faded ? 0.25 : 1; });
+    });
+    U.gPure.style.opacity = s.pure ? (s.pureFaint ? 0.3 : 1) : 0;
+    if (s.pure && !U.cur.pure) U.cur.pure = s.pure;
+    tw('pure', U.cur.pure, s.pure, c => drawSet(U.pureE, c));
+
+    // 终点标签（避让）
+    const placed = U.fixed.filter((f, i) => i === 0 || d.obsLane !== null).map(f => ({ x: f.x - f.w / 2, y: f.y, w: f.w }));
+    const put = (t, pts, show) => {
+      if (!show) { t.style.opacity = 0; return; }
+      let x = clamp(X(pts[2 * H - 2]) + 9, 4, U.W - 30), y = clamp(Y(pts[2 * H - 1]), 9, U.Hc - 24);
+      const w = 30;
+      const hit = () => placed.some(q => x < q.x + q.w && q.x < x + w && Math.abs(q.y - y) < 15);
+      for (let tries = 0, dir = 1; hit() && tries < 24; tries++) { y += dir * 15 * (tries + 1); dir = -dir; y = clamp(y, 9, U.Hc - 24); }
+      placed.push({ x, y, w });
+      t.style.opacity = 1;
+      t.style.transform = `translate(${x}px, ${y}px)`;
+    };
+    const trajLab = s.traj && !s.trajFaint ? s.traj : null;
+    if (trajLab && s.best != null) put(U.labT[s.best], trajLab[s.best], true);
+    U.labT.forEach((t, k) => { if (!(trajLab && s.best === k)) put(t, trajLab ? trajLab[k] : null, !!trajLab); t.style.fill = s.best === k ? '#16a34a' : PAL[k]; });
+    const pureLab = s.pure && s.pure !== d.pureX && !s.pureFaint ? s.pure : null;
+    U.labP.forEach((t, k) => put(t, pureLab ? pureLab[k] : null, !!pureLab));
+
+    // 公式与后验责任矩阵
+    if (U.formula.innerHTML !== s.formula) { U.formula.innerHTML = s.formula; flash(U.formula, 'fade-in'); }
+    P.stateHint.textContent = s.respKind ? `${s.respKind}：行 = 轨迹，列 = 场景模式` : '各列 = 场景模式及先验权重 w';
+    U.rRows.forEach((r, k) => {
+      const cells = r.children, row = Array.isArray(s.resp) ? s.resp[k] : null;
+      setText(cells[0], row ? (s.respKind === '纯噪声' ? '噪' + k : '#' + k) : '');
+      r.className = 'rrow' + (row && s.respKind === '截断' && s.best === k ? ' best' : '');
+      r.style.opacity = row ? 1 : 0;
+      for (let m = 0; m < d.modes.length; m++) {
+        const v = row ? row[m] : 0, c = cells[m + 1];
+        setText(c, row ? v.toFixed(2) : '');
+        c.style.background = row ? `rgba(${s.respKind === '纯噪声' ? '220,38,38' : '22,163,74'},${(0.08 + 0.6 * v).toFixed(3)})` : 'transparent';
+        c.style.color = row && v > 0.55 ? '#fff' : '';
+      }
+    });
+    // ᾱ 曲线上的当前点
+    const t = s.stats.t && typeof s.stats.t === 'object' ? s.stats.t.v : null;
+    U.acDot.style.opacity = t == null ? 0 : 1; U.acTxt.style.opacity = t == null ? 0 : 1;
+    if (t != null) {
+      U.acDot.setAttribute('cx', U.cx(t)); U.acDot.setAttribute('cy', U.cy(d.ab[t]));
+      const right = t > 600;
+      U.acTxt.setAttribute('x', U.cx(t) + (right ? -8 : 8)); U.acTxt.setAttribute('y', U.cy(d.ab[t]) + (d.ab[t] > 0.5 ? 16 : -10));
+      U.acTxt.setAttribute('text-anchor', right ? 'end' : 'start');
+      setText(U.acTxt, `t=${t}`);
+    }
+
+    // 模态表
+    U.tRows.forEach((r, k) => {
+      const c = r.children, tb = s.table;
+      const pl = tb.plan ? d.plans[k] : tb.noisy ? (s.traj && s.traj[k]) : null;
+      setText(c[2], pl ? end(pl) : '·'); c[2].className = pl ? '' : 'na';
+      setText(c[3], tb.cost ? f4(d.costs[k]) : '·'); c[3].className = tb.cost ? (bad(d.parts[k]) ? 'bad' : '') : 'na';
+      setText(c[4], tb.conf ? f4(d.conf[k]) : '·'); c[4].className = tb.conf ? '' : 'na';
+      setText(c[5], tb.pure ? f4(d.pcosts[k]) : '·'); c[5].className = tb.pure ? (bad(d.pparts[k]) ? 'bad' : '') : 'na';
+      r.className = 'trow' + (tb.conf && s.best === k ? ' best' : '');
+    });
+  },
+};
+
+// 轨迹折线：从自车原点出发
+const pathOf = pts => { let s = `M${U.X(0).toFixed(1)},${U.Y(0).toFixed(1)}`; for (let i = 0; i < H; i++) s += ` L${U.X(pts[2 * i]).toFixed(1)},${U.Y(pts[2 * i + 1]).toFixed(1)}`; return s; };
+const _mount = DEMO.mount;
+DEMO.mount = (d, P) => { _mount(d, P); U.path = pathOf; };
+
+if (typeof module !== 'undefined') module.exports = { DEMO, compute };
+AV.start(DEMO);
+})();
+</script>
+</body>
+</html>
