@@ -16,10 +16,11 @@
 # 反过来，让一个配送员完成整条路线，其他配送员休息，也符合要求。
 # 所以在 k >= 1 时，多配送员和单配送员的最优总时间相等。
 # 注意优化的是“总时间”；若要求最晚完成时间最小，就不能这样合并。
-# 先用 Floyd 求最短路，再用状态压缩 DP 求最短访问路线。
+# 先用三维 Floyd 求最短路，再用集合与字典 DP 求最短访问路线。
 # 通行时间按非负数理解；本实现适用于 n >= 1、k >= 1 的输入。
-# 时间复杂度 O(n^3 + n^2 * 2^(n-1))。
-# 空间复杂度 O(n^2 + n * 2^(n-1))，因此只适合节点数较少的情况。
+# 状态数量仍可能指数增长；使用集合和字典主要是让状态含义更直观。
+# 考虑集合复制与哈希的 O(n) 开销，时间上界 O(n^3 + n^3 * 2^(n-1))，
+# 空间上界 O(n^3 + n^2 * 2^(n-1))。只保留相邻两轮的可达状态。
 #
 # 测试 1 输入：
 # 4 4 2
@@ -51,19 +52,17 @@ n = int(data[0])
 m = int(data[1])
 k = int(data[2])
 
-# dist[i][j] 保存两点之间的最短距离；初始只有自身到自身的距离为 0。
-# 正无穷表示暂时不可达，便于直接进行 min 和加法运算。
+# floyd[i][j][t]：只允许编号 0 到 t-1 的点作为中间点时，
+# 从 i 到 j 的最短距离。第三维 t 是阶段，范围为 0 到 n。
+# 输入中的 k 是配送员数量，因此用 t 表示 Floyd 阶段，避免混淆。
+# t=0 不允许任何中间点，只能走直接道路；正无穷表示不可达。
 inf = float('inf')
-dist = []
-
+floyd = [
+    [[inf] * (n + 1) for j in range(n)]
+    for i in range(n)
+]
 for i in range(n):
-    row = []
-    for j in range(n):
-        if i == j:
-            row.append(0)
-        else:
-            row.append(inf)
-    dist.append(row)
+    floyd[i][i][0] = 0
 
 index = 3
 for i in range(m):
@@ -74,16 +73,25 @@ for i in range(m):
     index += 3
 
     # 双向道路要更新两个方向；重边仅保留耗时最短的一条。
-    dist[u][v] = min(dist[u][v], w)
-    dist[v][u] = min(dist[v][u], w)
+    floyd[u][v][0] = min(floyd[u][v][0], w)
+    floyd[v][u][0] = min(floyd[v][u][0], w)
 
-# Floyd：依次允许点 t 作为中间节点，尝试用 i -> t -> j 改善 i -> j。
-# t 必须在最外层，才能维护“只允许使用已经处理过的中间点”这一阶段含义。
+# 三维 Floyd：第 t 层新增允许点 t-1 作为中间点。
+# 虽然 t 存在第三维，仍按 t 递增逐层计算，保证上一层已经全部完成。
 # 最短路径可以途经任意点，包括仓库和其他配送员负责的点。
-for t in range(n):
+for t in range(1, n + 1):
     for i in range(n):
         for j in range(n):
-            dist[i][j] = min(dist[i][j], dist[i][t] + dist[t][j])
+            # 不经过新中间点：直接沿用上一层的最短距离。
+            # 经过新中间点：拆成 i -> t-1 和 t-1 -> j，两段均取上一层。
+            floyd[i][j][t] = min(
+                floyd[i][j][t - 1],
+                floyd[i][t - 1][t - 1] + floyd[t - 1][j][t - 1]
+            )
+
+# 固定第三维 t=n，取出允许全部点作为中间点的最终距离矩阵。
+# 后面的集合与字典 DP 用它决定访问顺序；三维 Floyd 本身不解决访问顺序问题。
+dist = [[floyd[i][j][n] for j in range(n)] for i in range(n)]
 
 # 无向图中，只要有点无法从仓库到达，就不可能完成配送。
 # 若所有点都与仓库连通，则每个点也都能返回仓库。
@@ -91,51 +99,44 @@ if inf in dist[0]:
     print(-1)
     sys.exit()
 
-# mask 用 n-1 个二进制位记录已纳入访问顺序的非仓库点。
-# 点 j 对应第 j-1 位：该位为 1 表示已纳入，为 0 表示尚未纳入。
-# 例如 n=4 时，mask=0b101 表示点 1、3 已纳入，点 2 尚未纳入（数组编号）。
-# dp[mask][i]：从仓库出发，已纳入集合为 mask，最后停在 i 的最小时间。
-# 这里记录的是最短路压缩后的访问顺序：某段最短路可能已途经 mask 外的点，
-# 不必立即给这些点置位，因为题目允许重复经过节点；后续仍可纳入访问顺序。
-# 任意实际路线都可按各点首次出现顺序压缩，且用最短路替换各段不会更贵；
-# 任意 DP 路线又能展开成合法实际路线，因此该建模不会改变最优值。
-size = 2 ** (n - 1)
-dp = []
+# 用集合直接表示已经纳入访问顺序的非仓库点，不再编码成二进制。
+# dp[(visited, i)]：已纳入集合为 visited、停在点 i 时的最短时间。
+# 同一个集合可能有不同的停留点，它们后续的通行成本不同，必须分别保存。
+# 普通 set 可变，不能作为字典键；frozenset 是不可变集合，可以作为字典键。
+# 例如 (frozenset({1, 3}), 3) 表示已经纳入点 1、3，当前停在点 3。
+# 集合记录的是访问顺序中的点：某段最短路允许途经其他点，也允许重复经过。
 
-for mask in range(size):
-    row = []
-    for i in range(n):
-        row.append(inf)
-    dp.append(row)
+# 起点：尚未纳入任何非仓库点，停在仓库 0，耗时为 0。
+dp = {(frozenset(), 0): 0}
 
-# 起点状态：尚未纳入任何非仓库点，停在仓库，累计耗时为 0。
-dp[0][0] = 0
+# 每轮加入一个新点，共加入 n-1 个非仓库点。
+# dp 只存当前一轮的状态，next_dp 存下一轮，避免边遍历边修改字典。
+for _ in range(n - 1):
+    next_dp = {}
 
-# 每次只添加一个未置位的点，新 mask 一定更大，按数值递增枚举即可。
-for mask in range(size):
-    for i in range(n):
-        # 跳过不可达状态，避免无意义的转移。
-        if dp[mask][i] == inf:
-            continue
-
+    for (visited, i), cost in dp.items():
         for j in range(1, n):
-            # 左移构造仅第 j-1 位为 1 的数，用于检测或设置点 j 的状态。
-            bit = 1 << (j - 1)
-
-            # 这个点已经访问过
-            if mask & bit:
+            # 用集合成员判断，已经纳入访问顺序的点不再加入。
+            if j in visited:
                 continue
 
-            # 按位或把点 j 加入集合，耗时增加从当前点 i 到 j 的最短路。
-            # 同一个新状态可从不同的上一站到达，因此要取所有候选中的最小值。
-            tmp = mask | bit
-            dp[tmp][j] = min(dp[tmp][j], dp[mask][i] + dist[i][j])
+            # 产生新集合，原来的 visited 不变，类型仍为 frozenset。
+            new_visited = visited.union({j})
+            state = (new_visited, j)
+            new_cost = cost + dist[i][j]
 
-# size-1 的低 n-1 位全为 1，表示所有非仓库点都已纳入访问顺序。
-# 枚举最后停留点 i，加上返回仓库的最短距离，才是完整往返路线的耗时。
-# n=1 时 size=1，直接得到 dp[0][0] + dist[0][0] = 0。
+            # 不同访问顺序可能到达相同的“集合 + 停留点”状态。
+            # 字典中还没有这个状态时按无穷大处理，只保留最小耗时。
+            if new_cost < next_dp.get(state, inf):
+                next_dp[state] = new_cost
+
+    dp = next_dp
+
+# n-1 轮后，字典中的每个 visited 都包含全部非仓库点。
+# 枚举最后停留点，再加上返回仓库的最短距离。
+# n=1 时不进入上面的循环，初始状态直接得到 0 + dist[0][0] = 0。
 res = inf
-for i in range(n):
-    res = min(res, dp[size - 1][i] + dist[i][0])
+for (visited, i), cost in dp.items():
+    res = min(res, cost + dist[i][0])
 
 print(res)

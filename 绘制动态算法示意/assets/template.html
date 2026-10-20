@@ -219,7 +219,7 @@ button.preset { font-size: 12px; padding: 3px 9px; }
         <button class="primary" id="btnPlay">▶ 播放</button>
         <button id="btnNext">下一步 ▶</button>
         <button id="btnLast" title="最后一步">⏭</button>
-        <span class="hint">慢</span><input id="speed" type="range" min="300" max="2600" value="300" style="width:110px;direction:rtl"><span class="hint">快</span>
+        <span class="hint">慢</span><input id="speed" type="range" min="0" max="100" value="100" aria-label="播放速度：越向右越快" style="width:110px"><span class="hint">快</span>
         <div class="progress" id="progress" title="点击或拖动跳转"><div id="prog"></div><div class="thumb" id="thumb"></div><div class="tip" id="progTip"></div></div>
         <span id="stepNo" class="hint mono"></span>
         <span class="hint">← → 单步 · 空格 播放 · 进度条可拖动</span>
@@ -453,7 +453,8 @@ const AV = (() => {
   // ---------- 播放器与布局 ----------
   let D, data, steps = [], cur = 0, timer = null;
   const statEls = {}, P = { aux: {}, auxCard: {} };
-  const speedMs = () => +$('speed').value;
+  // 速度从左到右递增，填充越满越快；0 为 2600ms，100 为 300ms。
+  const speedMs = () => 2600 - 23 * Number($('speed').value);
   function setSpeed() {
     DUR = clamp(Math.round(speedMs() * .5), 180, 650);
     document.documentElement.style.setProperty('--dur', DUR + 'ms');

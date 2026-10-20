@@ -150,7 +150,16 @@ button.preset { font-size: 12px; padding: 3px 9px; }
 /* =====================================================================
    DEMO STYLE —— 本题专用的可视化样式（生成新演示时替换这里）
    ===================================================================== */
-.g2 { display: flex; gap: 20px; height: 258px; }
+.matrix-wrap { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.tensor-view { position:absolute; inset:0; border-radius:8px; background:#f5f7ff; overflow:hidden; }
+.tensor-view canvas { width:100%; height:100%; display:block; touch-action:none; cursor:grab; }
+.tensor-reset { position:absolute; bottom:4px; left:6px; font-size:11px; padding:2px 6px; }
+.mat .old { background:#fffbeb; color:#b45309; border-color:#f59e0b; }
+.mat .src-a { background:#f5f3ff; color:#7c3aed; border-color:#8b5cf6; }
+.mat .src-b { background:#eff6ff; color:#2563eb; border-color:#3b82f6; }
+.layer-select { border: 1px solid #cbd5e1; border-radius: 5px; padding: 3px; background: white; }
+.g2 { display: flex; gap: 12px; height: 238px; }
+.desc { font-size: 14px; line-height: 1.6; }
 .graph { flex: 1; min-width: 0; position: relative; }
 .graph svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .graph .edge line { stroke: #cbd5e1; stroke-width: 2; transition: stroke var(--dur), stroke-width var(--dur), opacity var(--dur); }
@@ -191,43 +200,24 @@ button.preset { font-size: 12px; padding: 3px 9px; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
 .legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
 
-.formula { font-family: Consolas, monospace; font-size: 15px; line-height: 2; }
+.formula { font-family: Consolas, monospace; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
 .formula .p { color: var(--purple); font-weight: 700; } .formula .g { color: var(--green); font-weight: 800; }
 .formula .r { color: var(--red); font-weight: 700; } .formula .b { color: var(--blue); font-weight: 700; } .formula .m { color: var(--muted); }
 .hide { display: none !important; }
-.bitsrow { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.bits { display: flex; gap: 6px; }
-.bit { width: 46px; text-align: center; }
-.bit .lab { font-size: 11px; color: var(--muted); height: 16px; line-height: 16px; margin-bottom: 7px; white-space: nowrap; }
-.bit .b { height: 34px; line-height: 30px; border: 2px solid var(--line); border-radius: 8px; font-weight: 800; font-family: Consolas, monospace;
-  font-size: 16px; color: #9ca3af; background: #fff; transition: background var(--dur), border-color var(--dur), color var(--dur), box-shadow var(--dur); }
-.bit.on .b { background: var(--green-l); border-color: var(--green); color: var(--green); }
-.bit.add .b { border-color: var(--blue); color: var(--blue); box-shadow: 0 0 0 3px #bfdbfe; }
-.maskinfo { font-family: Consolas, monospace; font-size: 14px; line-height: 1.7; }
-.maskinfo b { color: var(--blue); }
-.cands { margin-top: 10px; font-size: 13px; }
-.crow { display: grid; grid-template-columns: .6fr .9fr 2fr 1fr 1fr; align-items: center; height: 27px; text-align: center;
-  border-bottom: 1px solid var(--line); border-radius: 6px; transition: background var(--dur), color var(--dur); }
-.crow.head { color: var(--muted); font-weight: 600; }
-.cbody { position: relative; }
-.crow.better { background: var(--green-l); color: var(--green); font-weight: 700; }
-.crow.worse { color: #9ca3af; }
-.crow.best { background: var(--red-l); color: var(--red); font-weight: 800; }
-
-.dpt { font-size: 13px; font-family: Consolas, monospace; display: flex; flex-direction: column; height: 100%; }
-.dpscroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative; }
-.dprow { display: grid; grid-template-columns: 64px 92px repeat(var(--n), minmax(0, 1fr)); align-items: center; height: 27px;
-  border-bottom: 1px solid var(--line); text-align: center; transition: background var(--dur); }
-.dprow.head { flex: none; color: var(--muted); font-weight: 600; font-family: inherit; }
-.dprow.currow { background: var(--blue-l); }
-.dprow span { border-radius: 5px; margin: 0 2px; transition: background var(--dur), color var(--dur), box-shadow var(--dur); }
-.dprow .inf { color: #d1d5db; }
-.dprow .cur { background: var(--blue); color: #fff; font-weight: 800; }
-.dprow .upd { background: var(--green-l); color: var(--green); font-weight: 800; box-shadow: inset 0 0 0 1px var(--green); }
-.dprow .keep { color: var(--amber); box-shadow: inset 0 0 0 1px #fcd34d; }
-.dprow .fin { box-shadow: inset 0 0 0 1px var(--red); color: var(--red); font-weight: 700; }
-.dprow .best { background: var(--red); color: #fff; font-weight: 800; }
-.dprow .mk { color: var(--purple); }
+.set-info, .candidate-info { font-size:14px; line-height:1.8; overflow-wrap:anywhere; }
+.candidate-info { margin-top:6px; color:#475569; }
+.transition-vars { margin-top:6px; padding:5px 8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font:13px/1.8 Consolas, monospace; }
+.transition-var { display:grid; grid-template-columns:94px minmax(0,1fr); gap:6px; }
+.transition-var .name { color:#2563eb; font-weight:600; }
+.transition-var .value { overflow-wrap:anywhere; }
+.dpt { display:flex; flex-direction:column; height:100%; font-size:13px; }
+.dpscroll { flex:1; min-height:0; overflow:auto; position:relative; }
+.dict-row { display:grid; grid-template-columns:80px minmax(110px,1fr) 65px 85px; align-items:center; min-height:28px; text-align:center; border-bottom:1px solid #e5e7eb; transition:background var(--dur); }
+.dict-row.head { flex:none; color:#64748b; font-weight:600; }
+.dict-row span { padding:3px 2px; overflow-wrap:anywhere; }
+.dict-current { background:#eff6ff; color:#1d4ed8; }
+.dict-target { background:#f0fdf4; color:#15803d; font-weight:600; }
+.stat.blue .num { font-size:22px; }
 .route { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 14px; min-height: 30px; }
 .route .st { display: inline-block; min-width: 30px; height: 30px; line-height: 26px; text-align: center; border-radius: 15px; border: 2px solid var(--green);
   background: var(--green-l); font-weight: 800; padding: 0 6px; }
@@ -248,7 +238,7 @@ button.preset { font-size: 12px; padding: 3px 9px; }
         <button class="primary" id="btnPlay">▶ 播放</button>
         <button id="btnNext">下一步 ▶</button>
         <button id="btnLast" title="最后一步">⏭</button>
-        <span class="hint">慢</span><input id="speed" type="range" min="300" max="2600" value="300" style="width:110px;direction:rtl"><span class="hint">快</span>
+        <span class="hint">慢</span><input id="speed" type="range" min="0" max="100" value="100" aria-label="播放速度：越向右越快" style="width:110px"><span class="hint">快</span>
         <div class="progress" id="progress" title="点击或拖动跳转"><div id="prog"></div><div class="thumb" id="thumb"></div><div class="tip" id="progTip"></div></div>
         <span id="stepNo" class="hint mono"></span>
         <span class="hint">← → 单步 · 空格 播放 · 进度条可拖动</span>
@@ -310,10 +300,11 @@ button.preset { font-size: 12px; padding: 3px 9px; }
 # 反过来，让一个配送员完成整条路线，其他配送员休息，也符合要求。
 # 所以在 k >= 1 时，多配送员和单配送员的最优总时间相等。
 # 注意优化的是“总时间”；若要求最晚完成时间最小，就不能这样合并。
-# 先用 Floyd 求最短路，再用状态压缩 DP 求最短访问路线。
+# 先用三维 Floyd 求最短路，再用集合与字典 DP 求最短访问路线。
 # 通行时间按非负数理解；本实现适用于 n >= 1、k >= 1 的输入。
-# 时间复杂度 O(n^3 + n^2 * 2^(n-1))。
-# 空间复杂度 O(n^2 + n * 2^(n-1))，因此只适合节点数较少的情况。
+# 状态数量仍可能指数增长；使用集合和字典主要是让状态含义更直观。
+# 考虑集合复制与哈希的 O(n) 开销，时间上界 O(n^3 + n^3 * 2^(n-1))，
+# 空间上界 O(n^3 + n^2 * 2^(n-1))。只保留相邻两轮的可达状态。
 #
 # 测试 1 输入：
 # 4 4 2
@@ -345,19 +336,17 @@ n = int(data[0])
 m = int(data[1])
 k = int(data[2])
 
-# dist[i][j] 保存两点之间的最短距离；初始只有自身到自身的距离为 0。
-# 正无穷表示暂时不可达，便于直接进行 min 和加法运算。
+# floyd[i][j][t]：只允许编号 0 到 t-1 的点作为中间点时，
+# 从 i 到 j 的最短距离。第三维 t 是阶段，范围为 0 到 n。
+# 输入中的 k 是配送员数量，因此用 t 表示 Floyd 阶段，避免混淆。
+# t=0 不允许任何中间点，只能走直接道路；正无穷表示不可达。
 inf = float('inf')
-dist = []
-
+floyd = [
+    [[inf] * (n + 1) for j in range(n)]
+    for i in range(n)
+]
 for i in range(n):
-    row = []
-    for j in range(n):
-        if i == j:
-            row.append(0)
-        else:
-            row.append(inf)
-    dist.append(row)
+    floyd[i][i][0] = 0
 
 index = 3
 for i in range(m):
@@ -368,16 +357,25 @@ for i in range(m):
     index += 3
 
     # 双向道路要更新两个方向；重边仅保留耗时最短的一条。
-    dist[u][v] = min(dist[u][v], w)
-    dist[v][u] = min(dist[v][u], w)
+    floyd[u][v][0] = min(floyd[u][v][0], w)
+    floyd[v][u][0] = min(floyd[v][u][0], w)
 
-# Floyd：依次允许点 t 作为中间节点，尝试用 i -> t -> j 改善 i -> j。
-# t 必须在最外层，才能维护“只允许使用已经处理过的中间点”这一阶段含义。
+# 三维 Floyd：第 t 层新增允许点 t-1 作为中间点。
+# 虽然 t 存在第三维，仍按 t 递增逐层计算，保证上一层已经全部完成。
 # 最短路径可以途经任意点，包括仓库和其他配送员负责的点。
-for t in range(n):
+for t in range(1, n + 1):
     for i in range(n):
         for j in range(n):
-            dist[i][j] = min(dist[i][j], dist[i][t] + dist[t][j])
+            # 不经过新中间点：直接沿用上一层的最短距离。
+            # 经过新中间点：拆成 i -> t-1 和 t-1 -> j，两段均取上一层。
+            floyd[i][j][t] = min(
+                floyd[i][j][t - 1],
+                floyd[i][t - 1][t - 1] + floyd[t - 1][j][t - 1]
+            )
+
+# 固定第三维 t=n，取出允许全部点作为中间点的最终距离矩阵。
+# 后面的集合与字典 DP 用它决定访问顺序；三维 Floyd 本身不解决访问顺序问题。
+dist = [[floyd[i][j][n] for j in range(n)] for i in range(n)]
 
 # 无向图中，只要有点无法从仓库到达，就不可能完成配送。
 # 若所有点都与仓库连通，则每个点也都能返回仓库。
@@ -385,52 +383,45 @@ if inf in dist[0]:
     print(-1)
     sys.exit()
 
-# mask 用 n-1 个二进制位记录已纳入访问顺序的非仓库点。
-# 点 j 对应第 j-1 位：该位为 1 表示已纳入，为 0 表示尚未纳入。
-# 例如 n=4 时，mask=0b101 表示点 1、3 已纳入，点 2 尚未纳入（数组编号）。
-# dp[mask][i]：从仓库出发，已纳入集合为 mask，最后停在 i 的最小时间。
-# 这里记录的是最短路压缩后的访问顺序：某段最短路可能已途经 mask 外的点，
-# 不必立即给这些点置位，因为题目允许重复经过节点；后续仍可纳入访问顺序。
-# 任意实际路线都可按各点首次出现顺序压缩，且用最短路替换各段不会更贵；
-# 任意 DP 路线又能展开成合法实际路线，因此该建模不会改变最优值。
-size = 2 ** (n - 1)
-dp = []
+# 用集合直接表示已经纳入访问顺序的非仓库点，不再编码成二进制。
+# dp[(visited, i)]：已纳入集合为 visited、停在点 i 时的最短时间。
+# 同一个集合可能有不同的停留点，它们后续的通行成本不同，必须分别保存。
+# 普通 set 可变，不能作为字典键；frozenset 是不可变集合，可以作为字典键。
+# 例如 (frozenset({1, 3}), 3) 表示已经纳入点 1、3，当前停在点 3。
+# 集合记录的是访问顺序中的点：某段最短路允许途经其他点，也允许重复经过。
 
-for mask in range(size):
-    row = []
-    for i in range(n):
-        row.append(inf)
-    dp.append(row)
+# 起点：尚未纳入任何非仓库点，停在仓库 0，耗时为 0。
+dp = {(frozenset(), 0): 0}
 
-# 起点状态：尚未纳入任何非仓库点，停在仓库，累计耗时为 0。
-dp[0][0] = 0
+# 每轮加入一个新点，共加入 n-1 个非仓库点。
+# dp 只存当前一轮的状态，next_dp 存下一轮，避免边遍历边修改字典。
+for _ in range(n - 1):
+    next_dp = {}
 
-# 每次只添加一个未置位的点，新 mask 一定更大，按数值递增枚举即可。
-for mask in range(size):
-    for i in range(n):
-        # 跳过不可达状态，避免无意义的转移。
-        if dp[mask][i] == inf:
-            continue
-
+    for (visited, i), cost in dp.items():
         for j in range(1, n):
-            # 左移构造仅第 j-1 位为 1 的数，用于检测或设置点 j 的状态。
-            bit = 1 << (j - 1)
-
-            # 这个点已经访问过
-            if mask & bit:
+            # 用集合成员判断，已经纳入访问顺序的点不再加入。
+            if j in visited:
                 continue
 
-            # 按位或把点 j 加入集合，耗时增加从当前点 i 到 j 的最短路。
-            # 同一个新状态可从不同的上一站到达，因此要取所有候选中的最小值。
-            tmp = mask | bit
-            dp[tmp][j] = min(dp[tmp][j], dp[mask][i] + dist[i][j])
+            # 产生新集合，原来的 visited 不变，类型仍为 frozenset。
+            new_visited = visited.union({j})
+            state = (new_visited, j)
+            new_cost = cost + dist[i][j]
 
-# size-1 的低 n-1 位全为 1，表示所有非仓库点都已纳入访问顺序。
-# 枚举最后停留点 i，加上返回仓库的最短距离，才是完整往返路线的耗时。
-# n=1 时 size=1，直接得到 dp[0][0] + dist[0][0] = 0。
+            # 不同访问顺序可能到达相同的“集合 + 停留点”状态。
+            # 字典中还没有这个状态时按无穷大处理，只保留最小耗时。
+            if new_cost < next_dp.get(state, inf):
+                next_dp[state] = new_cost
+
+    dp = next_dp
+
+# n-1 轮后，字典中的每个 visited 都包含全部非仓库点。
+# 枚举最后停留点，再加上返回仓库的最短距离。
+# n=1 时不进入上面的循环，初始状态直接得到 0 + dist[0][0] = 0。
 res = inf
-for i in range(n):
-    res = min(res, dp[size - 1][i] + dist[i][0])
+for (visited, i), cost in dp.items():
+    res = min(res, cost + dist[i][0])
 
 print(res)
 </script>
@@ -623,7 +614,8 @@ const AV = (() => {
   // ---------- 播放器与布局 ----------
   let D, data, steps = [], cur = 0, timer = null;
   const statEls = {}, P = { aux: {}, auxCard: {} };
-  const speedMs = () => +$('speed').value;
+  // 速度从左到右递增，填充越满越快；0 为 2600ms，100 为 300ms。
+  const speedMs = () => 2600 - 23 * Number($('speed').value);
   function setSpeed() {
     DUR = clamp(Math.round(speedMs() * .5), 180, 650);
     document.documentElement.style.setProperty('--dur', DUR + 'ms');
@@ -915,15 +907,17 @@ const AV = (() => {
 <script>
 /* =====================================================================
    DEMO —— 本题专用：输入解析、步骤生成、可视化挂载与渲染（生成新演示时替换这里）
-   本题：文远2.py · Floyd + 状压 DP
+   本题：文远2.py · Floyd + 集合字典 DP
    ===================================================================== */
 (() => {
 const { el, esc, clamp, animate, setText, flash, keyed, lineOf: L } = AV;
 const INF = Infinity, NR = 18;
 const COLORS = { purple: '#7c3aed', red: '#dc2626', green: '#16a34a', blue: '#2563eb', gray: '#94a3b8', amber: '#d97706' };
 const fv = v => (v === INF ? '∞' : String(v));
-const bin = (mask, w) => (w > 0 ? mask.toString(2).padStart(w, '0') : '0');
-const setOf = (mask, n) => { const a = []; for (let j = 1; j < n; j++) if (mask & (1 << (j - 1))) a.push(j); return '{' + a.join(',') + '}'; };
+// 展示保留纳入顺序；stateKey 单独排序，仍将相同集合视为同一状态。
+const setTextOf = visited => '{' + [...visited].join(', ') + '}';
+const stateKey = (visited,i) => JSON.stringify([[...visited].sort((a,b)=>a-b),i]);
+const copyEntries = map => map ? [...map.entries()].map(([key,s])=>({key,visited:[...s.visited],i:s.i,cost:s.cost,path:[...s.path]})) : [];
 let U = null;
 // 标签避让：用矩形框（中心 x,y + 宽高）近似文字与节点
 const box = (x, y, text, h = 15) => ({ x, y, w: String(text).length * 8 + 8, h });
@@ -931,8 +925,8 @@ const hit = (a, b) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 + 2 && Math.abs(a.y 
 
 const DEMO = {
   file: '文远2.py',
-  title: '多配送员最小总时间 · Floyd + 状压 DP（文远2）',
-  subtitle: '多人往返路线可拼成一人路线、总时间不变 → 只需求单人走遍所有点的最短往返。① Floyd 求两两最短路　② dp[mask][i] 求最短访问顺序。图中编号均为数组下标（输入编号 − 1），0 号为仓库',
+  title: '多配送员最小总时间 · 三维 Floyd + 集合字典 DP（文远2）',
+  subtitle: '多人往返路线可拼成一人路线、总时间不变 → 只需求单人走遍所有点的最短往返。① floyd[i][j][t] 求两两最短路　② dp[(visited, i)] 求最短访问顺序。图中编号均为数组下标（输入编号 − 1），0 号为仓库',
   inputs: [
     { id: 'n', label: 'n =', value: '4', type: 'number', width: 60 },
     { id: 'k', label: 'k =', value: '2', type: 'number', width: 60 },
@@ -947,16 +941,16 @@ const DEMO = {
   ],
   stats: [
     { key: 'res', label: '最小总时间 res', color: 'red' },
-    { key: 't', label: 'Floyd 中转点 t', color: 'purple' },
+    { key: 't', label: 'Floyd 阶段 t', color: 'purple' },
     { key: 'fl', label: '最短路改进次数', color: 'amber' },
     { key: 'st', label: '当前 DP 状态', color: 'blue' },
     { key: 'upd', label: 'dp 更新次数', color: 'green' },
   ],
   panels: {
-    canvas: { title: '道路图 与 dist 最短路矩阵', hint: '图中箭头只表示本步涉及的路线；矩阵行 = 起点 i，列 = 终点 j' },
+    canvas: { title: '三维 Floyd：上一层读取 → 当前层写入', hint: '拖动三维图旋转 · 滚轮缩放；矩阵行 i / 列 j' },
     state: { title: '当前计算' },
     aux: [
-      { id: 'dp', title: 'dp[mask][i] 表', hint: 'mask：已纳入的非仓库点（点 j ↔ 第 j-1 位）；i：停留点', grow: true },
+      { id: 'dp', title: '字典：集合 + 停留点 → 最短时间', hint: '按纳入顺序显示；相同集合仍合并', grow: true },
       { id: 'route', title: '最优路线' },
     ],
   },
@@ -979,68 +973,64 @@ const DEMO = {
 
   build({ n, k, m, edges }) {
     const steps = [];
-    const dist = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 0 : INF)));
+    let dist = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 0 : INF)));
+    const floyd = Array.from({length:n}, (_,i) => Array.from({length:n}, (_,j) => Array.from({length:n+1}, (_,t) => t === 0 ? dist[i][j] : null)));
+    let layer = 0;
     const edgeW = {};
-    const size = 2 ** (n - 1), W = n - 1;
-    let fl = 0, upd = 0, res = null, tCur = null, tDone = false, dp = null, par = null;
+    let nextDp = null;
+    let fl = 0, upd = 0, res = null, tCur = null, tDone = false, dp = null;
     const S = o => ({
-      dist: dist.map(r => [...r]), edgeW: { ...edgeW }, dp: dp ? dp.map(r => [...r]) : null,
+      layer, floyd3: floyd.map(row => row.map(stages => [...stages])),
+      dist: dist.map(r => [...r]), edgeW: { ...edgeW }, dp: copyEntries(dp), nextDp: copyEntries(nextDp),
       stats: {
         res: res == null ? '—' : res === INF ? '∞' : res,
-        t: tCur == null ? { v: '—', sub: tDone ? 'Floyd 已完成' : `共 ${n} 个点` } : { v: tCur, sub: `允许经过 0 ~ ${tCur} 中转` },
+        t: tCur == null ? { v: '—', sub: tDone ? 'Floyd 已完成' : `共 ${n} 个点` } : { v: tCur + 1, sub: `新增中间点 ${tCur}` },
         fl, upd, st: o.st || { v: '—' },
       },
       ...o,
     });
-    const back = (mask, i) => { const p = []; while (!(mask === 0 && i === 0)) { p.unshift(i); [mask, i] = par[mask][i]; } p.unshift(0); return p; };
-    const P0 = '准备 · 读入与建图', P1 = '阶段一 · Floyd 最短路', P2 = '阶段二 · 状压 DP', P3 = '收尾 · 回到仓库';
+    const P0 = '准备 · 读入与建图', P1 = '阶段一 · Floyd 最短路', P2 = '阶段二 · 集合字典 DP', P3 = '收尾 · 回到仓库';
 
-    steps.push(S({ phase: P0, tag: { text: '初始化', kind: 'info' }, lines: [L('inf = float'), L('if i == j'), L('row.append(0)'), L('row.append(inf)')],
-      formula: `dist[i][i] = <span class="g">0</span>，其余 dist[i][j] = <span class="m">∞</span>（暂不可达）`,
-      desc: `读入 n = ${n}，m = ${m}，k = ${k}，初始化 dist。<br>为什么 k 无关：每个配送员都是"仓库出发、回到仓库"，多人路线首尾都在仓库，可<b>直接拼成一个人的路线，总时间不变</b>；反之一人跑完、其余休息也合法。所以只需求一个人走遍所有点的最短往返。` }));
+    steps.push(S({ phase: P0, tag: { text: '初始化', kind: 'info' }, lines: [L('inf = float'), L('floyd = ['), L('floyd[i][i][0] = 0')],
+      formula: `floyd[i][i][0] = <span class="g">0</span>，其余 floyd[i][j][0] = <span class="m">∞</span>（暂不可达）`,
+      desc: `读入 n = ${n}，m = ${m}，k = ${k}，初始化 floyd[i][j][0]。第三维 t=0 表示没有中间点。<br>为什么 k 无关：每个配送员都是"仓库出发、回到仓库"，多人路线首尾都在仓库，可<b>直接拼成一个人的路线，总时间不变</b>；反之一人跑完、其余休息也合法。所以只需求一个人走遍所有点的最短往返。` }));
 
     edges.forEach(([u, v, w], idx) => {
       const old = dist[u][v];
       dist[u][v] = Math.min(dist[u][v], w);
       dist[v][u] = Math.min(dist[v][u], w);
+      floyd[u][v][0] = dist[u][v]; floyd[v][u][0] = dist[v][u];
       const key = Math.min(u, v) + '-' + Math.max(u, v);
       if (u !== v) edgeW[key] = Math.min(edgeW[key] ?? INF, w);
       const dup = u !== v && old !== INF;
       steps.push(S({ phase: P0, tag: { text: `道路 ${idx + 1} / ${m}`, kind: 'info' },
-        lines: [L('u = int(data[index])'), L('v = int(data[index + 1])'), L('w = int(data[index + 2])'), L('dist[u][v] = min'), L('dist[v][u] = min')],
+        lines: [L('u = int(data[index])'), L('v = int(data[index + 1])'), L('w = int(data[index + 2])'), L('floyd[u][v][0] = min'), L('floyd[v][u][0] = min')],
         hlEdge: key, mat: { cls: 'edge', cells: [[u, v], [v, u]] },
-        formula: `dist[<span class="b">${u}</span>][<span class="b">${v}</span>] = min(${fv(old)}, ${w}) = <span class="g">${dist[u][v]}</span>`,
-        desc: `读入道路 ${u + 1} ${v + 1} ${w}，下标为 <b>${u} — ${v}</b>，耗时 ${w}。双向道路，dist[${u}][${v}] 与 dist[${v}][${u}] 都要更新` +
+        formula: `floyd[<span class="b">${u}</span>][<span class="b">${v}</span>][0] = min(${fv(old)}, ${w}) = <span class="g">${dist[u][v]}</span>`,
+        desc: `读入道路 ${u + 1} ${v + 1} ${w}，下标为 <b>${u} — ${v}</b>，耗时 ${w}。双向道路，floyd[${u}][${v}][0] 与 floyd[${v}][${u}][0] 都要更新` +
           (dup ? `；这是<b>重边</b>，原值 ${fv(old)}，只保留较小值 ${dist[u][v]}。` : '。') }));
     });
 
-    for (let t = 0; t < n; t++) {
-      tCur = t;
-      const introIdx = steps.length;
-      const before = dist.map(r => [...r]);
-      steps.push(null);
-      let cnt = 0;
-      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
-        const a = dist[i][t], b = dist[t][j], c = a + b;
-        if (!(c < dist[i][j])) continue;
-        const old = dist[i][j];
-        dist[i][j] = dist[j][i] = c;
-        fl++; cnt++;
-        steps.push(S({ phase: P1, tag: { text: `t = ${t} · 改进`, kind: 'pre' }, lines: [L('for t in range(n)'), L('dist[i][j] = min')],
-          floyd: { t, i, j }, mat: { cls: 'upd', cells: [[i, j], [j, i]], src: [[i, t], [t, j]] },
-          formula: `dist[${i}][${j}] = min(dist[${i}][${j}], dist[${i}][<span class="p">${t}</span>] + dist[<span class="p">${t}</span>][${j}])<br>` +
-            `　　　　 = min(<span class="r">${fv(old)}</span>, <span class="p">${a}</span> + <span class="p">${b}</span>) = <span class="g">${c}</span>`,
-          desc: `路径 ${i} → <b style="color:var(--purple)">${t}</b> → ${j} 耗时 ${a} + ${b} = <b>${c}</b>，比原来的 ${fv(old)} 更短，更新 dist[${i}][${j}] = ${c}。无向图对称，循环到 (${j}, ${i}) 时同样更新。` }));
+    for (let stage = 1; stage <= n; stage++) {
+      const t = stage - 1; tCur = t; layer = stage;
+      const previous = Array.from({length:n}, (_,i) => Array.from({length:n}, (_,j) => floyd[i][j][stage-1]));
+      dist = Array.from({length:n}, () => Array(n).fill(INF));
+      steps.push(S({phase:P1, tag:{text:`第 ${stage} 层`,kind:'pre'}, lines:[L('for t in range(1, n + 1)')], floyd:{t},
+        formula:`floyd[i][j][${stage}] = min(floyd[i][j][${stage-1}],<br>floyd[i][${t}][${stage-1}] + floyd[${t}][j][${stage-1}])`,
+        desc:`固定第三维 t=${stage}，新增中间点 ${t}。所有来源都读取第 ${stage-1} 层，结果写入第 ${stage} 层；可用矩阵上方菜单查看已计算的历史切片。` }));
+      for(let i=0;i<n;i++)for(let j=0;j<n;j++) {
+        const old=previous[i][j], a=previous[i][t], b=previous[t][j], value=Math.min(old,a+b), better=value<old;
+        floyd[i][j][stage]=value;dist[i][j]=value;if(better)fl++;
+        steps.push(S({phase:P1,tag:{text:better?'距离缩短':'沿用上一层',kind:better?'hit':'info'},
+          lines:[L('floyd[i][j][t] = min('),L('floyd[i][j][t - 1],'),L('floyd[i][t - 1][t - 1] + floyd[t - 1][j][t - 1]')],
+          floyd:{t,i,j,a,b},mat:{cls:better?'upd':'edge',cells:[[i,j]],src:[[i,t],[t,j]]},
+          formula:`floyd[${i}][${j}][${stage}] = min(${fv(old)}, ${fv(a)} + ${fv(b)}) = <span class="g">${fv(value)}</span><br>来源：第 ${stage-1} 层的 (${i},${j})、(${i},${t})、(${t},${j})`,
+          desc:`读取上一层，比较不经新中间点的 ${fv(old)} 与经过 ${t} 的 ${fv(a+b)}，写入 floyd[${i}][${j}][${stage}]=${fv(value)}。${better?'找到更短路径。':'保留原来的距离。'}第三维保存完整历史，后续状态不会修改旧层。` }));
       }
-      steps[introIdx] = S({ phase: P1, tag: { text: `中转点 t = ${t}`, kind: 'pre' }, lines: [L('for t in range(n)')], floyd: { t },
-        formula: `对每对 (i, j)：dist[i][j] = min(dist[i][j], dist[i][<span class="p">${t}</span>] + dist[<span class="p">${t}</span>][j])`,
-        desc: `允许点 <b style="color:var(--purple)">${t}</b> 作为中间点，检查每对 i → ${t} → j 是否更短（紫色行、列就是要用到的 dist[i][${t}] 与 dist[${t}][j]）。t 必须在最外层：处理完 t 后，dist 表示"只经 0 ~ ${t} 中转"的最短路。` +
-          (cnt ? `本轮有 <b>${cnt}</b> 对点被改进。` : '本轮<b>没有</b>任何改进。') });
-      // 引导步展示的是本轮开始前的状态
-      steps[introIdx].dist = before;
-      steps[introIdx].stats.fl = fl - cnt;
     }
     tCur = null; tDone = true;
+    steps.push(S({phase:P1,tag:{text:'取最终切片',kind:'hit'},lines:[L('dist = [[floyd[i][j][n]')],
+      formula:`dist[i][j] = floyd[i][j][${n}]`,desc:`三维 Floyd 完成：固定第三维 t=n=${n}，取出二维最短路矩阵 dist，再用集合字典 DP 决定访问顺序。配送员数量 k=${k} 与阶段 t 无关。`}));
 
     const bad = [];
     for (let j = 0; j < n; j++) if (dist[0][j] === INF) bad.push(j);
@@ -1057,64 +1047,55 @@ const DEMO = {
       formula: `dist[0] = [${dist[0].map(fv).join(', ')}]　无 ∞`,
       desc: `dist[0] 中没有 ∞，所有点都能从仓库到达；无向图中能到就能回。接下来只需决定<b>访问顺序</b>，相邻两站之间都走最短路。` }));
 
-    dp = Array.from({ length: size }, () => new Array(n).fill(INF));
-    par = Array.from({ length: size }, () => new Array(n).fill(null));
-    dp[0][0] = 0;
-    const stOf = (mask, i) => ({ v: '0b' + bin(mask, W), unit: `停在 ${i}`, sub: `已纳入 ${setOf(mask, n)}` });
-    steps.push(S({ phase: P2, tag: { text: '初始化', kind: 'info' }, lines: [L('size = 2 ** (n - 1)'), L('row.append(inf)', 2), L('dp[0][0] = 0')],
-      dpState: { mask: 0, i: 0, cands: [] }, prefix: [0], st: stOf(0, 0),
-      desc: `size = 2^(n−1) = ${size}：用 ${W} 个二进制位记录哪些非仓库点已纳入访问顺序，点 j 对应第 j−1 位。dp[mask][i] = 从仓库出发、已纳入 mask、最后停在 i 的最短时间。起点 <b>dp[0][0] = 0</b>。` }));
-
-    for (let mask = 0; mask < size; mask++) for (let i = 0; i < n; i++) {
-      if (dp[mask][i] === INF) continue;
-      const base = dp[mask][i], cands = [];
-      for (let j = 1; j < n; j++) {
-        const bit = 1 << (j - 1);
-        if (mask & bit) continue;
-        const tmp = mask | bit, cand = base + dist[i][j], old = dp[tmp][j], better = cand < old;
-        if (better) { dp[tmp][j] = cand; par[tmp][j] = [mask, i]; upd++; }
-        cands.push({ j, tmp, d: dist[i][j], base, cand, old, better });
+    dp = new Map([[stateKey([],0),{visited:new Set(),i:0,cost:0,path:[0]}]]);
+    const stOf=(visited,i)=>({v:setTextOf(visited),unit:'',sub:`停在 ${i}`});
+    const dsOf=(entry,cands=[])=>({visited:[...entry.visited],i:entry.i,cost:entry.cost,cands});
+    const pushDp=(entry,desc,lines,cands=[],extra={})=>steps.push(S({phase:P2,tag:{text:'集合与字典',kind:'info'},
+      lines:lines.map(x=>L(x)),dpState:dsOf(entry,cands),prefix:entry.path,st:stOf(entry.visited,entry.i),desc,...extra}));
+    const initial=dp.values().next().value;
+    pushDp(initial,'只保存一个初始状态：已纳入集合为空，停在仓库 0，耗时 0。frozenset 可作为字典键，无需预先分配所有集合。',['dp = {(frozenset(), 0): 0}']);
+    for(let round=0;round<n-1;round++){
+      nextDp=new Map();
+      const first=dp.values().next().value;
+      pushDp(first,`第 ${round+1} 轮：从已纳入 ${round} 个点的 dp 出发，把新增一个点的结果写入空字典 next_dp。`,['for _ in range(n - 1):','next_dp = {}']);
+      for(const entry of dp.values()){
+        for(let j=1;j<n;j++){
+          if(entry.visited.has(j)){
+            pushDp(entry,`${j} in visited 为真：点 ${j} 已在 ${setTextOf(entry.visited)} 中，跳过。`,['if j in visited:','continue']);
+            continue;
+          }
+          const visited=new Set([...entry.visited,j]),key=stateKey(visited,j),cand=entry.cost+dist[entry.i][j],old=nextDp.get(key)?.cost??INF,better=cand<old;
+          const candidate={j,visited:[...visited],key,d:dist[entry.i][j],base:entry.cost,cand,old,better};
+          pushDp(entry,`点 ${j} 尚未纳入。新集合 ${setTextOf(visited)}，新键 (${setTextOf(visited)}, ${j})；候选 ${entry.cost} + ${dist[entry.i][j]} = ${cand}，字典原值 ${fv(old)}。`,
+            ['new_visited = visited.union({j})','state = (new_visited, j)','new_cost = cost + dist[i][j]','if new_cost < next_dp.get(state, inf):'],[candidate],{targetKey:key,action:'compare'});
+          if(better){nextDp.set(key,{visited,i:j,cost:cand,path:[...entry.path,j]});upd++;}
+          pushDp(entry,better?`写入 next_dp[(${setTextOf(visited)}, ${j})] = ${cand}。相同集合且相同停留点只保留最小耗时。`:`已有 ${fv(old)} 不大于候选 ${cand}，保持原来的字典记录。`,
+            better?['next_dp[state] = new_cost']:['if new_cost < next_dp.get(state, inf):'],[candidate],{targetKey:key,action:'write'});
+        }
       }
-      const good = cands.filter(c => c.better), worse = cands.filter(c => !c.better);
-      steps.push(S({ phase: P2, tag: { text: cands.length ? '扩展状态' : '已全部纳入', kind: cands.length ? 'hit' : 'info' },
-        lines: cands.length ? [L('if dp[mask][i] == inf'), L('bit = 1 << (j - 1)'), L('if mask & bit'), L('tmp = mask | bit'), L('dp[tmp][j] = min')] : [L('if dp[mask][i] == inf'), L('if mask & bit')],
-        dpState: { mask, i, cands }, prefix: back(mask, i), st: stOf(mask, i),
-        desc: `状态 mask = <b>0b${bin(mask, W)}</b>（已纳入 ${setOf(mask, n)}），停在 <b>${i}</b>，最短耗时 ${base}。` +
-          (cands.length
-            ? `尝试加入每个未纳入的点 j：候选 = ${base} + dist[${i}][j]。` +
-              (good.length ? `<b style="color:var(--green)">${good.map(c => `dp[0b${bin(c.tmp, W)}][${c.j}] ← ${c.cand}`).join('，')}</b>` : '') +
-              (worse.length ? `${good.length ? '；' : ''}点 ${worse.map(c => c.j).join('、')} 的候选不比已有值小，保持不变` : '') + '。'
-            : '所有非仓库点都已纳入，没有可加入的点，只等最后返回仓库。') }));
+      dp=nextDp;nextDp=null;
+      const entry=dp.values().next().value;
+      pushDp(entry,`本轮结束：dp = next_dp。当前有 ${dp.size} 个状态，每个集合都含 ${round+1} 个点；旧的一轮不再保留。`,['dp = next_dp']);
     }
-
-    const full = size - 1, fins = [];
-    let bestV = INF, best = 0;
-    for (let i = 0; i < n; i++) {
-      const v = dp[full][i] + dist[i][0];
-      fins.push({ i, d: dp[full][i], back: dist[i][0], v });
-      if (v < bestV) { bestV = v; best = i; }
-    }
-    fins.forEach(f => { f.best = f.i === best; });
-    const route = n === 1 ? [0] : [...back(full, best), 0];
-    steps.push(S({ phase: P3, tag: { text: '回仓库', kind: 'warn' }, lines: [L('res = inf'), L('res = min(res, dp[size - 1][i] + dist[i][0])')],
-      fins, prefix: back(full, best), st: stOf(full, best), finBack: best,
-      desc: `mask = size − 1 = 0b${bin(full, W)} 表示全部纳入。枚举最后停留点 i，加上返回仓库的 dist[i][0]：` +
-        fins.filter(f => f.d !== INF).map(f => `i=${f.i}：${f.d} + ${f.back} = ${f.v}`).join('，') + `。最小值来自 i = <b>${best}</b>。` }));
-    res = bestV;
-    const legs = [];
-    for (let a = 0; a + 1 < route.length; a++) legs.push(dist[route[a]][route[a + 1]]);
-    steps.push(S({ phase: P3, tag: { text: '完成', kind: 'info' }, lines: [L('print(res)')], route, legs, fins, done: true, st: stOf(full, best),
-      desc: n === 1
-        ? `只有仓库一个点，无需出发，答案为 <b style="font-size:20px;color:var(--red)">0</b>。`
-        : `最小总时间 <b style="font-size:20px;color:var(--red)">${res}</b>。最优访问顺序 ${route.join(' → ')}，各段耗时 ${legs.join(' + ')}。每段都是 Floyd 最短路，可能途经其他点（允许重复经过）。k = ${k} 个配送员时，可由一人走完、其余休息。` }));
+    const fins=[...dp.values()].map(e=>({i:e.i,d:e.cost,back:dist[e.i][0],v:e.cost+dist[e.i][0]}));
+    const bestEntry=[...dp.values()].reduce((a,b)=>a.cost+dist[a.i][0]<=b.cost+dist[b.i][0]?a:b);
+    const best=bestEntry.i,bestV=bestEntry.cost+dist[best][0];
+    fins.forEach(f=>f.best=f.i===best);
+    const route=n===1?[0]:[...bestEntry.path,0],legs=[];
+    for(let i=1;i<route.length;i++)legs.push(dist[route[i-1]][route[i]]);
+    steps.push(S({phase:P3,tag:{text:'回到仓库',kind:'warn'},lines:[L('res = inf'),L('res = min(res, cost + dist[i][0])')],fins,prefix:bestEntry.path,finBack:best,st:stOf(bestEntry.visited,best),
+      desc:`所有非仓库点都已纳入。逐个枚举字典中的停留点，加上回仓库的最短距离，取最小值 ${bestV}。`}));
+    res=bestV;
+    steps.push(S({phase:P3,tag:{text:'完成',kind:'hit'},lines:[L('print(res)')],fins,route,legs,done:true,st:stOf(bestEntry.visited,best),
+      desc:n===1?'只有仓库，无需出发，答案为 0。':`最小总时间 ${res}；访问顺序 ${route.join(' → ')}。每段走 Floyd 最短路，允许途中经过其他点。可由一位配送员完成，其他配送员休息。`}));
     return steps;
   },
 
   mount({ n, edges }, P) {
     const mk = Object.entries(COLORS).map(([k, c]) =>
       `<marker id="mk-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:${c};stroke:none"/></marker>`).join('');
-    P.canvas.innerHTML = `<div class="g2"><div class="graph"><svg><defs>${mk}</defs><g class="edges"></g><g class="arrows"></g><g class="nodes"></g></svg></div><div class="mat"></div></div>
-      <div class="legend"><span><i style="background:${COLORS.purple}"></i>经中转点 t 的路径</span><span><i style="background:${COLORS.blue}"></i>当前状态的最优前缀路线</span>
+    P.canvas.innerHTML = `<div class="g2"><div class="graph"><svg><defs>${mk}</defs><g class="edges"></g><g class="arrows"></g><g class="nodes"></g></svg><div class="tensor-view"><canvas aria-label="三维 Floyd 状态空间"></canvas><button class="tensor-reset">重置视角</button></div></div><div class="matrix-wrap previous-wrap"><div class="hint previous-title">上一层：只读来源</div><div class="mat previous-mat"></div></div><div class="matrix-wrap"><label class="hint">第三维 t：<select class="layer-select" aria-label="选择 Floyd 阶段"></select></label><div class="hint current-title">当前层：写入结果</div><div class="mat current-mat"></div></div></div>
+      <div class="legend"><span><i style="background:${COLORS.purple}"></i>经新增中间点 t−1 的路径</span><span><i style="background:${COLORS.blue}"></i>当前状态的最优前缀路线</span>
       <span><i style="background:${COLORS.green}"></i>使 dp 变小的转移 / 最终路线</span><span><i style="background:${COLORS.gray}"></i>不更优的转移</span><span><i style="background:${COLORS.red}"></i>返回仓库</span></div>`;
     const svg = P.canvas.querySelector('svg');
     const gE = svg.querySelector('.edges'), gN = svg.querySelector('.nodes');
@@ -1137,7 +1118,10 @@ const DEMO = {
       return g;
     });
     // dist 矩阵
-    const mat = P.canvas.querySelector('.mat');
+    const mat = P.canvas.querySelector('.current-mat');
+    const layerSelect = P.canvas.querySelector('.layer-select');
+    for(let t=0;t<=n;t++){const option=el('option','',`第 ${t} 层`);option.value=t;layerSelect.appendChild(option);}
+    layerSelect.onchange=()=>renderLayers(U.snapshot, Number(layerSelect.value));
     mat.style.setProperty('--n1', n + 1);
     const mc = [];
     mat.appendChild(el('div', 'h corner', 'dist'));
@@ -1147,32 +1131,30 @@ const DEMO = {
       rowH.push(mat.appendChild(el('div', 'h', i)));
       mc.push(Array.from({ length: n }, () => mat.appendChild(el('div'))));
     }
-    // 当前计算：公式 / DP 状态
-    P.state.innerHTML = `<div class="formula"></div>
-      <div class="dpbox hide"><div class="bitsrow"><div class="bits"></div><div class="maskinfo"></div></div>
-      <div class="cands"><div class="crow head"><span>j</span><span>tmp</span><span>候选值</span><span>原值</span><span>结果</span></div><div class="cbody"></div></div></div>`;
-    const bits = P.state.querySelector('.bits');
-    const bitEls = {};
-    if (n === 1) bits.appendChild(el('span', 'hint', '（没有非仓库点）'));
-    for (let j = n - 1; j >= 1; j--) {
-      const b = el('div', 'bit', `<div class="lab">点 ${j}</div><div class="b" data-solid data-ring="3">0</div>`);
-      bits.appendChild(b); bitEls[j] = b;
-    }
-    // dp 表
-    const size = 2 ** (n - 1);
-    P.aux.dp.innerHTML = `<div class="dpt" style="--n:${n}"><div class="dprow head"><span>mask</span><span>集合</span>${Array.from({ length: n }, (_, i) => `<span>i=${i}</span>`).join('')}</div><div class="dpscroll"></div></div>`;
-    P.aux.dp.style.overflow = 'hidden';
-    const dpt = P.aux.dp.querySelector('.dpscroll');
-    const dpRows = [], dpc = [];
-    for (let mask = 0; mask < size; mask++) {
-      const r = el('div', 'dprow', `<span class="mk">${bin(mask, n - 1)}</span><span>${setOf(mask, n)}</span>` + '<span></span>'.repeat(n));
-      dpt.appendChild(r); dpRows.push(r); dpc.push([...r.children].slice(2));
-    }
+    const prevMat = P.canvas.querySelector('.previous-mat');
+    prevMat.style.setProperty('--n1',n+1);prevMat.append(el('div','h corner','t=0'));
+    for(let j=0;j<n;j++)prevMat.append(el('div','h',j));
+    const prevCells=[];
+    for(let i=0;i<n;i++){prevMat.append(el('div','h',i));prevCells.push(Array.from({length:n},()=>prevMat.appendChild(el('div'))));}
+    // 集合和候选转移直接用文字表达，不使用二进制位图。
+    P.state.innerHTML = `<div class="formula"></div><div class="dpbox hide"><div class="set-info"></div><div class="transition-vars"><div class="transition-var"><span class="name">new_visited</span><span class="value var-visited">—</span></div><div class="transition-var"><span class="name">state</span><span class="value var-state">—</span></div><div class="transition-var"><span class="name">new_cost</span><span class="value var-cost">—</span></div></div><div class="candidate-info"></div></div>`;
+    P.aux.dp.innerHTML = `<div class="dpt"><div class="dict-row head"><span>字典</span><span>已纳入（顺序）</span><span>停留点</span><span>最短时间</span></div><div class="dpscroll"></div></div>`;
+    P.aux.dp.style.overflow='hidden';
+    const dpt=P.aux.dp.querySelector('.dpscroll');
     P.aux.route.innerHTML = `<div class="route"><span class="hint">DP 完成后给出</span></div>`;
-    U = { svg, gA: svg.querySelector('.arrows'), graph: P.canvas.querySelector('.graph'), eEls, nEls, mat, mc, colH, rowH,
-      formula: P.state.querySelector('.formula'), dpbox: P.state.querySelector('.dpbox'), bitEls, minfo: P.state.querySelector('.maskinfo'),
-      chead: P.state.querySelector('.crow.head'), cbody: P.state.querySelector('.cbody'), dpRows, dpc, dpScroll: dpt, routeBox: P.aux.route.querySelector('.route'),
+    U = { layerSelect, snapshot:null, prevMat, prevCells,
+      prevWrap:P.canvas.querySelector('.previous-wrap'),prevTitle:P.canvas.querySelector('.previous-title'),curTitle:P.canvas.querySelector('.current-title'),
+      tensor:P.canvas.querySelector('.tensor-view'),canvas:P.canvas.querySelector('canvas'),yaw:-.58,pitch:.55,zoom:1,pulse:1,
+      svg, gA: svg.querySelector('.arrows'), graph: P.canvas.querySelector('.graph'), eEls, nEls, mat, mc, colH, rowH,
+      formula: P.state.querySelector('.formula'), dpbox: P.state.querySelector('.dpbox'), minfo: P.state.querySelector('.set-info'), cbody:P.state.querySelector('.candidate-info'), varVisited:P.state.querySelector('.var-visited'), varState:P.state.querySelector('.var-state'), varCost:P.state.querySelector('.var-cost'), dpScroll: dpt, routeBox: P.aux.route.querySelector('.route'),
       arrows: new Map(), pos: [], placed: [], n };
+    let drag=null;
+    U.canvas.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,yaw:U.yaw,pitch:U.pitch};U.canvas.setPointerCapture(e.pointerId);};
+    U.canvas.onpointermove=e=>{if(!drag)return;U.yaw=drag.yaw+(e.clientX-drag.x)*.007;U.pitch=clamp(drag.pitch+(e.clientY-drag.y)*.005,.18,1.15);drawTensor();};
+    U.canvas.onpointerup=U.canvas.onpointercancel=()=>{drag=null;};
+    U.canvas.onwheel=e=>{e.preventDefault();U.zoom=clamp(U.zoom*Math.exp(-e.deltaY*.001),.65,1.7);drawTensor();};
+    P.canvas.querySelector('.tensor-reset').onclick=()=>{U.yaw=-.58;U.pitch=.55;U.zoom=1;drawTensor();};
+
   },
 
   layout({ n, edges }) {
@@ -1209,8 +1191,9 @@ const DEMO = {
       U.placed.push(pt);
       e.text.setAttribute('x', pt.x); e.text.setAttribute('y', pt.y);
     }
-    const mcpx = clamp(Math.floor((H - 3 * n) / (n + 1)), 26, 40);
+    const mcpx = clamp(Math.floor((H - 60 - 3 * n) / (n + 1)), 21, 28);
     U.mat.style.setProperty('--mc', mcpx + 'px');
+    U.prevMat.style.setProperty('--mc', mcpx + 'px');
   },
 
   render(s, prev, { n }, P) {
@@ -1223,9 +1206,9 @@ const DEMO = {
       setText(e.text, w === undefined ? '' : w);
     }
     // 点
-    const inMask = k => (ds && k > 0 && (ds.mask & (1 << (k - 1)))) || (s.fins && k > 0) || (s.route && k > 0);
+    const inVisited = k => (ds && ds.visited.includes(k)) || (s.fins && k > 0) || (s.route && k > 0);
     U.nEls.forEach((g, k) => {
-      g.classList.toggle('in', !!inMask(k));
+      g.classList.toggle('in', !!inVisited(k));
       g.classList.toggle('cur', !!ds && ds.i === k);
       g.classList.toggle('tnode', !!fl && fl.t === k);
       g.classList.toggle('ij', !!fl && (fl.i === k || fl.j === k));
@@ -1234,8 +1217,8 @@ const DEMO = {
     // 箭头
     const T = [];
     if (fl && fl.i != null) {
-      T.push({ key: `f-${fl.i}-${fl.t}`, a: fl.i, b: fl.t, color: 'purple', label: s.dist[fl.i][fl.t] });
-      T.push({ key: `f-${fl.t}-${fl.j}`, a: fl.t, b: fl.j, color: 'purple', label: s.dist[fl.t][fl.j] });
+      T.push({ key: `f-${fl.i}-${fl.t}`, a: fl.i, b: fl.t, color: 'purple', label: fl.a });
+      T.push({ key: `f-${fl.t}-${fl.j}`, a: fl.t, b: fl.j, color: 'purple', label: fl.b });
     }
     if (s.prefix) for (let q = 0; q + 1 < s.prefix.length; q++) {
       const a = s.prefix[q], b = s.prefix[q + 1];
@@ -1249,72 +1232,41 @@ const DEMO = {
     }
     drawArrows(T.filter(t => t.a !== t.b));
 
-    // dist 矩阵
-    const cellCls = (i, j) => {
-      const has = list => list && list.some(([a, b]) => a === i && b === j);
-      if (s.mat && has(s.mat.cells)) return s.mat.cls;
-      if (s.mat && has(s.mat.src)) return 'src';
-      if (fl && (i === fl.t || j === fl.t)) return 't';
-      return '';
-    };
-    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-      const c = U.mc[i][j], v = s.dist[i][j];
-      setText(c, fv(v), prev ? 'av-flash' : null);
-      c.className = [cellCls(i, j), v === INF ? 'inf' : ''].filter(Boolean).join(' ');
-    }
-    U.colH.forEach((h, j) => h.classList.toggle('tl', !!fl && fl.t === j));
-    U.rowH.forEach((h, i) => h.classList.toggle('tl', !!fl && fl.t === i));
+    U.snapshot = s;
+    for(const option of U.layerSelect.options) option.disabled=Number(option.value)>s.layer;
+    U.layerSelect.value=s.layer;
+    renderLayers(s,s.layer);
+    const showTensor=!!s.floyd;
+    U.tensor.style.display=showTensor?'block':'none';
+    U.svg.style.visibility=showTensor?'hidden':'visible';
+    // 两个矩阵始终并列，后续配送阶段在同一位置恢复道路图。
+    if(AV.isInstant()){U.pulse=1;drawTensor();}else animate('floyd-tensor',p=>{U.pulse=p;drawTensor();});
 
-    // 当前计算面板
-    const useDp = !!(ds || s.fins || s.route);
-    U.formula.classList.toggle('hide', useDp);
-    U.dpbox.classList.toggle('hide', !useDp);
-    P.stateHint.textContent = useDp ? (s.fins ? '枚举最后停留点，加上回仓库的距离' : s.route ? '最终结果' : 'mask 位图与本状态的全部转移') : '本步更新的公式';
-    if (!useDp) {
-      if (U.formula.innerHTML !== s.formula) { U.formula.innerHTML = s.formula; flash(U.formula, 'fade-in'); }
-    } else {
-      const mask = ds ? ds.mask : 2 ** (n - 1) - 1;
-      for (const j in U.bitEls) {
-        const on = !!(mask & (1 << (j - 1)));
-        U.bitEls[j].classList.toggle('on', on);
-        U.bitEls[j].classList.toggle('add', !!ds && ds.cands.some(c => c.j === +j && c.better));
-        setText(U.bitEls[j].querySelector('.b'), on ? 1 : 0);
-      }
-      const W = n - 1;
-      U.minfo.innerHTML = ds
-        ? `mask = 0b${bin(mask, W)} = ${mask}　集合 ${setOf(mask, n)}<br>停在 <b>${ds.i}</b>，dp[${mask}][${ds.i}] = <b>${s.dp[mask][ds.i]}</b>`
-        : `mask = 0b${bin(mask, W)}（全部纳入）<br>${s.route ? `答案 res = <b style="color:var(--red)">${s.stats.res}</b>` : '再加上返回仓库的距离'}`;
-      const fin = !ds;
-      const heads = fin ? ['i', '', 'dp + dist[i][0]', '', '结果'] : ['j', 'tmp', '候选值', '原值', '结果'];
-      [...U.chead.children].forEach((sp, q) => setText(sp, heads[q]));
-      const rows = ds ? ds.cands.map(c => ({ k: 'c' + c.j, a: c.j, b: '0b' + bin(c.tmp, W), c: `${c.base} + ${c.d} = ${c.cand}`, d: fv(c.old), e: c.better ? '更新 ✓' : '不更优', cls: c.better ? 'better' : 'worse' }))
-        : (s.fins || []).filter(f => f.d !== INF).map(f => ({ k: 'f' + f.i, a: f.i, b: '', c: `${f.d} + ${f.back} = ${f.v}`, d: '', e: f.best ? '最小 ★' : '', cls: f.best ? 'best' : '' }));
-      keyed(U.cbody, rows, r => r.k, () => el('div', 'crow', '<span></span><span></span><span></span><span></span><span></span>'),
-        (row, r) => { const sp = row.children; [r.a, r.b, r.c, r.d, r.e].forEach((v, q) => setText(sp[q], v)); row.className = 'crow ' + r.cls; });
+    // 当前集合、成员判断与字典更新。
+    const useDp=!!(ds||s.fins||s.route);
+    U.formula.classList.toggle('hide',useDp);U.dpbox.classList.toggle('hide',!useDp);
+    P.stateHint.textContent=useDp?'集合成员判断 · 字典键为 (visited, i)':'本步更新的公式';
+    if(!useDp){if(U.formula.innerHTML!==s.formula){U.formula.innerHTML=s.formula||'';flash(U.formula,'fade-in');}}
+    else {
+      setText(U.minfo,ds?`visited = ${setTextOf(ds.visited)}，当前点 i = ${ds.i}，耗时 = ${ds.cost}`:'全部非仓库点已纳入，枚举最后停留点并返回仓库。');
+      const c=ds?.cands[0];
+      // 无候选转移时清空，避免单步回退或跳转后残留上一次计算结果。
+      setText(U.varVisited,c?`${setTextOf(ds.visited)} ∪ {${c.j}} = ${setTextOf(c.visited)}`:'—（本步未生成）');
+      setText(U.varState,c?`(${setTextOf(c.visited)}, ${c.j})`:'—（本步未生成）');
+      setText(U.varCost,c?`${c.base} + dist[${ds.i}][${c.j}] = ${c.base} + ${c.d} = ${c.cand}`:'—（本步未计算）');
+      setText(U.cbody,c?`next_dp.get(state, inf) = ${fv(c.old)}。${s.action==='compare'?'正在比较，尚未写入。':c.better?'已更新字典。':'保留原值。'}`:s.fins?s.fins.map(f=>`停在 ${f.i}：${f.d} + ${f.back} = ${f.v}${f.best?'（最小）':''}`).join('；'):'判断下一点是否已经在 visited 中。');
     }
-
-    // dp 表
-    P.auxCard.dp.classList.toggle('dim', !s.dp);
-    const size = 2 ** (n - 1);
-    let focusRow = null;
-    for (let mask = 0; mask < size; mask++) {
-      U.dpRows[mask].classList.toggle('currow', !!ds && ds.mask === mask);
-      for (let i = 0; i < n; i++) {
-        const c = U.dpc[mask][i], v = s.dp ? s.dp[mask][i] : null;
-        setText(c, v == null ? '·' : fv(v), prev ? 'av-flash' : null);
-        let cls = v === INF || v == null ? 'inf' : '';
-        if (ds && ds.mask === mask && ds.i === i) cls = 'cur';
-        if (ds) { const c2 = ds.cands.find(q => q.tmp === mask && q.j === i); if (c2) cls = c2.better ? 'upd' : 'keep'; }
-        if ((s.fins || s.route) && mask === size - 1 && v !== INF && v != null) cls = (s.fins ? s.fins.find(f => f.i === i)?.best : s.route.at(-2) === i) ? 'best' : 'fin';
-        c.className = cls;
-      }
-      if (ds && ds.mask === mask) focusRow = U.dpRows[mask];
-    }
-    if (s.fins || s.route) focusRow = U.dpRows[size - 1];
-    if (focusRow) {
-      const box = U.dpScroll, top = focusRow.offsetTop, vh = box.clientHeight;
-      if (top < box.scrollTop + 30 || top + 30 > box.scrollTop + vh) box.scrollTo({ top: Math.max(0, top - vh / 2), behavior: AV.isInstant() ? 'auto' : 'smooth' });
-    }
+    const rows=[...s.dp.map(e=>({...e,table:'dp'})),...s.nextDp.map(e=>({...e,table:'next_dp'}))];
+    P.auxCard.dp.classList.toggle('dim',!rows.length);
+    keyed(U.dpScroll,rows,r=>r.table+':'+r.key,()=>el('div','dict-row','<span></span><span></span><span></span><span></span>'),(row,r)=>{
+      const values=[r.table,setTextOf(r.path.slice(1)),r.i,r.cost];values.forEach((v,i)=>setText(row.children[i],v));
+      row.className='dict-row';
+      if(ds&&r.table==='dp'&&r.key===stateKey(ds.visited,ds.i))row.classList.add('dict-current');
+      if(r.table==='next_dp'&&r.key===s.targetKey)row.classList.add('dict-target');
+      if(s.fins&&s.fins.some(f=>f.best&&f.i===r.i))row.classList.add('dict-target');
+    });
+    const focus=U.dpScroll.querySelector('.dict-target')||U.dpScroll.querySelector('.dict-current');
+    if(focus){const top=focus.offsetTop,box=U.dpScroll;if(top<box.scrollTop||top+28>box.scrollTop+box.clientHeight)box.scrollTo({top:Math.max(0,top-box.clientHeight/2),behavior:AV.isInstant()?'auto':'smooth'});}
 
     // 路线
     const rk = s.route ? s.route.join('-') : '';
@@ -1386,6 +1338,73 @@ function drawArrows(targets) {
     });
   });
 }
+
+function renderLayers(s,layer) {
+  const fl=s.floyd,previous=Math.max(0,layer-1);
+  setText(U.prevTitle,`上一层 t=${previous}：只读来源`);
+  setText(U.curTitle,`当前切片 t=${layer}：${layer===s.layer?'写入结果':'历史状态'}`);
+  for(const [matrix,cells,t,isPrevious] of [[U.prevMat,U.prevCells,previous,true],[U.mat,U.mc,layer,false]]){
+    matrix.querySelector('.corner').textContent='t='+t;
+    for(let i=0;i<U.n;i++)for(let j=0;j<U.n;j++){
+      const cell=cells[i][j],v=s.floyd3[i][j][t];setText(cell,v===null?'·':fv(v));
+      let cls=v===INF?'inf':'';
+      if(fl&&fl.i!=null){
+        if(!isPrevious&&t===s.layer&&i===fl.i&&j===fl.j)cls='upd';
+        if(isPrevious&&t===s.layer-1){
+          if(i===fl.i&&j===fl.j)cls='old';
+          if(i===fl.i&&j===fl.t)cls='src-a';
+          if(i===fl.t&&j===fl.j)cls='src-b';
+        }
+      }else if(!isPrevious&&t===s.layer&&s.mat&&s.mat.cells.some(([a,b])=>a===i&&b===j))cls=s.mat.cls;
+      cell.className=cls;
+    }
+  }
+  U.colH.forEach((h,j)=>h.classList.toggle('tl',!!fl&&fl.t===j));
+  U.rowH.forEach((h,i)=>h.classList.toggle('tl',!!fl&&fl.t===i));
+}
+function drawTensor(){
+ if(!U?.snapshot)return;
+ const c=U.canvas,r=c.getBoundingClientRect(),w=r.width,h=r.height;if(!w||!h)return;
+ const ratio=window.devicePixelRatio||1;if(c.width!==Math.round(w*ratio)||c.height!==Math.round(h*ratio)){c.width=Math.round(w*ratio);c.height=Math.round(h*ratio);}
+ const ctx=c.getContext('2d');ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,w,h);
+ const snap=U.snapshot, f=snap.floyd;
+ const s={k:snap.layer,i:f?.i==null?0:f.i+1,j:f?.j==null?0:f.j+1,mode:f?'write':'done'},n=U.n,unit=32,space=32;
+ const project=(x,y,z)=>{const a=x*Math.cos(U.yaw)-y*Math.sin(U.yaw),b=x*Math.sin(U.yaw)+y*Math.cos(U.yaw);return {x:a,y:b*Math.sin(U.pitch)-z*Math.cos(U.pitch),depth:b*Math.cos(U.pitch)+z*Math.sin(U.pitch)};};
+ const pos=(k,i,j)=>project((j-n/2)*unit+(k-n/2)*120,(i-n/2)*unit+(k-n/2)*80,(k-n/2)*space);
+ const corners=[];for(let k=0;k<=n;k++)for(const i of [0,n])for(const j of [0,n])corners.push(pos(k,i,j));
+ const xmin=Math.min(...corners.map(p=>p.x)),xmax=Math.max(...corners.map(p=>p.x)),ymin=Math.min(...corners.map(p=>p.y)),ymax=Math.max(...corners.map(p=>p.y));
+ const scale=Math.min((w-130)/(xmax-xmin||1),(h-40)/(ymax-ymin||1))*U.zoom;
+ const screen=p=>({x:w/2+(p.x-(xmin+xmax)/2)*scale,y:h/2+(p.y-(ymin+ymax)/2)*scale,depth:p.depth});
+ const quads=[];
+ for(let k=0;k<=n;k++)for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+  const points=[[i,j],[i,j+1],[i+1,j+1],[i+1,j]].map(([a,b])=>screen(pos(k,a,b)));
+  let color=k>s.k?'#f1f5f9':k===s.k?'#dbeafe':'#ede9fe',stroke='#b9c4d6';
+  const trans=s.k>0&&s.i>0&&!['query','done'].includes(s.mode);
+  if(k===s.k-1&&trans){if(i===s.i-1&&j===s.j-1)color='#fbbf24';if(i===s.i-1&&j===s.k-1)color='#a78bfa';if(i===s.k-1&&j===s.j-1)color='#60a5fa';}
+  if(k===s.k&&i===s.i-1&&j===s.j-1){color='#4ade80';stroke='#15803d';}
+  quads.push({points,color,stroke,depth:points.reduce((a,b)=>a+b.depth,0)/4,k,i,j});
+ }
+ quads.sort((a,b)=>a.depth-b.depth);
+ for(const q of quads){ctx.beginPath();q.points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=q.color;ctx.globalAlpha=q.k>s.k?.38:.88;ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle=q.stroke;ctx.lineWidth=.65;ctx.stroke();}
+ // 标签在单独的左右侧栏排列，避免三维投影挤压文字。
+ ctx.font='12px sans-serif';ctx.textBaseline='middle';
+ for(let k=0;k<=n;k++){
+  const p=screen(pos(k,0,n)),y=16+(n-k)*(h-32)/Math.max(1,n),x=w-64;
+  ctx.strokeStyle=k===s.k?'#2563eb':'#a8b4c8';ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(x-8,y);ctx.stroke();
+  ctx.fillStyle=k===s.k?'#1d4ed8':'#64748b';ctx.fillText(`t = ${k}`,x,y);
+ }
+ // 三个只读来源指向当前层，箭头端点即目标格中心。
+ if(s.k>0&&s.i>0&&!['query','done'].includes(s.mode)){
+  const to=screen(pos(s.k,s.i-.5,s.j-.5));
+  [[s.i-.5,s.j-.5,'#d97706'],[s.i-.5,s.k-1+.5,'#7c3aed'],[s.k-1+.5,s.j-.5,'#2563eb']].forEach(([i,j,color],idx)=>{
+   const from=screen(pos(s.k-1,i,j)),end={x:from.x+(to.x-from.x)*(.65+.35*(U.pulse||0)),y:from.y+(to.y-from.y)*(.65+.35*(U.pulse||0))};
+   ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(end.x,end.y);ctx.stroke();const angle=Math.atan2(end.y-from.y,end.x-from.x);ctx.beginPath();ctx.moveTo(end.x,end.y);ctx.lineTo(end.x-7*Math.cos(angle-.4),end.y-7*Math.sin(angle-.4));ctx.lineTo(end.x-7*Math.cos(angle+.4),end.y-7*Math.sin(angle+.4));ctx.closePath();ctx.fill();
+  });
+ }
+ ctx.fillStyle='#475569';ctx.font='12px sans-serif';ctx.fillText('floyd[i][j][t] · 第三维 t',12,17);
+}
+
+window.WENYUAN_DEMO=DEMO;
 
 AV.start(DEMO);
 })();
