@@ -104,7 +104,7 @@ button.preset { font-size: 12px; padding: 3px 9px; }
 @keyframes avFlash { 0% { background: #fde68a; } 100% { background: transparent; } }
 
 /* 分隔条 */
-.splitter { position: relative; cursor: col-resize; }
+.splitter { position: relative; cursor: col-resize; touch-action: none; }
 .splitter::after { content: ""; position: absolute; left: 5px; top: calc(50% - 30px); height: 60px; width: 3px; border-radius: 2px;
   background: #cbd5e1; transition: background .15s; }
 .splitter:hover::after, .app.dragging .splitter::after { background: var(--blue); }
@@ -471,10 +471,11 @@ const AV = (() => {
   }
 
   // ---------- 代码面板 ----------
-  let srcLines = [], codeEls = [];
+  let srcLines = [], codeEls = [], activeCodeLines = new Set();
   function mountCode(fileName) {
     const src = $('py-source').textContent.replace(/\r\n?/g, '\n').replace(/^\n/, '').replace(/\s+$/, '');
     srcLines = src.split('\n');
+    activeCodeLines = new Set();
     $('fileName').textContent = fileName || '';
     const body = $('codeBody');
     body.innerHTML = '';
@@ -498,7 +499,10 @@ const AV = (() => {
   function setCodeLines(lines) {
     lines = (lines || []).filter(Boolean);
     const set = new Set(lines);
-    codeEls.forEach((e, k) => e.classList.toggle('on', set.has(k + 1)));
+    if (set.size === activeCodeLines.size && [...set].every(k => activeCodeLines.has(k))) return;
+    for (const k of activeCodeLines) if (!set.has(k)) codeEls[k - 1]?.classList.remove('on');
+    for (const k of set) if (!activeCodeLines.has(k)) codeEls[k - 1]?.classList.add('on');
+    activeCodeLines = set;
     const sorted = [...set].sort((a, b) => a - b);
     $('codePos').textContent = sorted.length ? `第 ${sorted.length > 1 && sorted.at(-1) - sorted[0] === sorted.length - 1 ? sorted[0] + '–' + sorted.at(-1) : sorted.join(', ')} 行` : '';
     if (!sorted.length) return;
@@ -555,7 +559,7 @@ const AV = (() => {
     cur = k;
     render(prev === steps[cur] ? null : prev);
   }
-  function stop() { clearTimeout(timer); timer = null; $('btnPlay').textContent = '▶ 播放'; }
+  function stop() { finishDrag?.(); clearTimeout(timer); timer = null; $('btnPlay').textContent = '▶ 播放'; }
   function play() {
     if (timer) return stop();
     if (cur >= steps.length - 1) go(0);
@@ -568,6 +572,66 @@ const AV = (() => {
     timer = setTimeout(tick, 120);
   }
   function withInstant(fn) { const was = instant; instant = true; document.body.classList.add('instant'); try { fn(); } finally { instant = was; if (!was) { void document.body.offsetWidth; document.body.classList.remove('instant'); } } }
+
+  // A gesture owns one pending frame; finish/interrupt always flushes its final position.
+  let finishDrag = null;
+  function frameDrag(node, begin, update, end) {
+    node.addEventListener('pointerdown', e => {
+      if (!e.isPrimary || e.button !== 0) return;
+      finishDrag?.();
+      const context = begin(e);
+      if (!context) return;
+      e.preventDefault();
+      const pointerId = e.pointerId;
+      let latestX = e.clientX, frame = 0, dirty = true, ended = false;
+      const flush = () => {
+        frame = 0;
+        if (dirty) { dirty = false; update(latestX, context); }
+      };
+      const move = ev => {
+        if (ev.pointerId !== pointerId) return;
+        latestX = ev.clientX; dirty = true;
+        if (!frame) frame = requestAnimationFrame(flush);
+      };
+      const finish = ev => {
+        if (ended || (ev?.pointerId != null && ev.pointerId !== pointerId)) return;
+        ended = true;
+        if (ev?.type === 'pointerup') { latestX = ev.clientX; dirty = true; }
+        cancelAnimationFrame(frame);
+        finishDrag = null;
+        node.removeEventListener('pointermove', move);
+        for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) node.removeEventListener(type, finish);
+        window.removeEventListener('blur', finish);
+        document.removeEventListener('visibilitychange', hidden);
+        try { flush(); } finally {
+          end(context);
+          if (node.hasPointerCapture(pointerId)) node.releasePointerCapture(pointerId);
+        }
+      };
+      const hidden = () => { if (document.hidden) finish(); };
+      finishDrag = finish;
+      node.addEventListener('pointermove', move);
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) node.addEventListener(type, finish);
+      window.addEventListener('blur', finish);
+      document.addEventListener('visibilitychange', hidden);
+      node.setPointerCapture(pointerId);
+      frame = requestAnimationFrame(flush);
+    });
+  }
+  function beginScrub() {
+    const was = instant;
+    instant = true;
+    document.body.classList.add('instant');
+    for (const id of anims.values()) cancelAnimationFrame(id);
+    anims.clear();
+    // Stop a previously started smooth code scroll before following the pointer.
+    const body = $('codeBody');
+    body.scrollTo({ top: body.scrollTop, behavior: 'instant' });
+    return () => {
+      instant = was;
+      if (!was) { void document.body.offsetWidth; document.body.classList.remove('instant'); }
+    };
+  }
 
   function apply() {
     stop();
@@ -642,18 +706,18 @@ const AV = (() => {
     $('btnNext').onclick = () => { stop(); go(cur + 1); };
     $('btnPlay').onclick = play;
     $('speed').oninput = setSpeed;
-    // 进度条：点击跳转 / 按住拖动逐步刷过（每经过一步都正常渲染，保持过渡）
+    // Cache geometry once; coalesce pointer events and keep snapshots immediate while scrubbing.
     const bar = $('progress');
-    const seek = e => {
-      const r = bar.getBoundingClientRect();
-      const k = Math.round(clamp((e.clientX - r.left) / r.width, 0, 1) * (steps.length - 1));
-      if (k !== cur) go(k);
-    };
-    bar.addEventListener('pointerdown', e => {
-      stop(); bar.setPointerCapture(e.pointerId); bar.classList.add('dragging'); seek(e);
-      const up = () => { bar.classList.remove('dragging'); bar.removeEventListener('pointermove', seek); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up); };
-      bar.addEventListener('pointermove', seek); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
-    });
+    frameDrag(bar, () => {
+      stop();
+      const rect = bar.getBoundingClientRect();
+      const restore = beginScrub();
+      bar.classList.add('dragging');
+      return { rect, restore, first: true };
+    }, (x, ctx) => {
+      const k = Math.round(clamp((x - ctx.rect.left) / ctx.rect.width, 0, 1) * (steps.length - 1));
+      if (ctx.first || k !== cur) { ctx.first = false; go(k); }
+    }, ctx => { bar.classList.remove('dragging'); ctx.restore(); });
     document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT') return;
       if (e.key === 'ArrowRight') { stop(); go(cur + 1); }
@@ -668,17 +732,17 @@ const AV = (() => {
     const defW = () => clamp(Math.round(window.innerWidth * .4), 420, 820);
     const setW = w => app.style.setProperty('--code-w', clamp(w, 320, window.innerWidth - 700) + 'px');
     setW(+localStorage.getItem(LS + 'codeW') || defW());
-    sp.addEventListener('pointerdown', e => {
-      if (app.classList.contains('code-collapsed')) return;
-      sp.setPointerCapture(e.pointerId); app.classList.add('dragging');
+    frameDrag(sp, () => {
+      if (app.classList.contains('code-collapsed')) return null;
+      stop();
       const right = app.getBoundingClientRect().right - 16;
-      const move = ev => setW(right - ev.clientX - 6);
-      const up = () => {
-        sp.removeEventListener('pointermove', move); sp.removeEventListener('pointerup', up);
-        app.classList.remove('dragging');
-        localStorage.setItem(LS + 'codeW', parseInt(app.style.getPropertyValue('--code-w')));
-      };
-      sp.addEventListener('pointermove', move); sp.addEventListener('pointerup', up);
+      const restore = beginScrub();
+      app.classList.add('dragging');
+      return { right, restore };
+    }, (x, ctx) => setW(ctx.right - x - 6), ctx => {
+      app.classList.remove('dragging');
+      ctx.restore();
+      localStorage.setItem(LS + 'codeW', parseInt(app.style.getPropertyValue('--code-w')));
     });
     sp.ondblclick = () => { localStorage.removeItem(LS + 'codeW'); setW(defW()); };
     const setCollapsed = c => { app.classList.toggle('code-collapsed', c); $('btnCollapse').textContent = c ? '⇤' : '⇥'; localStorage.setItem(LS + 'collapsed', c ? 1 : ''); };
