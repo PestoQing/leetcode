@@ -83,8 +83,10 @@ class Handler(SimpleHTTPRequestHandler):
                 if 'sina' in cfg:
                     results[key] = sina_future_quote(cfg)
                     continue
-                entry = fetch_json(f"https://web.ifzq.gtimg.cn/appstock/app/minute/query?code={cfg['tencent']}")['data'][cfg['tencent']]
-                q = entry['qt'][cfg['tencent']]
+                raw = fetch_sina(f"https://qt.gtimg.cn/q={cfg['tencent']}")
+                q = raw.split('"')[1].split('~')
+                if len(q) < 33 or float(q[3]) <= 0:
+                    raise ValueError('该标的暂无有效报价')
                 price, change, pct = float(q[3]), float(q[31]), float(q[32])
                 currency = {'ndx': 'USD', 'hstech': 'HKD', 'shcomp': 'CNY', 'chinext': 'CNY', 'momenta': 'HKD', 'unitree': 'CNY'}[key]
                 turnover = None if key in ('ndx', 'hstech') else float(q[37]) * (1 if key == 'momenta' else 10000)
@@ -173,9 +175,11 @@ class Handler(SimpleHTTPRequestHandler):
         """Fetch all chart history from Tencent's domestic market data endpoints."""
         code = SYMBOLS[key]['tencent']
         if period == 'intraday':
-            endpoint = 'UsMinute' if key == 'ndx' else 'minute'
+            endpoint = 'UsMinute' if code.startswith('us.') else 'hkMinute' if code.startswith('hk') else 'day'
             minute_result = fetch_json(f'https://web.ifzq.gtimg.cn/appstock/app/{endpoint}/query?code={code}')['data'][code]
             minute = minute_result['data']
+            if isinstance(minute, list):
+                minute = minute[-1] if minute else {}
             rows = minute.get('data', [])
             if not rows:
                 raise ValueError('腾讯行情源没有返回分时数据')

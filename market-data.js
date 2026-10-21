@@ -9,12 +9,14 @@ const SYMBOLS={
   unitree:{tencent:'sh688836',secid:'1.688836',currency:'CNY',market:'上交所科创板'},
 };
 let scriptSeq=0;
-function loadScript(url){
+function loadScript(url,charset){
   return new Promise((ok,fail)=>{
     const s=document.createElement('script'),timer=setTimeout(()=>{s.remove();fail(Error('请求超时'))},15000);
+    if(charset)s.charset=charset;
+    s.referrerPolicy='no-referrer';
     s.src=url;
     s.onload=()=>{clearTimeout(timer);s.remove();ok()};
-    s.onerror=()=>{clearTimeout(timer);s.remove();fail(Error('网络请求失败'))};
+    s.onerror=()=>{clearTimeout(timer);s.remove();fail(Error('行情源连接失败：'+new URL(url).hostname))};
     document.head.appendChild(s);
   });
 }
@@ -29,10 +31,25 @@ async function loadVar(build){
 // Eastmoney JSONP callback style.
 function loadJsonp(url){
   return new Promise((ok,fail)=>{
-    const name='__cb'+(++scriptSeq);
-    window[name]=d=>{window[name]=undefined;ok(d)};
-    loadScript(url+'&cb='+name).catch(e=>{window[name]=undefined;fail(e)});
+    const name='__cb'+(++scriptSeq);let received=false;
+    window[name]=d=>{received=true;ok(d)};
+    loadScript(url+'&cb='+name).then(()=>{
+      delete window[name];
+      if(!received)fail(Error('估值接口未返回数据'));
+    },e=>{delete window[name];fail(e)});
   });
+}
+async function tencentQuote(code){
+  // The minute/query endpoint is blocked by Tencent WAF. This quote feed
+  // assigns a fixed global variable and uses GBK rather than UTF-8.
+  code=code.replace(/^us\./,'us');
+  const variable='v_'+code;
+  await loadScript('https://qt.gtimg.cn/q='+encodeURIComponent(code),'gbk');
+  const raw=window[variable];
+  if(typeof raw!=='string'||!raw.includes('~'))throw Error('腾讯未返回该标的报价');
+  const q=raw.split('~');
+  if(q.length<33||!(+q[3]>0))throw Error('该标的暂无有效报价');
+  return q;
 }
 const tencent=(path,name)=>`https://web.ifzq.gtimg.cn/appstock/app/${path}&_var=${name}`;
 const sina=(method,code,name)=>`https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20${name}=/GlobalFuturesService.${method}?symbol=${code}`;
@@ -52,7 +69,7 @@ async function quoteFor(key){
     return {...base,price:last.price,change,changePercent:prevSettle?change/prevSettle*100:0,turnover:null,turnoverRate:null,pe:null,volume:0,
       asOf:new Date(last.time*1000).toLocaleString('zh-CN',{hour12:false})};
   }
-  const code=cfg.tencent,q=(await loadVar(n=>tencent(`minute/query?code=${code}`,n))).data[code].qt[code];
+  const code=cfg.tencent,q=await tencentQuote(code);
   let turnover=key==='ndx'||key==='hstech'?null:+q[37]*(key==='momenta'?1:10000),pe=null;
   const turnoverRate=q.length>38&&!['','0','0.00'].includes(q[38])?+q[38]:null;
   // Eastmoney adds valuation fields where available; prices stay on the same Tencent feed as the chart.
@@ -100,7 +117,12 @@ async function sinaCandles(cfg,period){
 async function tencentCandles(key,period){
   const code=SYMBOLS[key].tencent;
   if(period==='intraday'){
-    const result=(await loadVar(n=>tencent(`${key==='ndx'?'UsMinute':'minute'}/query?code=${code}`,n))).data[code],minute=result.data,rows=minute.data||[];
+    const endpoint=code.startsWith('us.')?'UsMinute':code.startsWith('hk')?'hkMinute':'day';
+    const payload=await loadVar(n=>tencent(`${endpoint}/query?code=${code}`,n));
+    const result=payload.data?.[code];
+    if(!result)throw Error('腾讯未返回该标的分时数据');
+    const minute=Array.isArray(result.data)?result.data[result.data.length-1]:result.data;
+    const rows=minute?.data||[];
     if(!rows.length)throw Error('腾讯行情源没有返回分时数据');
     let dateText=String(minute.date||'');
     if(!dateText){const qd=result.qt?.[code]||[];dateText=qd.length>30?String(qd[30]).slice(0,10):''}
