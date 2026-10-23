@@ -150,7 +150,7 @@ button.preset { font-size: 12px; padding: 3px 9px; }
 /* =====================================================================
    DEMO STYLE —— 本题专用的可视化样式（生成新演示时替换这里）
    ===================================================================== */
-.cv { display: flex; gap: 18px; height: 236px; }
+.cv { display: flex; gap: 18px; height: 220px; }
 .tree { flex: 1; min-width: 0; position: relative; }
 .tree svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .tree svg > g path { fill: none; }
@@ -194,14 +194,15 @@ button.preset { font-size: 12px; padding: 3px 9px; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 6px; }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -2px; margin-right: 5px; border: 2.5px solid; }
 
-.formula { font-family: Consolas, monospace; font-size: 14px; line-height: 1.95; }
+.formula { font-family: Consolas, monospace; font-size: 13px; line-height: 1.7; overflow-wrap:anywhere; }
+.desc { font-size:14px; line-height:1.6; }
 .formula .p { color: var(--purple); font-weight: 700; } .formula .g { color: var(--green); font-weight: 800; }
 .formula .r { color: var(--red); font-weight: 700; } .formula .b { color: var(--blue); font-weight: 700; }
 .formula .a { color: var(--amber); font-weight: 700; } .formula .m { color: var(--muted); }
 
 .tbl { font-size: 13px; font-family: Consolas, monospace; display: flex; flex-direction: column; height: 100%; }
 .tscroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative; }
-.trow { display: grid; grid-template-columns: .6fr .6fr .8fr .7fr .8fr 1.2fr 1.3fr; align-items: center; height: 26px;
+.trow { display: grid; grid-template-columns: .45fr .45fr 1.25fr .65fr .65fr .75fr 1fr 1.1fr; align-items: center; height: 26px;
   border-bottom: 1px solid var(--line); text-align: center; border-radius: 5px; transition: background var(--dur), color var(--dur); }
 .trow.head { flex: none; color: var(--muted); font-weight: 600; font-family: inherit; }
 .trow span { border-radius: 5px; margin: 0 2px; transition: background var(--dur), color var(--dur), box-shadow var(--dur); }
@@ -288,13 +289,36 @@ button.preset { font-size: 12px; padding: 3px 9px; }
 # 最后一个整数 w，为修改后的权值
 # 保证父节点编号小于子节点编号。
 #
-# 思路：
-# 先计算子树大小 size 和子树权值和 sums。
-# dp[i] 表示节点 i 的期望得分系数 E[n - dfn[i] + 1]。
-# 修改一个节点只影响自身权值，以及它和兄弟节点的先后概率。
-# 逐个计算修改收益，取最大值，无需为每个候选节点重新遍历整棵树。
-# 这里 DFS 指先访问节点自身，再完整访问一个子树，最后访问另一个子树。
-# 利用期望的线性性质，总期望 = 各节点权值乘以各自的期望得分系数之和。
+# 思路（先理解“早访问能多得分”，再理解为什么只需计算局部变化）：
+# 1. 第 d 个访问的节点得分为 (n-d+1)*权值；提前一位，就多得一份自身权值。
+#    随机性只在“先完整走哪棵子树”，不是在左右子树之间交替访问。
+# 2. children[p] 存 p 的直接子节点编号，不是整棵子树的所有后代。
+#    例如 parent=[-1,0,0,1,1]，children=[[1,2],[3,4],[],[],[]]。
+#    size[i] 是子树节点数，sums[i] 是子树权值总和；两者都包含 i 自身。
+# 3. dp[i] 不是路径长度，而是节点 i 的平均得分系数 E[n-dfn[i]+1]。
+#    原始总期望 res = Σ nums[i]*dp[i]，这是期望的线性性质。
+#    根必定第一个访问，dp[0]=n。独生子紧跟父节点，dp[i]=dp[p]-1。
+#    有兄弟 j 时：若 j 先走，i 还要等 j 整棵子树的 size[j] 个节点。
+#    所以 dp[i]=dp[p]-1-size[j]*nums[j]/(nums[i]+nums[j])。
+# 4. 独立尝试把每个节点 i 的权值改成 w，change=w-nums[i]。
+#    概率只由兄弟根节点的权值决定，不由子树总权值决定。
+#    因此只改变父节点 p 处 i、j 的先后概率，不改变其他分支的概率。
+# 5. 修改收益拆成两步相加，避免把权值变化和概率变化混在一起：
+#    A. 暂时保持原概率，只换 i 的权值，收益为 change*dp[i]。
+#    B. 使用修改后的权值，再调整 i 先走的概率：
+#       prob = w/(w+nums[j]) - nums[i]/(nums[i]+nums[j])。
+#       i 从后走变成先走，i 子树每个节点提前 size[j] 位；
+#       j 子树每个节点推后 size[i] 位，因此一次换序的总收益为
+#       size[j]*(sums[i]+change) - size[i]*sums[j]。
+#       乘上概率变化 prob，才是换序带来的期望收益。
+#    最终 tmp = A + B。sums[i] 必须加 change，因为 B 已经使用新权值。
+# 6. 每个候选都从原始树独立计算，修改不叠加；best 从 0 开始允许不修改。
+#    最终答案 = 原始总期望 res + 最大修改收益 best。
+#
+# 测试1中修改节点1的例子：兄弟是2，size[1]=3、size[2]=1，sums[1]=3。
+# dp[1]=5-1-1*1/2=3.5；change=4-1=3，自身权值收益=3*3.5=10.5。
+# prob=4/5-1/2=0.3；一次换序收益=1*(3+3)-3*1=3。
+# 换序期望收益=0.3*3=0.9，总收益=11.4；原始总期望35，最终46.4。
 # 时间复杂度 O(n)，空间复杂度 O(n)。
 # 本实现要求原权值和修改后的权值能构成合法概率，且所有概率分母非零；
 # 若题目允许两个兄弟的权值同时为 0，需要另行约定访问概率并处理。
@@ -988,7 +1012,7 @@ let U = null;
 const DEMO = {
   file: '文远3.py',
   title: '最大期望满意度 · 期望 DFS 序 + 单点修改（文远3）',
-  subtitle: '期望线性：总期望 = Σ nums[i]·dp[i]，dp[i] = E[n − dfn[i] + 1]。改一个点只影响自身权值与它和兄弟的先后概率 → 每个候选 O(1) 算出收益，取最大',
+  subtitle: '先算不修改时的平均得分，再逐个尝试改一个点：收益 = 自身权值变化 + 两棵子树先后概率变化。',
   inputs: [
     { id: 'n', label: 'n =', value: '5', type: 'number', width: 60 },
     { id: 'par', label: '父节点(1..n-1)', value: '0 0 1 1', width: 150 },
@@ -1003,9 +1027,9 @@ const DEMO = {
     { label: '改小更优', values: { n: 6, par: '0 0 1 2 2', nums: '2 7 1 8 2 8', w: 1 } },
   ],
   stats: [
-    { key: 'res', label: '原始期望 res', color: 'blue' },
+    { key: 'res', label: '原始贡献累计 res', color: 'blue' },
     { key: 'best', label: '最佳增量 best', color: 'green' },
-    { key: 'ans', label: '答案 res + best', color: 'red' },
+    { key: 'ans', label: '当前合计 res + best', color: 'red' },
     { key: 'i', label: '当前节点 i', color: 'purple' },
   ],
   panels: {
@@ -1043,8 +1067,10 @@ const DEMO = {
 
   build({ n, parent, nums, w, children }) {
     const steps = [];
+    let childrenState=null;
     let size = null, sums = null, dp = [], gain = [], res = null, best = null, bestK = null;
     const S = o => ({
+      children: childrenState && childrenState.map(row=>[...row]),
       size: size && [...size], sums: sums && [...sums], dp: [...dp], gain: [...gain], bestK,
       stats: {
         res: res == null ? '—' : f4(res),
@@ -1061,11 +1087,22 @@ const DEMO = {
       formula: `n = <span class="b">${n}</span>　parent = [${parent.join(', ')}]<br>nums = [${nums.join(', ')}]　w = <span class="g">${w}</span>`,
       desc: `读入 ${n} 个节点的父节点与权值，可把任意一个节点的权值改成 <b>w = ${w}</b>（或不改）。根节点 parent 用 −1 占位，使下标与编号一一对应。` }));
 
-    size = new Array(n).fill(1); sums = [...nums];
-    steps.push(S({ phase: P0, tag: { text: '建树', kind: 'info' }, edges: 1,
-      lines: [L('children.append([])'), L('size.append(1)'), L('sums.append(nums[i])'), L('children[parent[i]].append(i)')],
-      formula: `size[i] = 1，sums[i] = nums[i]<br>children[parent[i]].append(i)`,
-      desc: `每个节点先自成一棵子树：size = 1，sums = 自身权值；再把 i 挂到 parent[i] 的 children 下。children 中<b>第一个</b>画在左边。` }));
+    size = new Array(n).fill(1); sums = [...nums];childrenState=Array.from({length:n},()=>[]);
+    steps.push(S({phase:P0,tag:{text:'空子节点表',kind:'info'},edges:0,
+      lines:[L('children.append([])'),L('size.append(1)'),L('sums.append(nums[i])')],
+      formula:`children = [${childrenState.map(x=>'[]').join(', ')}]<br>size[i]=1；sums[i]=nums[i]`,
+      desc:'children[p] 记录父节点 p 的直接子节点编号。每行先为空列表 []；叶子节点在建树结束后仍为 []。size、sums 则先只统计节点自身。'}));
+    for(let i=1;i<n;i++){
+      const p=parent[i],old=[...childrenState[p]];childrenState[p].push(i);
+      steps.push(S({phase:P0,tag:{text:`挂接节点 ${i}`,kind:'info'},edges:1,cur:i,par:p,upd:{[p]:['children']},
+        lines:[L('children[parent[i]].append(i)')],
+        formula:`parent[${i}]=${p}<br>children[${p}].append(${i})<br>[${old.join(', ')}] → [${childrenState[p].join(', ')}]`,
+        desc:`节点 ${i} 的父节点是 ${p}，所以把 ${i} 加到 children[${p}]。列表保存直接孩子，不包含孙子；按列表顺序画左右位置，但实际谁先访问还要按权值计算概率。`}));
+    }
+    steps.push(S({phase:'理解得分',tag:{text:'先理解目标',kind:'info'},edges:1,
+      lines:[L('dp = [n]'),L('res = n * nums[0]')],
+      formula:`第 d 个访问的节点：得分 = (n-d+1) × 权值<br>提前一位，多得一份自身权值<br>dp[i] = 平均得分系数；总期望 = Σ nums[i] × dp[i]`,
+      desc:`共有 ${n} 个节点，访问越早系数越大。DFS 会先走完整棵子树，再走另一棵。我们计算每个节点的平均得分系数，而不是枚举所有随机遍历顺序。接下来先汇总子树大小与权值和。`}));
 
     for (let i = n - 1; i >= 1; i--) {
       const p = parent[i], os = size[p], om = sums[p];
@@ -1091,7 +1128,7 @@ const DEMO = {
           lines: [L('p = parent[i]', 2), L('if len(children[p]) == 1'), L('dp.append(dp[p] - 1)')],
           order: { p, i, pi: 1 },
           formula: `dp[<span class="b">${i}</span>] = dp[<span class="p">${p}</span>] − 1 = ${f4(dp[p])} − 1 = <span class="g">${f4(dp[i])}</span>`,
-          desc: `#${i} 是 #${p} 的唯一子节点，访问完 #${p} 立刻访问它：dfn 恰好大 1，得分系数就小 1。` }));
+          desc: `children[${p}]=[${children[p].join(', ')}]，因此 #${i} 是 #${p} 的唯一子节点，访问完 #${p} 立刻访问它：dfn 恰好大 1，得分系数就小 1。` }));
         const tmp = change * dp[i];
         gain.push(tmp); res += dp[i] * nums[i];
         if (tmp > best) { best = tmp; bestK = i; }
@@ -1110,10 +1147,22 @@ const DEMO = {
         order: { p, i, j, pi, pj }, probs: { [i]: `${nums[i]}/${nums[i] + nums[j]}`, [j]: `${nums[j]}/${nums[i] + nums[j]}` },
         formula: `P(<span class="a">${j}</span> 先) = nums[${j}] / (nums[${i}] + nums[${j}]) = ${nums[j]}/${nums[i] + nums[j]} = <span class="a">${f4(pj)}</span><br>` +
           `dp[<span class="b">${i}</span>] = dp[<span class="p">${p}</span>] − 1 − size[${j}] × P(${j} 先)<br>　　　 = ${f4(dp[p])} − 1 − ${size[j]} × ${f4(pj)} = <span class="g">${f4(dp[i])}</span>`,
-        desc: `#${i} 与兄弟 <b style="color:var(--amber)">#${j}</b> 抢先后：若 #${i} 先，dfn[${i}] = dfn[${p}] + 1；若 #${j} 先，要等 #${j} <b>整棵子树 ${size[j]} 个点</b>走完。期望多等 size[${j}] × P(${j} 先)，系数相应减少。` }));
+        desc: `children[${p}]=[${children[p].join(', ')}]，去掉当前节点 ${i}，另一个就是兄弟 ${j}。#${i} 与兄弟 <b style="color:var(--amber)">#${j}</b> 抢先后：若 #${i} 先，dfn[${i}] = dfn[${p}] + 1；若 #${j} 先，要等 #${j} <b>整棵子树 ${size[j]} 个点</b>走完。期望多等 size[${j}] × P(${j} 先)，系数相应减少。` }));
 
       const prob = w / (w + nums[j]) - nums[i] / (nums[i] + nums[j]);
       const t1 = change * dp[i], dI = size[j] * (sums[i] + change), dJ = size[i] * sums[j], t2 = prob * (dI - dJ), tmp = t1 + t2;
+      const context={phase:P2,edges:1,cur:i,par:p,sib:j,mod:i,order:{p,i,j,pi:w/(w+nums[j]),pj:nums[j]/(w+nums[j]),old:pi},probs:{[i]:`${w}/${w+nums[j]}`,[j]:`${nums[j]}/${w+nums[j]}`}};
+      steps.push(S({...context,tag:{text:'收益①：只改权值',kind:'info'},
+        lines:[L('change = w - nums[i]'),L('tmp = change * dp[i]',2)],
+        order:{p,i,j,pi,pj},probs:{[i]:`${nums[i]}/${nums[i]+nums[j]}`,[j]:`${nums[j]}/${nums[i]+nums[j]}`},
+        formula:`change = ${w} - ${nums[i]} = ${change}<br>tmp = change × dp[${i}] = ${change} × ${f4(dp[i])} = ${sg(t1)}`,
+        desc:`先假设访问概率不变，只把节点 ${i} 的权值换成 ${w}。它的平均得分系数仍为 ${f4(dp[i])}，因此收益是 ${sg(t1)}。这只是第一部分，还没有计入顺序概率变化。`}));
+      steps.push(S({...context,tag:{text:'收益②：先走概率',kind:'pre'},lines:[L('prob = w / (w + nums[j])')],
+        formula:`原 P(${i} 先) = ${nums[i]}/(${nums[i]}+${nums[j]}) = ${f4(pi)}<br>新 P(${i} 先) = ${w}/(${w}+${nums[j]}) = ${f4(w/(w+nums[j]))}<br>prob = 新概率 - 原概率 = ${sg(prob)}`,
+        desc:`先后概率只看兄弟根节点 ${i}、${j} 的权值，不看整棵子树的权值和。修改 ${i} 只改变父节点 ${p} 这一处分支概率。prob 可以为负，表示 ${i} 先走的概率降低。`}));
+      steps.push(S({...context,tag:{text:'收益③：整棵子树换序',kind:'pre'},lines:[L('tmp += prob')],
+        formula:`${i} 子树提前 ${size[j]} 位：+${size[j]} × (${sums[i]} + ${change}) = +${f4(dI)}<br>${j} 子树推后 ${size[i]} 位：-${size[i]} × ${sums[j]} = -${f4(dJ)}<br>一次换序收益 = ${f4(dI-dJ)}<br>期望收益 = prob × 换序收益 = ${sg(prob)} × ${f4(dI-dJ)} = ${sg(t2)}`,
+        desc:`从“${j} 先走”变成“${i} 先走”，${i} 子树每个节点都提前 size[${j}]=${size[j]} 位，${j} 子树每个节点都推后 size[${i}]=${size[i]} 位。这里使用修改后的子树权值和 ${sums[i]}+${change}；两棵子树以外的节点位置不变。`}));
       gain.push(tmp); res += dp[i] * nums[i];
       if (tmp > best) { best = tmp; bestK = i; }
       steps.push(S({ phase: P2, tag: { text: `收益 · 改 #${i}`, kind: tmp > 0 ? 'hit' : 'miss' }, edges: 1, cur: i, par: p, sib: j, mod: i, upd: { [i]: ['gain'] },
@@ -1164,11 +1213,11 @@ const DEMO = {
     const up = mkS('path'); up.setAttribute('marker-end', 'url(#mk-purple)'); up.style.opacity = 0;
     svg.querySelector('.up').appendChild(up);
     P.state.innerHTML = '<div class="formula"></div>';
-    P.aux.tbl.innerHTML = `<div class="tbl"><div class="trow head"><span>i</span><span>p</span><span>nums</span><span>size</span><span>sums</span><span>dp</span><span>收益</span></div><div class="tscroll"></div></div>`;
+    P.aux.tbl.innerHTML = `<div class="tbl"><div class="trow head"><span>i</span><span>p</span><span>children</span><span>nums</span><span>size</span><span>sums</span><span>dp</span><span>收益</span></div><div class="tscroll"></div></div>`;
     P.aux.tbl.style.overflow = 'hidden';
     const tb = P.aux.tbl.querySelector('.tscroll'), rows = [];
     for (let i = 0; i < n; i++) {
-      const r = el('div', 'trow', `<span>${i}</span><span>${i ? parent[i] : '−1'}</span><span>${nums[i]}</span><span></span><span></span><span></span><span></span>`);
+      const r = el('div', 'trow', `<span>${i}</span><span>${i ? parent[i] : '−1'}</span><span>·</span><span>${nums[i]}</span><span></span><span></span><span></span><span></span>`);
       tb.appendChild(r); rows.push(r);
     }
     const o = P.canvas.querySelector('.order');
@@ -1227,7 +1276,7 @@ const DEMO = {
     for (let i = 1; i < n; i++) {
       const e = U.eEls[i];
       const mine = s.cur === i && s.par != null, sib = s.sib === i;
-      e.g.setAttribute('class', 'edge' + (s.edges ? '' : ' pending') + (mine ? ' mine' : '') + (sib ? ' sib' : ''));
+      e.g.setAttribute('class', 'edge' + (s.edges && s.children?.[parent[i]].includes(i) ? '' : ' pending') + (mine ? ' mine' : '') + (sib ? ' sib' : ''));
       e.path.setAttribute('marker-end', `url(#mk-${mine ? 'blue' : sib ? 'amber' : 'gray'})`);
       const lab = s.probs && s.probs[i] != null ? s.probs[i] : mine ? '1' : '';
       setText(e.text, lab);
@@ -1275,7 +1324,7 @@ const DEMO = {
       if (U.rb.firstChild.innerHTML !== lb) U.rb.firstChild.innerHTML = lb;
       U.note.innerHTML = o.j == null ? '没有兄弟，不存在先后之争。'
         : s.mod != null ? `把 #${o.i} 改成 ${w}，第一行概率变化 prob；子树 #${o.i} 与 #${o.j} 只是<b>互换位置</b>，总长度不变。`
-          : `E[dfn[${o.i}]] = dfn[${o.p}] + 1 + ${s.size[o.j]} × P(#${o.j} 先)`;
+          : `E[dfn[${o.i}]] = E[dfn[${o.p}]] + 1 + ${s.size[o.j]} × P(#${o.j} 先)`;
     }
 
     // 公式
@@ -1286,9 +1335,11 @@ const DEMO = {
     let focus = null;
     U.rows.forEach((r, k) => {
       const sp = r.children, u = (s.upd && s.upd[k]) || [];
+      setText(sp[2],s.children?'['+s.children[k].join(', ')+']':'·');
+      sp[2].className=u.includes('children')?'upd':s.par===k?'upd':'';
       const vals = [s.size ? s.size[k] : '·', s.sums ? s.sums[k] : '·', s.dp[k] != null ? f4(s.dp[k]) : '·', s.gain[k] != null ? f4(s.gain[k]) : '·'];
       ['size', 'sums', 'dp', 'gain'].forEach((key, q) => {
-        const c = sp[3 + q];
+        const c = sp[4 + q];
         setText(c, vals[q], prev ? 'av-flash' : null);
         c.className = [u.includes(key) ? 'upd' : '', vals[q] === '·' ? 'na' : '', key === 'gain' && s.gain[k] < 0 ? 'neg' : ''].filter(Boolean).join(' ');
       });
@@ -1307,6 +1358,7 @@ const DEMO = {
   },
 };
 
+window.TREE_EXPECTATION_DEMO=DEMO;
 AV.start(DEMO);
 })();
 </script>
