@@ -28,6 +28,14 @@ description: 为一个算法题的 Python 解法（.py）生成离线、单文�
 
 13. **播放速度默认选择最快一档，越快填充越满**：滑块采用从左到右递增的速度值（`min="0" max="100" value="100"`），左侧慢、右侧快；最快时滑块在最右端，轨道完全填满。不要使用 `direction:rtl` 翻转控件。用 `2600 - 23 * value` 将速度换算成每步等待毫秒数（最慢 2600ms，最快 300ms），播放计时与动画时长均使用换算后的值。模板和已生成页面保持一致，用户仍可手动调慢。
 
+14. **数学公式按论文（MathType）格式排版**：不要用 `q1q2²e^{q2c}∇c∇cᵀ` 这种纯文本拼写。页面文字（desc、formula、subtitle、统计/输入标签、hint）里的公式一律写成 TeX，并用 `$…$`（行内）或 `$$…$$`（独立一行）包起来，例如 `$q_1 q_2^2 e^{q_2 c}\\, \\nabla c\\, \\nabla c^{\\top}$`。引擎会离线转成 MathML，用 Cambria Math 等数学字体排版：变量斜体，上下标、分式、根号、重音符都是真正的数学排版。
+   - 写在 JS 字符串里时反斜杠要写两次（`'\\frac'`）。模板字符串里 `$` 后紧跟 `${…}` 插值没问题，例如 `` `$\\alpha = ${a}$` ``。
+   - 支持 `^ _ {} \frac \sqrt \hat \bar \tilde \vec \mathbf \boldsymbol \mathrm \text \operatorname \mathcal \mathbb \left \right`、希腊字母、`\max \min \exp \log \operatorname{softmax}` 等函数名、`\le \ge \to \leftarrow \sim \in \nabla \top \sum \prod \cdot \times \lfloor \lceil \lvert \mid \quad \, \;`。公式里要上色时用 `\class{g}{\alpha}`，会套用 `.formula .g` 之类的样式，不要在 `$…$` 中间插 `<span>`。
+   - 多字母变量写成下标或 `\text{}`：`Q_{uu}`、`J_{\text{new}}`、`\tau_{\text{ref}}`。
+   - 带公式的节点用 `AV.setHTML(node, html)` 或 `AV.setText` 写入，它们按原始字符串判断是否变化。**不要**再写 `if (node.innerHTML !== html) node.innerHTML = html`：排版后 innerHTML 已经不等于源串，这样每一步都会误判重绘、触发闪烁。直接写 innerHTML 的内容也会由引擎的 MutationObserver 自动排版。
+   - 逐步代入 Python 变量的计算过程（如 `dp[i] = dp[p] − 1 − size[j] × P(j 先)`）属于代码追踪，保持与源码一致的等宽写法；真正的数学式（论文公式、期望、求和、取整、复杂度 `$O(n^2)$`）用 TeX。代码区和 SVG 里的文字不做公式排版。
+   - 旧页面升级：`python <skill>/scripts/patch_tex.py <页面.html>...`。它会注入或更新引擎里的公式排版代码，并改写 DEMO 中的 innerHTML 比较写法（可重复执行）。排版器源码在 `scripts/tex_engine.js`，修改后重新执行 patch 同步到模板和各页面。
+
 ## 工作流程
 
 1. **读懂解法**：完整阅读目标 `.py`，理清阶段划分、关键变量和值得可视化的数据结构。
@@ -44,7 +52,7 @@ description: 为一个算法题的 Python 解法（.py）生成离线、单文�
    - `mount(data, P)`：在 `P.canvas`、`P.state`、`P.aux[id]` 里一次性创建持久的 DOM。卡片外框在 `P.auxCard[id]`、`P.stateCard`。
    - `layout(data, P)`：按容器宽度计算格子尺寸。容器尺寸变化时引擎会自动调用。
    - `render(step, prevStep, data, P)`：根据快照更新 DOM。必须是幂等的，因为前进、后退、跳转都会调用它。
-   - 引擎提供的工具：`AV.keyed`、`AV.animate`、`AV.setText(node, text, 'av-flash')`、`AV.flash`、`AV.el`、`AV.esc`、`AV.clamp`、`AV.dur()`、`AV.isInstant()`
+   - 引擎提供的工具：`AV.keyed`、`AV.animate`、`AV.setText(node, text, 'av-flash')`、`AV.setHTML(node, html)`（按原始串比较，含公式时必须用它）、`AV.tex(src, display)`（TeX → MathML 字符串）、`AV.typeset(node)`、`AV.flash`、`AV.el`、`AV.esc`、`AV.clamp`、`AV.dur()`、`AV.isInstant()`
 5. **验证逻辑**：用 node 提取 `build` 跑题目里的测试用例，最终答案要和 `python xxx.py` 的输出一致。
 6. **自检布局**：`python <skill>/scripts/check.py <同名>.html [步骤号 | 预设号@步骤号 ...]`。它会用无头 Edge 在 80% 和 100% 两种缩放下遍历**所有预设输入的所有步骤**，检查文字重叠、元素遮挡文字、左侧是否需要滚动、代码是否横向滚动，并截图到系统临时目录下的 `algoviz-shots/`（Windows 为 `%TEMP%`，Linux 为 `/tmp`；Linux 下自动使用 google-chrome / chromium）。必须两种缩放都是 OK；再用 Read 打开截图，人工看一眼效果。
 7. 用 `start "" <同名>.html`（Linux 用 `xdg-open`）在浏览器里打开，然后向用户简要说明：页面怎么操作、演示了哪些内容、验证结果如何。
@@ -75,4 +83,5 @@ description: 为一个算法题的 Python 解法（.py）生成离线、单文�
 - 三维 DP 演示（如 Floyd）必须同时展示上一层的来源矩阵和当前层的结果矩阵，并分别高亮读取与写入的格子；历史切片下拉框不能替代并排对照。需要空间总览时配可旋转的三维分层网格，阶段维度与源码索引保持一致。
 - 集合与字典 DP 的状态表按当前最优记录的实际纳入顺序展示节点（如 `{2, 1}`），不要为显示而按编号排序；状态去重仍按无序集合与停留点进行。显示顺序与内部规范化键分开，表头注明顺序含义。
 - 页面支持 `#preset=P&step=N` 直接打开某个预设的某一步，方便截图排查。
+- 有"尝试 → 失败 → 回退"分支的算法（如线搜索、拒绝步、回溯）：**默认预设**就要让失败分支出现至少一次（如 CILQR 默认预设第 1 轮 α=1 的候选代价未下降、α 减半后才接受）。用 node 跑 `build` 遍历参数，挑出步数适中、且包含失败分支的输入。
 - 最后一步给出最终答案；有意义的话，再和朴素解法或其他策略做对比。

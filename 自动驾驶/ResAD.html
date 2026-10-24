@@ -147,6 +147,12 @@ button.preset { font-size: 12px; padding: 3px 9px; }
 
 #av-check { display: none; }
 
+/* 公式：MathML 按论文格式排版（数学字体、斜体变量、真正的上下标与分式） */
+math { font-family: 'Cambria Math', 'STIX Two Math', 'Latin Modern Math', math; font-size: 1.12em; }
+math[display="block"] { margin: 2px 0; }
+.formula math { math-style: normal; }
+.stat .lab math, .card-h math, #inputs math, header math { font-size: 1em; }
+
 /* =====================================================================
    DEMO STYLE —— 本题专用的可视化样式（生成新演示时替换这里）
    ===================================================================== */
@@ -509,8 +515,9 @@ const AV = (() => {
   function flash(node, cls) { if (instant) return; node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls); }
   function setText(node, text, flashCls) {
     const t = String(text);
-    if (node.textContent === t) return false;
+    if ((node._raw != null ? node._raw : node.textContent) === t) return false;
     node.textContent = t;
+    if (t.indexOf('$') >= 0) { node._raw = t; TEX.typeset(node); } else node._raw = null;
     if (flashCls) flash(node, flashCls);
     return true;
   }
@@ -704,11 +711,12 @@ const AV = (() => {
     $('progTip').textContent = `第 ${cur + 1} 步`;
     $('stepNo').textContent = `${cur + 1} / ${steps.length}`;
     const html = (s.tag ? `<span class="tag ${s.tag.kind || 'info'}">${s.tag.text}</span>` : '') + s.desc;
-    if ($('desc').innerHTML !== html) { $('desc').innerHTML = html; flash($('desc'), 'fade-in'); }
+    if (setHTML($('desc'), html)) { flash($('desc'), 'fade-in'); }
     setText($('phase'), s.phase || '');
     (D.stats || []).forEach(def => setStat(def, s.stats ? s.stats[def.key] : undefined));
     setCodeLines(s.lines);
     D.render(s, prev, data, P);
+    TEX.flush();
   }
   function go(k) {
     k = clamp(k, 0, steps.length - 1);
@@ -926,14 +934,17 @@ const AV = (() => {
   function textRects(root) {
     const out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     const range = document.createRange();
+    const seenMath = new Set();
     while (w.nextNode()) {
       const node = w.currentNode;
       if (!node.textContent.trim()) continue;
-      const host = node.parentElement;
+      const host = node.parentElement.closest('math') || node.parentElement;
       if (host.closest('.av-leaving, svg defs, .slots .empty')) continue;
       const cs = getComputedStyle(host);
       if (cs.visibility === 'hidden' || +cs.opacity === 0) continue;
-      range.selectNodeContents(node);
+      // 公式按整体外框参与检查（上下标、重音符的字形框会互相叠住，不算重叠）
+      if (host.localName === 'math') { if (seenMath.has(host)) continue; seenMath.add(host); range.selectNode(host); }
+      else range.selectNodeContents(node);
       // 被滚动容器裁掉（不可见）的部分不参与检查
       let clip = null;
       for (let a = host.parentElement; a && a !== root; a = a.parentElement) {
@@ -947,7 +958,7 @@ const AV = (() => {
           if (rr - l <= 1 || b - t <= 1) continue;
           r = { left: l, top: t, right: rr, bottom: b, width: rr - l, height: b - t };
         }
-        if (r.width > 1 && r.height > 1) out.push({ r, host, text: node.textContent.trim().slice(0, 16) });
+        if (r.width > 1 && r.height > 1) out.push({ r, host, text: host.localName === 'math' ? host.textContent.trim().slice(0, 16) : node.textContent.trim().slice(0, 16) });
       }
     }
     return out;
@@ -1017,7 +1028,190 @@ const AV = (() => {
     if (h.has('check')) setTimeout(runCheck, 50);
   }
 
-  return { $, el, esc, clamp, dur, animate, flash, setText, keyed, lineOf, start, isInstant: () => instant };
+  // —— 公式排版：文本里的 $…$（行内）/ $$…$$（独立一行）按 TeX 语法离线转成 MathML，
+  //    浏览器用数学字体按论文格式排版。支持 ^ _ {} \frac \sqrt \hat \bar \tilde \vec \mathbf \mathrm \text
+  //    \operatorname \mathcal \mathbb \left \right \class{色类}{…}、希腊字母与常用符号；也认 ∇ ᵀ ² ₀ x̂ ᾱ 等 Unicode 写法。
+  const TEX = (() => {
+    const GREEK = { alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ϵ', varepsilon: 'ε', zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'ϕ', varphi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω', ell: 'ℓ',
+      Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω' };
+    const OPS = { cdot: '⋅', times: '×', div: '÷', pm: '±', mp: '∓', le: '≤', leq: '≤', ge: '≥', geq: '≥', ne: '≠', neq: '≠', approx: '≈', sim: '∼', equiv: '≡', propto: '∝',
+      in: '∈', notin: '∉', subset: '⊂', cup: '∪', cap: '∩', to: '→', rightarrow: '→', leftarrow: '←', gets: '←', Rightarrow: '⇒', Leftarrow: '⇐', iff: '⇔', mapsto: '↦',
+      infty: '∞', nabla: '∇', partial: '∂', sum: '∑', prod: '∏', int: '∫', top: '⊤', mid: '∣', forall: '∀', exists: '∃', circ: '∘', odot: '⊙', otimes: '⊗', oplus: '⊕',
+      lfloor: '⌊', rfloor: '⌋', lceil: '⌈', rceil: '⌉', langle: '⟨', rangle: '⟩', lVert: '‖', rVert: '‖', Vert: '‖', lvert: '|', rvert: '|', '|': '‖', '{': '{', '}': '}',
+      ldots: '…', cdots: '⋯', dots: '…', '#': '#', '%': '%', '&': '&', _: '_', '$': '$' };
+    const FN = new Set('max min exp log ln sin cos tan tanh sigmoid arg det diag std var sup inf lim softmax argmin argmax'.split(' '));
+    const ACC = { hat: 'ˆ', widehat: 'ˆ', bar: '―', overline: '―', tilde: '˜', widetilde: '˜', vec: '→', dot: '˙', ddot: '¨' };
+    const SPACE = { ',': '0.17em', ':': '0.22em', ';': '0.28em', ' ': '0.28em', quad: '1em', qquad: '2em', '!': '-0.17em' };
+    const SUP = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁺': '+', '⁻': '-', 'ᵀ': '\\top ', 'ⁱ': 'i', 'ⁿ': 'n', 'ᵈ': 'd', 'ᵗ': 't' };
+    const SUB = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9', '₊': '+', '₋': '-', 'ₖ': 'k', 'ᵢ': 'i', 'ⱼ': 'j', 'ₜ': 't', 'ₙ': 'n', 'ₘ': 'm', 'ₓ': 'x' };
+    const COMB = { '̂': 'ˆ', '̄': '―', '̅': '―', '̃': '˜', '̇': '˙', '⃗': '→' };
+    const PRE = { 'ᾱ': 'ᾱ', 'ᾰ': 'ᾰ' };
+    const x = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const styled = (s, A, a, D) => [...s].map(c => c >= 'A' && c <= 'Z' ? String.fromCodePoint(A + c.charCodeAt(0) - 65)
+      : c >= 'a' && c <= 'z' ? String.fromCodePoint(a + c.charCodeAt(0) - 97) : D && c >= '0' && c <= '9' ? String.fromCodePoint(D + c.charCodeAt(0) - 48) : c).join('');
+    const CAL = { B: 'ℬ', E: 'ℰ', F: 'ℱ', H: 'ℋ', I: 'ℐ', L: 'ℒ', M: 'ℳ', R: 'ℛ' };
+    const BB = { C: 'ℂ', H: 'ℍ', N: 'ℕ', P: 'ℙ', Q: 'ℚ', R: 'ℝ', Z: 'ℤ' };
+    const cache = new Map();
+
+    function convert(src, display) {
+      const key = (display ? 'D' : 'I') + src;
+      if (cache.has(key)) return cache.get(key);
+      let s = src.replace(/[ᾱᾰ]/g, c => PRE[c]), i = 0;
+      const peek = () => s[i];
+      const skipWs = () => { while (i < s.length && /\s/.test(s[i])) i++; };
+      const readName = () => {
+        if (/[A-Za-z]/.test(s[i])) { const m = /^[A-Za-z]+/.exec(s.slice(i))[0]; i += m.length; return m; }
+        return s[i++] || '';
+      };
+      const readRaw = () => { // \text{…} 等的原文参数
+        skipWs();
+        if (s[i] !== '{') return s[i++] || '';
+        let d = 0, j = i;
+        for (; j < s.length; j++) { if (s[j] === '{') d++; else if (s[j] === '}' && --d === 0) break; }
+        const t = s.slice(i + 1, j); i = j + 1; return t;
+      };
+      const arg = () => { skipWs(); const a = atom(); return a == null ? '<mrow></mrow>' : a; };
+      const mrow = list => list.length === 1 ? list[0] : `<mrow>${list.join('')}</mrow>`;
+      const sub = t => convertInner(t);
+      // 不在 \left…\right 里的括号保持原高，不随分式拉伸
+      const mo = c => c === '/' ? '<mo lspace="0" rspace="0">/</mo>' : /^[()[\]{}|‖⌊⌋⌈⌉⟨⟩]$/.test(c) ? `<mo stretchy="false">${x(c)}</mo>` : `<mo>${x(c)}</mo>`;
+
+      const delim = () => { skipWs(); let d = s[i++] || '.'; if (d === '\\') { const m = readName(); d = OPS[m] || m; } return d === '.' ? '' : `<mo>${x(d)}</mo>`; };
+      function seq(stop, inLeft) {
+        const out = [];
+        while (i < s.length) {
+          skipWs();
+          if (i >= s.length) break;
+          if (stop && s[i] === stop) { i++; break; }
+          if (inLeft && s.startsWith('\\right', i)) break;
+          const a = atom();
+          if (a == null) continue;
+          out.push(scripts(a));
+          if (/^<mi>[A-Za-z]{2,}<\/mi>$/.test(a)) { skipWs(); if (s[i] !== '(') out.push('<mspace width="0.17em"></mspace>'); } // \max c 之间留细空
+        }
+        return out;
+      }
+      function scripts(base) {
+        let lo = null, hi = null;
+        for (;;) {
+          const c = s[i];
+          if (c === '^') { i++; hi = arg(); }
+          else if (c === '_') { i++; lo = arg(); }
+          else if (c === "'") { let p = ''; while (s[i] === "'") { p += '′'; i++; } hi = `<mo>${p}</mo>`; }
+          else if (c && COMB[c]) { base = `<mover accent="true">${base}<mo>${COMB[c]}</mo></mover>`; i++; }
+          else if (c && SUP[c]) { let t = ''; while (SUP[s[i]]) t += SUP[s[i++]]; hi = sub(t); }
+          else if (c && SUB[c]) { let t = ''; while (SUB[s[i]]) t += SUB[s[i++]]; lo = sub(t); }
+          else if (c && /\s/.test(c) && /^\s*[\^_]/.test(s.slice(i))) skipWs();
+          else break;
+        }
+        if (lo && hi) return `<msubsup>${base}${lo}${hi}</msubsup>`;
+        if (lo) return `<msub>${base}${lo}</msub>`;
+        if (hi) return `<msup>${base}${hi}</msup>`;
+        return base;
+      }
+      function atom() {
+        const c = s[i];
+        if (c === '{') { i++; return mrow(seq('}')); }
+        if (c === '}') { i++; return null; }
+        if (c === '\\') {
+          i++;
+          const n = readName();
+          if (n in GREEK) return /[A-Z]/.test(n[0]) ? `<mi mathvariant="normal">${GREEK[n]}</mi>` : `<mi>${GREEK[n]}</mi>`;
+          if (n in SPACE) return `<mspace width="${SPACE[n]}"></mspace>`;
+          if (FN.has(n)) return `<mi>${n}</mi>`;
+          if (n in ACC) return `<mover accent="true">${arg()}<mo>${ACC[n]}</mo></mover>`;
+          if (n in OPS) return mo(OPS[n]);
+          switch (n) {
+            case 'frac': case 'dfrac': case 'tfrac': { const a = arg(); return `<mfrac>${a}${arg()}</mfrac>`; }
+            case 'sqrt': return `<msqrt>${arg()}</msqrt>`;
+            case 'text': case 'textrm': case 'mbox': return `<mtext>${x(readRaw())}</mtext>`;
+            case 'mathrm': case 'operatorname': { const t = readRaw(); return t.length === 1 ? `<mi mathvariant="normal">${x(t)}</mi>` : `<mi>${x(t)}</mi>`; }
+            case 'mathbf': return `<mi>${x(styled(readRaw(), 0x1D400, 0x1D41A, 0x1D7CE))}</mi>`;
+            case 'boldsymbol': case 'bm': return `<mi>${x(styled(readRaw(), 0x1D468, 0x1D482, 0x1D7CE))}</mi>`;
+            case 'mathcal': return `<mi>${[...readRaw()].map(ch => CAL[ch] || styled(ch, 0x1D49C, 0x1D4B6)).join('')}</mi>`;
+            case 'mathbb': return `<mi>${[...readRaw()].map(ch => BB[ch] || styled(ch, 0x1D538, 0x1D552, 0x1D7D8)).join('')}</mi>`;
+            case 'class': { const cls = readRaw().replace(/[^\w -]/g, ''); return `<mrow class="${cls}">${arg()}</mrow>`; }
+            case 'left': {
+              const open = delim(), inner = seq(null, true);
+              const close = s.startsWith('\\right', i) ? (i += 6, delim()) : '';
+              return `<mrow>${open}${inner.join('')}${close}</mrow>`;
+            }
+            case 'right': case 'big': case 'Big': case 'bigl': case 'bigr': case 'Bigl': case 'Bigr': return delim() || null;
+            default: return `<mtext>\\${x(n)}</mtext>`;
+          }
+        }
+        let m;
+        if ((m = /^\d+(?:\.\d+)?/.exec(s.slice(i)))) { i += m[0].length; return `<mn>${m[0]}</mn>`; }
+        if (/[A-Za-z]/.test(c)) { i++; return `<mi>${c}</mi>`; }
+        if (/[α-ωϵϕℓ]/.test(c)) { i++; return `<mi>${c}</mi>`; }
+        if (/[Α-Ω]/.test(c)) { i++; return `<mi mathvariant="normal">${c}</mi>`; }
+        if (/[　-鿿＀-￯]/.test(c)) { // 中文说明文字
+          m = /^[　-鿿＀-￯]+/.exec(s.slice(i))[0]; i += m.length; return `<mtext>${x(m)}</mtext>`;
+        }
+        i++;
+        if (c === '-') return '<mo>−</mo>';
+        if (c === '*') return '<mo>∗</mo>';
+        if (c === '~') return '<mspace width="0.28em"></mspace>';
+        if (c === '·') return '<mo>⋅</mo>';
+        if (c === '∑' || c === '∏') return `<mo>${c}</mo>`;
+        return mo(c);
+      }
+      function convertInner(t) { const [s0, i0] = [s, i]; s = t; i = 0; const r = mrow(seq()); s = s0; i = i0; return r; }
+
+      const body = mrow(seq());
+      const out = `<math${display ? ' display="block"' : ''}>${body}</math>`;
+      cache.set(key, out);
+      return out;
+    }
+
+    // 把一个文本节点里的 $…$ / $$…$$ 换成 MathML；返回是否替换
+    const SKIP = '.code-card, script, style, textarea, math, svg, title, .no-tex';
+    function typesetText(node) {
+      const t = node.nodeValue;
+      if (!t || t.indexOf('$') < 0) return false;
+      const host = node.parentElement;
+      if (!host || host.closest(SKIP)) return false;
+      const re = /\$\$([\s\S]+?)\$\$|\$([^$]+?)\$/g;
+      let html = '', last = 0, hit = false, mm;
+      while ((mm = re.exec(t))) {
+        hit = true;
+        html += x(t.slice(last, mm.index)) + (mm[1] != null ? convert(mm[1].trim(), true) : convert(mm[2].trim(), false));
+        last = re.lastIndex;
+      }
+      if (!hit) return false;
+      html += x(t.slice(last));
+      const tpl = document.createElement('template');
+      tpl.innerHTML = html;
+      node.replaceWith(tpl.content);
+      return true;
+    }
+    function typeset(root) {
+      if (!root) return;
+      if (root.nodeType === 3) { typesetText(root); return; }
+      if (root.nodeType !== 1 && root.nodeType !== 11) return;
+      if (root.nodeType === 1 && root.closest(SKIP)) return;
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), list = [];
+      while (w.nextNode()) if (w.currentNode.nodeValue.indexOf('$') >= 0) list.push(w.currentNode);
+      list.forEach(typesetText);
+    }
+    // DEMO 直接写 innerHTML / textContent 的内容由 MutationObserver 兜底排版；render 结束时同步冲刷一次
+    const handle = recs => { for (const r of recs) { if (r.type === 'characterData') typeset(r.target); else r.addedNodes.forEach(typeset); } };
+    const mo = new MutationObserver(handle);
+    mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    const flush = () => handle(mo.takeRecords());
+    return { convert, typeset, flush };
+  })();
+  // 带公式的 innerHTML 写入：按原始字符串判断是否变化（排版后 innerHTML 已不同于源串）
+  function setHTML(node, html) {
+    html = html == null ? '' : String(html);
+    if (node._raw === html) return false;
+    node._raw = html;
+    node.innerHTML = html;
+    TEX.typeset(node);
+    return true;
+  }
+  // —— 公式排版结束
+  return { $, el, esc, clamp, dur, animate, flash, setText, keyed, lineOf, start, isInstant: () => instant, setHTML, tex: TEX.convert, typeset: TEX.typeset };
 })();
 </script>
 
@@ -1132,24 +1326,24 @@ const DEMO = {
   subtitle: '不问"未来轨迹是什么"，而问"为什么必须偏离惯性"：匀速外推得到惯性参考，扩散模型只生成残差；PRNorm 平衡 x/y 尺度；扰动初速度得到多个意图假设，2 步 DDIM 后由排序器选优',
   inputs: [
     { id: 'seed', label: 'seed', value: '7', type: 'number', width: 60 },
-    { id: 'vx', label: 'v0 = (', value: '8', type: 'number', width: 62 },
+    { id: 'vx', label: '$v_0 = ($', value: '8', type: 'number', width: 62 },
     { id: 'vy', label: ',', value: '0.4', type: 'number', width: 62 },
-    { id: 'lx', label: ')　前车 x0', value: '20', type: 'number', width: 60 },
-    { id: 'lv', label: 'v', value: '4', type: 'number', width: 56 },
-    { id: 'k', label: 'K', value: '6', type: 'number', width: 52 },
-    { id: 'sx', label: 'σvx', value: '1', type: 'number', width: 56 },
-    { id: 'sy', label: 'σvy', value: '0.3', type: 'number', width: 56 },
+    { id: 'lx', label: '$)$　前车 $x_0$', value: '20', type: 'number', width: 60 },
+    { id: 'lv', label: '$v$', value: '4', type: 'number', width: 56 },
+    { id: 'k', label: '$K$', value: '6', type: 'number', width: 52 },
+    { id: 'sx', label: '$\\sigma_{v_x}$', value: '1', type: 'number', width: 56 },
+    { id: 'sy', label: '$\\sigma_{v_y}$', value: '0.3', type: 'number', width: 56 },
   ],
   presets: [
     { label: '默认（同 py）', values: { seed: 7, vx: 8, vy: 0.4, lx: 20, lv: 4, k: 6, sx: 1, sy: 0.3 } },
     { label: '前车很近', values: { seed: 7, vx: 8, vy: 0.4, lx: 13, lv: 4, k: 6, sx: 1, sy: 0.3 } },
     { label: '高速大扰动', values: { seed: 11, vx: 11, vy: -0.3, lx: 24, lv: 5, k: 8, sx: 2, sy: 0.5 } },
-    { label: '不扰动 σ=0', values: { seed: 3, vx: 8, vy: 0.4, lx: 20, lv: 4, k: 4, sx: 0, sy: 0 } },
+    { label: '不扰动 $\\sigma = 0$', values: { seed: 3, vx: 8, vy: 0.4, lx: 20, lv: 4, k: 4, sx: 0, sy: 0 } },
   ],
   stats: [
     { key: 'rms', label: '第 8 点 RMS（m）', color: 'gray' },
     { key: 'ratio', label: 'x : y 标准差比', color: 'amber' },
-    { key: 'ab', label: '噪声水平 ᾱ', color: 'purple' },
+    { key: 'ab', label: '噪声水平 $\\bar{\\alpha}$', color: 'purple' },
     { key: 'k', label: '候选 / 排序', color: 'blue' },
     { key: 'best', label: '最佳得分', color: 'red' },
   ],
@@ -1157,8 +1351,8 @@ const DEMO = {
     canvas: { title: '鸟瞰图（x 向前，y 向左；单位 m）', hint: '灰虚线 = 惯性参考；紫虚线 = 扰动后的参考；箭头 = 残差' },
     state: { title: '当前计算' },
     aux: [
-      { id: 'bars', title: '残差 vs 绝对坐标：每个航点的 RMS', hint: '灰 = |τgt|，蓝 = |r|' },
-      { id: 'tbl', title: '候选轨迹', hint: 'w = 去噪器对两种意图的后验权重', grow: true },
+      { id: 'bars', title: '残差 vs 绝对坐标：每个航点的 RMS', hint: '灰 $= \\lvert \\tau_{\\text{gt}} \\rvert$，蓝 $= \\lvert r \\rvert$' },
+      { id: 'tbl', title: '候选轨迹', hint: '$w$ = 去噪器对两种意图的后验权重', grow: true },
     ],
   },
 
@@ -1187,46 +1381,46 @@ const DEMO = {
 
     steps.push(S({ phase: ph[0], tag: { text: '场景', kind: 'info' }, show: {},
       lines: [L('SEED = 7'), L('N, DT = 8, 0.5'), L('V0 = (8.0, 0.4)'), L('LEAD_X0, LEAD_V = 20.0, 4.0'), L('LANE_W = 3.5')],
-      formula: `自车 p0 = (0, 0)，v0 = (<span class="b">${P.V0[0]}</span>, <span class="b">${P.V0[1]}</span>) m/s<br>前车 x0 = ${P.LEAD_X0} m，速度 ${P.LEAD_V} m/s（同车道）<br>规划 N = 8 个航点，Δt = 0.5 s，共 4 s`,
-      desc: `自车比前车快，并且航向略偏左（vy = ${P.V0[1]}）。要规划未来 4 s 的 8 个航点。ResAD 不直接回归这 8 个坐标，而是先算"什么都不做会怎样"。` }));
+      formula: `自车 $p_0 = (0, 0)$，$v_0 =$ (<span class="b">${P.V0[0]}</span>, <span class="b">${P.V0[1]}</span>) m/s<br>前车 $x_0 = ${P.LEAD_X0}$ m，速度 ${P.LEAD_V} m/s（同车道）<br>规划 $N = 8$ 个航点，$\\Delta t = 0.5$ s，共 4 s`,
+      desc: `自车比前车快，并且航向略偏左（$v_y = ${P.V0[1]}$）。要规划未来 4 s 的 8 个航点。ResAD 不直接回归这 8 个坐标，而是先算"什么都不做会怎样"。` }));
 
     steps.push(S({ phase: ph[0], tag: { text: '惯性参考', kind: 'pre' }, show: { ref0: true },
       lines: [L('def inertial_ref(v)'), L('return [(v[0] * t, v[1] * t) for t in TS]')],
-      formula: `式 (3)：p<sub>ti</sub> = p0 + v0 · t<sub>i</sub><br>终点 = (${f2(P.V0[0] * 4)}, ${f2(P.V0[1] * 4)})`,
+      formula: `式 (3)：$p_{t_i} = p_0 + v_0\\, t_i$<br>终点 = (${f2(P.V0[0] * 4)}, ${f2(P.V0[1] * 4)})`,
       desc: `用匀速模型外推：不踩油门刹车、不打方向时 4 s 后会到 (${f2(P.V0[0] * 4)}, ${f2(P.V0[1] * 4)})。它<b>会追上前车</b>，横向也在漂移——这就是"必须改变"的理由。` }));
 
     [0, 1].forEach(j => {
       const r = R.residual(R.ex[j], R.ref0), e = r[N - 1];
       steps.push(S({ phase: ph[0], tag: { text: j ? '残差 · 超车' : '残差 · 跟车', kind: 'hit' }, show: { ref0: true, ex: [j], arrows: { from: R.ref0, to: R.ex[j], color: j ? 'blue' : 'amber' } },
         lines: [L('def expert(v, mode, p)'), j ? L('pts.append((v[0] * t + 0.5 * p * t * t') : L('pts.append((v[0] * t - 0.5 * a * t * t, 0.0))'), L('def residual(gt, ref)'), L('return [(g[0] - r[0], g[1] - r[1])')],
-        formula: `式 (4)：r = τgt − τref<br>第 8 点残差 = (<span class="${j ? 'b' : 'a'}">${f2(e[0])}</span>, <span class="${j ? 'b' : 'a'}">${f2(e[1])}</span>) m`,
-        desc: j ? `另一种专家意图：<b>左变道超车</b>，轻微加速、3 s 内移到左车道中心。残差主要在 y 方向（向左修正），远处还要补上惯性参考的横向漂移。`
+        formula: `式 (4)：$r = \\tau_{\\text{gt}} - \\tau_{\\text{ref}}$<br>第 8 点残差 = (<span class="${j ? 'b' : 'a'}">${f2(e[0])}</span>, <span class="${j ? 'b' : 'a'}">${f2(e[1])}</span>) m`,
+        desc: j ? `另一种专家意图：<b>左变道超车</b>，轻微加速、3 s 内移到左车道中心。残差主要在 $y$ 方向（向左修正），远处还要补上惯性参考的横向漂移。`
                 : `一种专家意图：<b>跟车减速</b>到前车速度、回到本车道中心。箭头从参考点指向专家点：纵向往回拉（刹车），横向抵消漂移。残差就是"驾驶员施加的修正"。` }));
     });
 
     st = { ...st, rms: { v: f2(R.rmsAbs[N - 1]), unit: '→ ' + f2(R.rmsRes[N - 1]), sub: '绝对坐标 → 残差' } };
     steps.push(S({ phase: ph[1], tag: { text: '训练集', kind: 'pre' }, show: { data: true, ref0: true, bars: true },
       lines: [L('for _ in range(M_DATA)'), L('data.append((gt, residual(gt, inertial_ref(v))))'), L('rms_abs = rms_per_t'), L('rms_res = rms_per_t')],
-      formula: `40 条合成专家轨迹（不同初速度、两种意图）<br>第 8 点 RMS：|τgt| = <span class="m">${f2(R.rmsAbs[N - 1])}</span> m → |r| = <span class="b">${f2(R.rmsRes[N - 1])}</span> m`,
+      formula: `40 条合成专家轨迹（不同初速度、两种意图）<br>第 8 点 RMS：$\\lvert \\tau_{\\text{gt}} \\rvert =$ <span class="m">${f2(R.rmsAbs[N - 1])}</span> m → $\\lvert r \\rvert =$ <span class="b">${f2(R.rmsRes[N - 1])}</span> m`,
       desc: `直接回归绝对坐标时，远处航点数值大（右侧灰条）。换成残差后，目标都集中在 0 附近（蓝条），因为匀速外推已经解释掉了"沿当前速度前进"这部分。` }));
 
     st = { ...st, ratio: { v: f2(ratio0), unit: '→ ' + f2(ratio1), sub: 'PRNorm 前 → 后' } };
     steps.push(S({ phase: ph[1], tag: { text: 'PRNorm', kind: 'pre' }, show: { data: true, ref0: true, bars: true, std: true },
       lines: [L('rmin = [min(r[t][d]'), L('rmax = [max(r[t][d]'), L('def minmax(pts, lo, hi)'), L('return [tuple(2 * GAMMA'), L('std_norm = std_per_dim')],
-      formula: `式 (5)(6)：r̃<sup>d</sup> = 2γ(r<sup>d</sup> − r<sup>d</sup><sub>min</sub>) / (r<sup>d</sup><sub>max</sub> − r<sup>d</sup><sub>min</sub> + ε) − γ<br>x ∈ [${f2(R.rmin[0])}, ${f2(R.rmax[0])}]　y ∈ [${f2(R.rmin[1])}, ${f2(R.rmax[1])}] → [−1, 1]<br>std(x) : std(y) = <span class="a">${f2(ratio0)}</span> → <span class="g">${f2(ratio1)}</span>`,
-      desc: `PRNorm 按分量 x、y 在<b>整个训练集的所有航点</b>上取极值，各自缩放到 [−γ, γ]。不归一化时纵向 x 的方差是 y 的 ${f2(ratio0 ** 2)} 倍，MSE 被纵向误差主导；归一化后两者相当，横向的细小修正也能学好。` }));
+      formula: `式 (5)(6)：$\\tilde{r}^d = \\frac{2\\gamma\\, (r^d - r^d_{\\min})}{r^d_{\\max} - r^d_{\\min} + \\epsilon} - \\gamma$<br>$x \\in [${f2(R.rmin[0])}, ${f2(R.rmax[0])}]$　$y \\in [${f2(R.rmin[1])}, ${f2(R.rmax[1])}] \\to [-1, 1]$<br>$\\operatorname{std}(x) : \\operatorname{std}(y) =$ <span class="a">${f2(ratio0)}</span> → <span class="g">${f2(ratio1)}</span>`,
+      desc: `PRNorm 按分量 $x$、$y$ 在<b>整个训练集的所有航点</b>上取极值，各自缩放到 $[-\\gamma, \\gamma]$。不归一化时纵向 $x$ 的方差是 $y$ 的 ${f2(ratio0 ** 2)} 倍，MSE 被纵向误差主导；归一化后两者相当，横向的细小修正也能学好。` }));
 
     st = { ...st, k: { v: K, unit: '条', sub: `σv = (${P.SIGMA_VX}, ${P.SIGMA_VY})` } };
     steps.push(S({ phase: ph[2], tag: { text: '扰动初速度', kind: 'pre' }, show: { ref0: true, refs: true },
       lines: [L('vs = [(V0[0] + SIGMA_VX * gauss()'), L('refs = [inertial_ref(v) for v in vs]')],
-      formula: `式 (7)(8)：δv<sub>k</sub> ~ N(0, diag(${P.SIGMA_VX}², ${P.SIGMA_VY}²))，v0' = v0 + δv<sub>k</sub><br>` + R.vs.map((v, k) => `#${k} (${f2(v[0])}, ${f2(v[1])})`).join('　'),
+      formula: `式 (7)(8)：$\\delta v_k \\sim \\mathcal{N}\\left(\\mathbf{0}, \\operatorname{diag}(${P.SIGMA_VX}^2, ${P.SIGMA_VY}^2)\\right)$，$v_0' = v_0 + \\delta v_k$<br>` + R.vs.map((v, k) => `#${k} (${f2(v[0])}, ${f2(v[1])})`).join('　'),
       desc: `推理时<b>不靠固定的轨迹词表</b>，而是给初速度加 ${K} 个高斯扰动，各自匀速外推，得到 ${K} 条惯性参考（紫虚线）。每条对应一个意图假设，同时让模型对 GPS / IMU 噪声更鲁棒。` }));
 
     const decode = (c, zz) => c.toTraj(zz);
     st = { ...st, ab: { v: '0.05', sub: '起点：几乎纯噪声' } };
     steps.push(S({ phase: ph[3], tag: { text: '纯噪声 z_T', kind: 'miss' }, show: { refs: true, cands: cands.map(c => ({ k: c.k, pts: decode(c, c.hist[0].z), cls: 'noise' })) },
       lines: [L('modes = [flat(minmax(residual(expert(vs[k]'), L('z = [gauss() for _ in range(2 * N)]')],
-      formula: `z<sub>T</sub> ~ N(0, I)，维度 2N = 16（归一化残差空间）<br>按"残差 + 参考"直接解码，轨迹杂乱无章`,
+      formula: `$z_T \\sim \\mathcal{N}(\\mathbf{0}, \\mathbf{I})$，维度 $2N = 16$（归一化残差空间）<br>按"残差 + 参考"直接解码，轨迹杂乱无章`,
       desc: `每个候选从<b>纯高斯噪声</b>出发。论文的扩散解码器以编码特征和该条参考的位置编码为条件；这里换成理想去噪器，它的条件就是"该参考下跟车 / 超车两种意图的归一化残差"。` }));
 
     [1, 2].forEach(i => {
@@ -1235,16 +1429,16 @@ const DEMO = {
       steps.push(S({ phase: ph[3], tag: { text: `DDIM 第 ${i} 步`, kind: 'info' }, ddim: i,
         show: { refs: true, cands: cands.map(c => ({ k: c.k, pts: decode(c, c.hist[i].x0), cls: c.hist[i].w[1] > c.hist[i].w[0] ? 'o' : 'f' })) },
         lines: [L('for i in range(len(ALPHAS) - 1)'), L('x0, w = denoise(z, a, modes)'), L('eps = [(zi - math.sqrt(a) * xi)'), L('z = [math.sqrt(a2) * xi')],
-        formula: `ᾱ: ${a} → <span class="p">${a2}</span><br>x̂0 = Σ w<sub>j</sub>·E[x0 | z, 意图 j]，ε̂ = (z − √ᾱ·x̂0)/√(1−ᾱ)<br>z' = √ᾱ'·x̂0 + √(1−ᾱ')·ε̂`,
+        formula: `$\\bar{\\alpha}$：${a} → <span class="p">${a2}</span><br>$\\hat{x}_0 = \\sum_j w_j\\, \\mathbb{E}[x_0 \\mid z, \\text{意图 } j]$，$\\hat{\\epsilon} = \\frac{z - \\sqrt{\\bar{\\alpha}}\\, \\hat{x}_0}{\\sqrt{1 - \\bar{\\alpha}}}$<br>$z' = \\sqrt{\\bar{\\alpha}'}\\, \\hat{x}_0 + \\sqrt{1 - \\bar{\\alpha}'}\\, \\hat{\\epsilon}$`,
         desc: i === 1
-          ? `第 1 步：去噪器根据当前噪声更接近哪种意图给出后验权重 w，预测干净残差 x̂0（图中画的就是 x̂0 解码后的轨迹，琥珀 = 偏跟车，蓝 = 偏超车）。噪声的随机性决定了每个候选落入哪种意图。`
-          : `第 2 步把 ᾱ 推到 1，z 就等于 x̂0。论文同样只用 <b>2 步 DDIM</b>：参考已经提供了强先验，残差分布简单，少步就够。` }));
+          ? `第 1 步：去噪器根据当前噪声更接近哪种意图给出后验权重 $w$，预测干净残差 $\\hat{x}_0$（图中画的就是 $\\hat{x}_0$ 解码后的轨迹，琥珀 = 偏跟车，蓝 = 偏超车）。噪声的随机性决定了每个候选落入哪种意图。`
+          : `第 2 步把 $\\bar{\\alpha}$ 推到 1，$z$ 就等于 $\\hat{x}_0$。论文同样只用 <b>2 步 DDIM</b>：参考已经提供了强先验，残差分布简单，少步就够。` }));
     });
 
     steps.push(S({ phase: ph[3], tag: { text: '加回参考', kind: 'hit' }, show: { refs: true, cands: cands.map(c => ({ k: c.k, pts: c.traj, cls: c.w[1] > c.w[0] ? 'o' : 'f' })),
         arrows: { multi: cands.map(c => ({ from: R.refs[c.k], to: c.traj, color: c.w[1] > c.w[0] ? 'blue' : 'amber' })), idx: [3, N - 1] } },
       lines: [L('r = prdenorm('), L('def prdenorm(z)'), L('cands.append(([(f[0] + q[0], f[1] + q[1])')],
-      formula: `r̂ = PRNorm⁻¹(z)，τ̂<sub>k</sub> = τref,k + r̂<sub>k</sub><br>${cands.filter(c => c.w[1] > c.w[0]).length} 条偏超车，${cands.filter(c => c.w[1] <= c.w[0]).length} 条偏跟车`,
+      formula: `$\\hat{r} = \\operatorname{PRNorm}^{-1}(z)$，$\\hat{\\tau}_k = \\tau_{\\text{ref},k} + \\hat{r}_k$<br>${cands.filter(c => c.w[1] > c.w[0]).length} 条偏超车，${cands.filter(c => c.w[1] <= c.w[0]).length} 条偏跟车`,
       desc: `把归一化残差反变换回米，再加回<b>各自的扰动参考</b>（箭头只画了第 4、8 个航点）。同一种意图在不同参考上落地的位置略有不同，这就是多模态候选。` }));
 
     const rows = [];
@@ -1255,8 +1449,8 @@ const DEMO = {
       steps.push(S({ phase: ph[4], tag: { text: `打分 #${k}`, kind: sc.nc ? 'info' : 'miss' }, scored: k + 1, hl: k,
         show: { refs: true, cands: cands.map(q => ({ k: q.k, pts: q.traj, cls: (q.w[1] > q.w[0] ? 'o' : 'f') + (q.k === k ? ' hl' : ' dimc') })) },
         lines: [L('def score(traj, best_x)'), L('nc = 0.0'), L('dac = 1.0 if all'), L('ep = traj[-1][0] / best_x'), L('lk = max(0.0'), L('c = 1.0 if acc <= 4.0'), L('return nc * dac')],
-        formula: `NC = ${sc.nc}　DAC = ${sc.dac}　EP = ${f4(sc.ep)}　LK = ${f4(sc.lk)}　C = ${sc.c}（a<sub>max</sub> = ${f2(sc.acc)}）<br>score = NC·DAC·(5·EP + 2·LK + 2·C)/9 = <span class="${sc.nc ? 'g' : 'r'}">${f4(sc.s)}</span>`,
-        desc: `候选 #${k}（偏${modeName(c.w)}）：${sc.nc ? '不与前车重叠' : '<b style="color:var(--red)">与前车重叠，NC = 0</b>'}，进度 ${f2(sc.ep * 100)}%，终点${sc.lk > 0.5 ? '在车道中心附近' : '偏离车道中心'}。论文的排序器是 Transformer 打分、蒸馏 PDM 各子指标；这里直接用规则近似。` }));
+        formula: `$\\mathrm{NC} = ${sc.nc}$　$\\mathrm{DAC} = ${sc.dac}$　$\\mathrm{EP} = ${f4(sc.ep)}$　$\\mathrm{LK} = ${f4(sc.lk)}$　$\\mathrm{C} = ${sc.c}$（$a_{\\max} = ${f2(sc.acc)}$）<br>$\\text{score} = \\mathrm{NC} \\cdot \\mathrm{DAC} \\cdot \\frac{5\\, \\mathrm{EP} + 2\\, \\mathrm{LK} + 2\\, \\mathrm{C}}{9} =$ <span class="${sc.nc ? 'g' : 'r'}">${f4(sc.s)}</span>`,
+        desc: `候选 #${k}（偏${modeName(c.w)}）：${sc.nc ? '不与前车重叠' : '<b style="color:var(--red)">与前车重叠，$\\mathrm{NC} = 0$</b>'}，进度 ${f2(sc.ep * 100)}%，终点${sc.lk > 0.5 ? '在车道中心附近' : '偏离车道中心'}。论文的排序器是 Transformer 打分、蒸馏 PDM 各子指标；这里直接用规则近似。` }));
     });
 
     st = { ...st, best: { v: f4(cands[best].sc.s), sub: `选中 #${best}（${modeName(cands[best].w)}）` } };
@@ -1375,7 +1569,7 @@ const DEMO = {
       p.setAttribute('marker-end', `url(#mk-${t.color})`);
     });
 
-    if (U.formula.innerHTML !== s.formula) { U.formula.innerHTML = s.formula; flash(U.formula, 'fade-in'); }
+    if (AV.setHTML(U.formula, s.formula)) { flash(U.formula, 'fade-in'); }
 
     // RMS 条形
     U.bars.classList.toggle('off', !sh.bars);
@@ -1385,8 +1579,8 @@ const DEMO = {
       r.querySelector('.rs').style.width = (sh.bars ? R.rmsRes[t] / mx * 100 : 0) + '%';
       setText(r.querySelector('.v'), sh.bars ? `${f2(R.rmsAbs[t])} / ${f2(R.rmsRes[t])}` : '');
     });
-    const sl = sh.std ? `std(x, y)：残差 (${f2(R.stdRes[0])}, ${f2(R.stdRes[1])}) m → PRNorm 后 (<b>${f2(R.stdNorm[0])}, ${f2(R.stdNorm[1])}</b>)` : 'PRNorm 前后 x、y 尺度对比在"PRNorm"一步给出';
-    if (U.stdline.innerHTML !== sl) U.stdline.innerHTML = sl;
+    const sl = sh.std ? `$\\operatorname{std}(x, y)$：残差 (${f2(R.stdRes[0])}, ${f2(R.stdRes[1])}) m → PRNorm 后 (<b>${f2(R.stdNorm[0])}, ${f2(R.stdNorm[1])}</b>)` : 'PRNorm 前后 $x$、$y$ 尺度对比在"PRNorm"一步给出';
+    AV.setHTML(U.stdline, sl);
 
     // 候选表
     R.cands.forEach((c, k) => {

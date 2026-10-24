@@ -147,6 +147,12 @@ button.preset { font-size: 12px; padding: 3px 9px; }
 
 #av-check { display: none; }
 
+/* 公式：MathML 按论文格式排版（数学字体、斜体变量、真正的上下标与分式） */
+math { font-family: 'Cambria Math', 'STIX Two Math', 'Latin Modern Math', math; font-size: 1.12em; }
+math[display="block"] { margin: 2px 0; }
+.formula math { math-style: normal; }
+.stat .lab math, .card-h math, #inputs math, header math { font-size: 1em; }
+
 /* =====================================================================
    DEMO STYLE —— 本题专用的可视化样式（生成新演示时替换这里）
    ===================================================================== */
@@ -525,8 +531,9 @@ const AV = (() => {
   function flash(node, cls) { if (instant) return; node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls); }
   function setText(node, text, flashCls) {
     const t = String(text);
-    if (node.textContent === t) return false;
+    if ((node._raw != null ? node._raw : node.textContent) === t) return false;
     node.textContent = t;
+    if (t.indexOf('$') >= 0) { node._raw = t; TEX.typeset(node); } else node._raw = null;
     if (flashCls) flash(node, flashCls);
     return true;
   }
@@ -720,11 +727,12 @@ const AV = (() => {
     $('progTip').textContent = `第 ${cur + 1} 步`;
     $('stepNo').textContent = `${cur + 1} / ${steps.length}`;
     const html = (s.tag ? `<span class="tag ${s.tag.kind || 'info'}">${s.tag.text}</span>` : '') + s.desc;
-    if ($('desc').innerHTML !== html) { $('desc').innerHTML = html; flash($('desc'), 'fade-in'); }
+    if (setHTML($('desc'), html)) { flash($('desc'), 'fade-in'); }
     setText($('phase'), s.phase || '');
     (D.stats || []).forEach(def => setStat(def, s.stats ? s.stats[def.key] : undefined));
     setCodeLines(s.lines);
     D.render(s, prev, data, P);
+    TEX.flush();
   }
   function go(k) {
     k = clamp(k, 0, steps.length - 1);
@@ -942,14 +950,17 @@ const AV = (() => {
   function textRects(root) {
     const out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     const range = document.createRange();
+    const seenMath = new Set();
     while (w.nextNode()) {
       const node = w.currentNode;
       if (!node.textContent.trim()) continue;
-      const host = node.parentElement;
+      const host = node.parentElement.closest('math') || node.parentElement;
       if (host.closest('.av-leaving, svg defs, .slots .empty')) continue;
       const cs = getComputedStyle(host);
       if (cs.visibility === 'hidden' || +cs.opacity === 0) continue;
-      range.selectNodeContents(node);
+      // 公式按整体外框参与检查（上下标、重音符的字形框会互相叠住，不算重叠）
+      if (host.localName === 'math') { if (seenMath.has(host)) continue; seenMath.add(host); range.selectNode(host); }
+      else range.selectNodeContents(node);
       // 被滚动容器裁掉（不可见）的部分不参与检查
       let clip = null;
       for (let a = host.parentElement; a && a !== root; a = a.parentElement) {
@@ -963,7 +974,7 @@ const AV = (() => {
           if (rr - l <= 1 || b - t <= 1) continue;
           r = { left: l, top: t, right: rr, bottom: b, width: rr - l, height: b - t };
         }
-        if (r.width > 1 && r.height > 1) out.push({ r, host, text: node.textContent.trim().slice(0, 16) });
+        if (r.width > 1 && r.height > 1) out.push({ r, host, text: host.localName === 'math' ? host.textContent.trim().slice(0, 16) : node.textContent.trim().slice(0, 16) });
       }
     }
     return out;
@@ -1033,7 +1044,190 @@ const AV = (() => {
     if (h.has('check')) setTimeout(runCheck, 50);
   }
 
-  return { $, el, esc, clamp, dur, animate, flash, setText, keyed, lineOf, start, isInstant: () => instant };
+  // —— 公式排版：文本里的 $…$（行内）/ $$…$$（独立一行）按 TeX 语法离线转成 MathML，
+  //    浏览器用数学字体按论文格式排版。支持 ^ _ {} \frac \sqrt \hat \bar \tilde \vec \mathbf \mathrm \text
+  //    \operatorname \mathcal \mathbb \left \right \class{色类}{…}、希腊字母与常用符号；也认 ∇ ᵀ ² ₀ x̂ ᾱ 等 Unicode 写法。
+  const TEX = (() => {
+    const GREEK = { alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ϵ', varepsilon: 'ε', zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'ϕ', varphi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω', ell: 'ℓ',
+      Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω' };
+    const OPS = { cdot: '⋅', times: '×', div: '÷', pm: '±', mp: '∓', le: '≤', leq: '≤', ge: '≥', geq: '≥', ne: '≠', neq: '≠', approx: '≈', sim: '∼', equiv: '≡', propto: '∝',
+      in: '∈', notin: '∉', subset: '⊂', cup: '∪', cap: '∩', to: '→', rightarrow: '→', leftarrow: '←', gets: '←', Rightarrow: '⇒', Leftarrow: '⇐', iff: '⇔', mapsto: '↦',
+      infty: '∞', nabla: '∇', partial: '∂', sum: '∑', prod: '∏', int: '∫', top: '⊤', mid: '∣', forall: '∀', exists: '∃', circ: '∘', odot: '⊙', otimes: '⊗', oplus: '⊕',
+      lfloor: '⌊', rfloor: '⌋', lceil: '⌈', rceil: '⌉', langle: '⟨', rangle: '⟩', lVert: '‖', rVert: '‖', Vert: '‖', lvert: '|', rvert: '|', '|': '‖', '{': '{', '}': '}',
+      ldots: '…', cdots: '⋯', dots: '…', '#': '#', '%': '%', '&': '&', _: '_', '$': '$' };
+    const FN = new Set('max min exp log ln sin cos tan tanh sigmoid arg det diag std var sup inf lim softmax argmin argmax'.split(' '));
+    const ACC = { hat: 'ˆ', widehat: 'ˆ', bar: '―', overline: '―', tilde: '˜', widetilde: '˜', vec: '→', dot: '˙', ddot: '¨' };
+    const SPACE = { ',': '0.17em', ':': '0.22em', ';': '0.28em', ' ': '0.28em', quad: '1em', qquad: '2em', '!': '-0.17em' };
+    const SUP = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁺': '+', '⁻': '-', 'ᵀ': '\\top ', 'ⁱ': 'i', 'ⁿ': 'n', 'ᵈ': 'd', 'ᵗ': 't' };
+    const SUB = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9', '₊': '+', '₋': '-', 'ₖ': 'k', 'ᵢ': 'i', 'ⱼ': 'j', 'ₜ': 't', 'ₙ': 'n', 'ₘ': 'm', 'ₓ': 'x' };
+    const COMB = { '̂': 'ˆ', '̄': '―', '̅': '―', '̃': '˜', '̇': '˙', '⃗': '→' };
+    const PRE = { 'ᾱ': 'ᾱ', 'ᾰ': 'ᾰ' };
+    const x = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const styled = (s, A, a, D) => [...s].map(c => c >= 'A' && c <= 'Z' ? String.fromCodePoint(A + c.charCodeAt(0) - 65)
+      : c >= 'a' && c <= 'z' ? String.fromCodePoint(a + c.charCodeAt(0) - 97) : D && c >= '0' && c <= '9' ? String.fromCodePoint(D + c.charCodeAt(0) - 48) : c).join('');
+    const CAL = { B: 'ℬ', E: 'ℰ', F: 'ℱ', H: 'ℋ', I: 'ℐ', L: 'ℒ', M: 'ℳ', R: 'ℛ' };
+    const BB = { C: 'ℂ', H: 'ℍ', N: 'ℕ', P: 'ℙ', Q: 'ℚ', R: 'ℝ', Z: 'ℤ' };
+    const cache = new Map();
+
+    function convert(src, display) {
+      const key = (display ? 'D' : 'I') + src;
+      if (cache.has(key)) return cache.get(key);
+      let s = src.replace(/[ᾱᾰ]/g, c => PRE[c]), i = 0;
+      const peek = () => s[i];
+      const skipWs = () => { while (i < s.length && /\s/.test(s[i])) i++; };
+      const readName = () => {
+        if (/[A-Za-z]/.test(s[i])) { const m = /^[A-Za-z]+/.exec(s.slice(i))[0]; i += m.length; return m; }
+        return s[i++] || '';
+      };
+      const readRaw = () => { // \text{…} 等的原文参数
+        skipWs();
+        if (s[i] !== '{') return s[i++] || '';
+        let d = 0, j = i;
+        for (; j < s.length; j++) { if (s[j] === '{') d++; else if (s[j] === '}' && --d === 0) break; }
+        const t = s.slice(i + 1, j); i = j + 1; return t;
+      };
+      const arg = () => { skipWs(); const a = atom(); return a == null ? '<mrow></mrow>' : a; };
+      const mrow = list => list.length === 1 ? list[0] : `<mrow>${list.join('')}</mrow>`;
+      const sub = t => convertInner(t);
+      // 不在 \left…\right 里的括号保持原高，不随分式拉伸
+      const mo = c => c === '/' ? '<mo lspace="0" rspace="0">/</mo>' : /^[()[\]{}|‖⌊⌋⌈⌉⟨⟩]$/.test(c) ? `<mo stretchy="false">${x(c)}</mo>` : `<mo>${x(c)}</mo>`;
+
+      const delim = () => { skipWs(); let d = s[i++] || '.'; if (d === '\\') { const m = readName(); d = OPS[m] || m; } return d === '.' ? '' : `<mo>${x(d)}</mo>`; };
+      function seq(stop, inLeft) {
+        const out = [];
+        while (i < s.length) {
+          skipWs();
+          if (i >= s.length) break;
+          if (stop && s[i] === stop) { i++; break; }
+          if (inLeft && s.startsWith('\\right', i)) break;
+          const a = atom();
+          if (a == null) continue;
+          out.push(scripts(a));
+          if (/^<mi>[A-Za-z]{2,}<\/mi>$/.test(a)) { skipWs(); if (s[i] !== '(') out.push('<mspace width="0.17em"></mspace>'); } // \max c 之间留细空
+        }
+        return out;
+      }
+      function scripts(base) {
+        let lo = null, hi = null;
+        for (;;) {
+          const c = s[i];
+          if (c === '^') { i++; hi = arg(); }
+          else if (c === '_') { i++; lo = arg(); }
+          else if (c === "'") { let p = ''; while (s[i] === "'") { p += '′'; i++; } hi = `<mo>${p}</mo>`; }
+          else if (c && COMB[c]) { base = `<mover accent="true">${base}<mo>${COMB[c]}</mo></mover>`; i++; }
+          else if (c && SUP[c]) { let t = ''; while (SUP[s[i]]) t += SUP[s[i++]]; hi = sub(t); }
+          else if (c && SUB[c]) { let t = ''; while (SUB[s[i]]) t += SUB[s[i++]]; lo = sub(t); }
+          else if (c && /\s/.test(c) && /^\s*[\^_]/.test(s.slice(i))) skipWs();
+          else break;
+        }
+        if (lo && hi) return `<msubsup>${base}${lo}${hi}</msubsup>`;
+        if (lo) return `<msub>${base}${lo}</msub>`;
+        if (hi) return `<msup>${base}${hi}</msup>`;
+        return base;
+      }
+      function atom() {
+        const c = s[i];
+        if (c === '{') { i++; return mrow(seq('}')); }
+        if (c === '}') { i++; return null; }
+        if (c === '\\') {
+          i++;
+          const n = readName();
+          if (n in GREEK) return /[A-Z]/.test(n[0]) ? `<mi mathvariant="normal">${GREEK[n]}</mi>` : `<mi>${GREEK[n]}</mi>`;
+          if (n in SPACE) return `<mspace width="${SPACE[n]}"></mspace>`;
+          if (FN.has(n)) return `<mi>${n}</mi>`;
+          if (n in ACC) return `<mover accent="true">${arg()}<mo>${ACC[n]}</mo></mover>`;
+          if (n in OPS) return mo(OPS[n]);
+          switch (n) {
+            case 'frac': case 'dfrac': case 'tfrac': { const a = arg(); return `<mfrac>${a}${arg()}</mfrac>`; }
+            case 'sqrt': return `<msqrt>${arg()}</msqrt>`;
+            case 'text': case 'textrm': case 'mbox': return `<mtext>${x(readRaw())}</mtext>`;
+            case 'mathrm': case 'operatorname': { const t = readRaw(); return t.length === 1 ? `<mi mathvariant="normal">${x(t)}</mi>` : `<mi>${x(t)}</mi>`; }
+            case 'mathbf': return `<mi>${x(styled(readRaw(), 0x1D400, 0x1D41A, 0x1D7CE))}</mi>`;
+            case 'boldsymbol': case 'bm': return `<mi>${x(styled(readRaw(), 0x1D468, 0x1D482, 0x1D7CE))}</mi>`;
+            case 'mathcal': return `<mi>${[...readRaw()].map(ch => CAL[ch] || styled(ch, 0x1D49C, 0x1D4B6)).join('')}</mi>`;
+            case 'mathbb': return `<mi>${[...readRaw()].map(ch => BB[ch] || styled(ch, 0x1D538, 0x1D552, 0x1D7D8)).join('')}</mi>`;
+            case 'class': { const cls = readRaw().replace(/[^\w -]/g, ''); return `<mrow class="${cls}">${arg()}</mrow>`; }
+            case 'left': {
+              const open = delim(), inner = seq(null, true);
+              const close = s.startsWith('\\right', i) ? (i += 6, delim()) : '';
+              return `<mrow>${open}${inner.join('')}${close}</mrow>`;
+            }
+            case 'right': case 'big': case 'Big': case 'bigl': case 'bigr': case 'Bigl': case 'Bigr': return delim() || null;
+            default: return `<mtext>\\${x(n)}</mtext>`;
+          }
+        }
+        let m;
+        if ((m = /^\d+(?:\.\d+)?/.exec(s.slice(i)))) { i += m[0].length; return `<mn>${m[0]}</mn>`; }
+        if (/[A-Za-z]/.test(c)) { i++; return `<mi>${c}</mi>`; }
+        if (/[α-ωϵϕℓ]/.test(c)) { i++; return `<mi>${c}</mi>`; }
+        if (/[Α-Ω]/.test(c)) { i++; return `<mi mathvariant="normal">${c}</mi>`; }
+        if (/[　-鿿＀-￯]/.test(c)) { // 中文说明文字
+          m = /^[　-鿿＀-￯]+/.exec(s.slice(i))[0]; i += m.length; return `<mtext>${x(m)}</mtext>`;
+        }
+        i++;
+        if (c === '-') return '<mo>−</mo>';
+        if (c === '*') return '<mo>∗</mo>';
+        if (c === '~') return '<mspace width="0.28em"></mspace>';
+        if (c === '·') return '<mo>⋅</mo>';
+        if (c === '∑' || c === '∏') return `<mo>${c}</mo>`;
+        return mo(c);
+      }
+      function convertInner(t) { const [s0, i0] = [s, i]; s = t; i = 0; const r = mrow(seq()); s = s0; i = i0; return r; }
+
+      const body = mrow(seq());
+      const out = `<math${display ? ' display="block"' : ''}>${body}</math>`;
+      cache.set(key, out);
+      return out;
+    }
+
+    // 把一个文本节点里的 $…$ / $$…$$ 换成 MathML；返回是否替换
+    const SKIP = '.code-card, script, style, textarea, math, svg, title, .no-tex';
+    function typesetText(node) {
+      const t = node.nodeValue;
+      if (!t || t.indexOf('$') < 0) return false;
+      const host = node.parentElement;
+      if (!host || host.closest(SKIP)) return false;
+      const re = /\$\$([\s\S]+?)\$\$|\$([^$]+?)\$/g;
+      let html = '', last = 0, hit = false, mm;
+      while ((mm = re.exec(t))) {
+        hit = true;
+        html += x(t.slice(last, mm.index)) + (mm[1] != null ? convert(mm[1].trim(), true) : convert(mm[2].trim(), false));
+        last = re.lastIndex;
+      }
+      if (!hit) return false;
+      html += x(t.slice(last));
+      const tpl = document.createElement('template');
+      tpl.innerHTML = html;
+      node.replaceWith(tpl.content);
+      return true;
+    }
+    function typeset(root) {
+      if (!root) return;
+      if (root.nodeType === 3) { typesetText(root); return; }
+      if (root.nodeType !== 1 && root.nodeType !== 11) return;
+      if (root.nodeType === 1 && root.closest(SKIP)) return;
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), list = [];
+      while (w.nextNode()) if (w.currentNode.nodeValue.indexOf('$') >= 0) list.push(w.currentNode);
+      list.forEach(typesetText);
+    }
+    // DEMO 直接写 innerHTML / textContent 的内容由 MutationObserver 兜底排版；render 结束时同步冲刷一次
+    const handle = recs => { for (const r of recs) { if (r.type === 'characterData') typeset(r.target); else r.addedNodes.forEach(typeset); } };
+    const mo = new MutationObserver(handle);
+    mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    const flush = () => handle(mo.takeRecords());
+    return { convert, typeset, flush };
+  })();
+  // 带公式的 innerHTML 写入：按原始字符串判断是否变化（排版后 innerHTML 已不同于源串）
+  function setHTML(node, html) {
+    html = html == null ? '' : String(html);
+    if (node._raw === html) return false;
+    node._raw = html;
+    node.innerHTML = html;
+    TEX.typeset(node);
+    return true;
+  }
+  // —— 公式排版结束
+  return { $, el, esc, clamp, dur, animate, flash, setText, keyed, lineOf, start, isInstant: () => instant, setHTML, tex: TEX.convert, typeset: TEX.typeset };
 })();
 </script>
 
@@ -1139,15 +1333,16 @@ function makeSolver(P) {
 const DEMO = {
   file: 'CILQR.py',
   title: 'CILQR 约束迭代 LQR · 自车绕行障碍车',
-  subtitle: '运动学自行车模型 + 二次跟踪代价；不等式约束（控制上下界、障碍椭圆）用指数障碍函数 q1·e^{q2·c} 并入代价。每轮：backward pass 求 k、K（Quu + λI）→ forward pass 线搜索 α → 代价下降则接受、λ 减半，否则 λ ×10',
+  subtitle: '运动学自行车模型 + 二次跟踪代价；不等式约束（控制上下界、障碍椭圆）用指数障碍函数 $b = q_1 e^{q_2 c}$ 并入代价。每轮：backward pass 求 $k$、$K$（$Q_{uu} + \\lambda I$）→ forward pass 线搜索 $\\alpha$ → 代价下降则接受、$\\lambda$ 减半，否则 $\\lambda \\times 10$',
   inputs: [
-    { id: 'obs', label: '障碍车 x y vx vy', value: '16 0.4 0 0', width: 150 },
-    { id: 'dmax', label: '转角上限 δmax', value: '0.35', width: 70 },
+    { id: 'obs', label: '障碍车 $x,\\ y,\\ v_x,\\ v_y$', value: '12 0.1 0 0', width: 150 },
+    { id: 'dmax', label: '转角上限 $\\delta_{\\max}$', value: '0.35', width: 70 },
     { id: 'vref', label: '目标速度', value: '8', width: 60 },
-    { id: 'lam0', label: '初始 λ₀', value: '1', width: 70 },
+    { id: 'lam0', label: '初始 $\\lambda_0$', value: '0.01', width: 70 },
   ],
   presets: [
-    { label: '默认（同 py）', values: { obs: '16 0.4 0 0', dmax: '0.35', vref: '8', lam0: '1' } },
+    { label: '候选未下降', values: { obs: '12 0.1 0 0', dmax: '0.35', vref: '8', lam0: '0.01' } },
+    { label: '同 py', values: { obs: '16 0.4 0 0', dmax: '0.35', vref: '8', lam0: '1' } },
     { label: '正对障碍 · 线搜索', values: { obs: '20 0.02 0 0', dmax: '0.35', vref: '8', lam0: '0.001' } },
     { label: '前车慢行', values: { obs: '9 -0.3 4 0', dmax: '0.35', vref: '8', lam0: '1' } },
     { label: '障碍太近', values: { obs: '7 0.4 0 0', dmax: '0.35', vref: '8', lam0: '1' } },
@@ -1155,15 +1350,15 @@ const DEMO = {
   ],
   stats: [
     { key: 'it', label: '迭代次数', color: 'purple' },
-    { key: 'J', label: '当前代价 J', color: 'blue' },
-    { key: 'lam', label: '正则 λ', color: 'amber' },
-    { key: 'alpha', label: '步长 α', color: 'green' },
-    { key: 'c', label: '障碍约束 max c', color: 'red' },
+    { key: 'J', label: '当前代价 $J$', color: 'blue' },
+    { key: 'lam', label: '正则 $\\lambda$', color: 'amber' },
+    { key: 'alpha', label: '步长 $\\alpha$', color: 'green' },
+    { key: 'c', label: '障碍约束 $\\max c$', color: 'red' },
   ],
   panels: {
-    canvas: { title: '俯视图（BEV）：车道、障碍车椭圆安全域、轨迹迭代 · 下方为控制量 a、δ 与约束边界', hint: '横纵比例不同；c > 0 表示进入椭圆' },
+    canvas: { title: '俯视图（BEV）：车道、障碍车椭圆安全域、轨迹迭代 · 下方为控制量 $a$、$\\delta$ 与约束边界', hint: '横纵比例不同；$c > 0$ 表示进入椭圆' },
     state: { title: '当前计算' },
-    aux: [{ id: 'iter', title: '迭代记录', hint: '代价下降才接受；接受 λ×0.5，拒绝 λ×10', grow: true }],
+    aux: [{ id: 'iter', title: '迭代记录', hint: '代价下降才接受；接受 $\\lambda \\times 0.5$，拒绝 $\\lambda \\times 10$', grow: true }],
   },
 
   parse(v) {
@@ -1199,12 +1394,12 @@ const DEMO = {
     };
     const P0 = '初始化', P1 = '迭代优化', P2 = '结果';
     steps.push(S({ phase: P0, tag: { text: '初始轨迹', kind: 'info' }, lines: [L('us = [[0.0, 0.0]'), L('xs = rollout(us)'), L('J = total_cost(xs, us)'), L('lam = 1.0')],
-      formula: `u_k = (a, δ) = (0, 0)，k = 0..${N - 1}<br>前推 30 步：直行 ${f2(xs[N][0])} m<br>J₀ = <span class="r">${f4(J)}</span>`,
+      formula: `$u_k = (a, \\delta) = (0, 0)$，$k = 0, 1, \\dots, ${N - 1}$<br>前推 30 步：直行 ${f2(xs[N][0])} m<br>$J_0 =$ <span class="r">${f4(J)}</span>`,
       desc: `初始控制全 0：车沿车道中心直行，<b>直接穿过障碍车的椭圆安全域</b>（红色圆点）。iLQR 需要一条初始轨迹来线性化，后面每轮都在当前轨迹附近求改进量。` }));
     const c0 = S0.maxC(xs);
     steps.push(S({ phase: P0, tag: { text: '约束 → 障碍代价', kind: 'pre' }, lines: [L('def obs_c'), L('c = 1 - (dx / OBS_A)'), L('def barrier'), L('e = q1 * math.exp(q2 * c)')],
-      formula: `c(s) = 1 − (dx/${S0.OBS_A})² − (dy/${S0.OBS_B})²　（c ≤ 0 为满足）<br>b = q1·e^{q2·c} = ${S0.Q1_O}·e^{${S0.Q2_O}·c}<br>初始 max c = <span class="r">${f4(c0)}</span> → b = ${f4(S0.Q1_O * Math.exp(S0.Q2_O * c0))}`,
-      desc: `iLQR 只会最小化代价、不认识不等式约束。CILQR 把每个约束 c ≤ 0 换成<b>指数障碍代价</b>：c 越接近 0 代价越陡，进入椭圆后（c > 0）代价急剧变大。控制上下界也一样处理（q1 = ${S0.Q1_U}，q2 = ${S0.Q2_U}）。二阶近似只保留 q1q2²e^{q2c}∇c∇cᵀ 这一项，保证 Hessian 半正定。` }));
+      formula: `$c(\\mathbf{s}) = 1 - \\left(\\frac{d_x}{${S0.OBS_A}}\\right)^2 - \\left(\\frac{d_y}{${S0.OBS_B}}\\right)^2$　（$c \\le 0$ 为满足）<br>$b = q_1 e^{q_2 c} = ${S0.Q1_O}\\, e^{${S0.Q2_O} c}$<br>初始 $\\max c =$ <span class="r">${f4(c0)}</span> → $b =$ ${f4(S0.Q1_O * Math.exp(S0.Q2_O * c0))}`,
+      desc: `iLQR 只会最小化代价、不认识不等式约束。CILQR 把每个约束 $c \\le 0$ 换成<b>指数障碍代价</b>：$c$ 越接近 0 代价越陡，进入椭圆后（$c > 0$）代价急剧变大。控制上下界也一样处理（$q_1 = ${S0.Q1_U}$，$q_2 = ${S0.Q2_U}$）。二阶近似只保留 $q_1 q_2^2 e^{q_2 c}\\, \\nabla c\\, \\nabla c^{\\top}$ 这一项，保证 Hessian 半正定。` }));
 
     let converged = false;
     for (it = 1; it <= MAX_ITER; it++) {
@@ -1215,22 +1410,22 @@ const DEMO = {
       const row = { k: it, it, J: '…', lam: f4(lam), alpha: '…', res: '', cls: '' };
       rows.push(row);
       steps.push(S({ phase: P1, tag: { text: `第 ${it} 轮 · backward`, kind: 'pre' }, hl: it, lamShow: true, lines: [L('ks, Ks = backward(xs, us, lam)'), L('Qu = [lu[i]'), L('Quu = add(luu'), L('Quu[0][0] += lam'), L('kk = [-v for v'), L('KK = [[-v for v'), L('Vx = [Qx[i]'), L('Vxx = add(add(Qxx')],
-        formula: `从 k = ${N} 往回：Q 函数二阶展开，Quu + λI（λ = <span class="a">${f4(lam)}</span>）${bumps ? `<span class="r">（非正定，λ 已放大 ${bumps} 次）</span>` : ''}<br>` +
-          `k = 0：Qu = (${f4(q.Qu[0])}, ${f4(q.Qu[1])})<br>　　　Quu = [[${f4(q.Quu[0][0])}, ${f4(q.Quu[0][1])}], [${f4(q.Quu[1][0])}, ${f4(q.Quu[1][1])}]]<br>` +
-          `　　　前馈 k₀ = −Quu⁻¹Qu = (<span class="b">${f4(q.kk[0])}</span>, <span class="b">${f4(q.kk[1])}</span>)`,
-        desc: `在当前轨迹处线性化动力学 A、B，把代价（含障碍代价）二阶展开，从末端往回递推值函数 V。每步得到<b>前馈 k</b>（往哪改）和<b>反馈 K</b>（偏离旧轨迹时怎么纠正）。λ 越大，δu 越接近缩小的梯度步，越保守。` }));
+        formula: `从 $k = ${N}$ 往回：$Q$ 函数二阶展开，$Q_{uu} + \\lambda I$（$\\lambda =$ <span class="a">${f4(lam)}</span>）${bumps ? `<span class="r">（非正定，$\\lambda$ 已放大 ${bumps} 次）</span>` : ''}<br>` +
+          `$k = 0$：$Q_u =$ (${f4(q.Qu[0])}, ${f4(q.Qu[1])})<br>　　　$Q_{uu} =$ [[${f4(q.Quu[0][0])}, ${f4(q.Quu[0][1])}], [${f4(q.Quu[1][0])}, ${f4(q.Quu[1][1])}]]<br>` +
+          `　　　前馈 $k_0 = -Q_{uu}^{-1} Q_u =$ (<span class="b">${f4(q.kk[0])}</span>, <span class="b">${f4(q.kk[1])}</span>)`,
+        desc: `在当前轨迹处线性化动力学 $A$、$B$，把代价（含障碍代价）二阶展开，从末端往回递推值函数 $V$。每步得到<b>前馈 $k$</b>（往哪改）和<b>反馈 $K$</b>（偏离旧轨迹时怎么纠正）。$\\lambda$ 越大，$\\delta u$ 越接近缩小的梯度步，越保守。` }));
       let acc = false, nx, nu, nJ;
       for (const a of ALPHAS) {
         [nx, nu] = S0.forward(xs, us, bw.ks, bw.Ks, a); nJ = S0.totalCost(nx, nu); alpha = a;
         const better = nJ < J;
         if (better) acc = true;
-        steps.push(S({ phase: P1, tag: { text: `第 ${it} 轮 · forward α = ${a}`, kind: better ? 'hit' : 'miss' }, hl: it, lamShow: true,
+        steps.push(S({ phase: P1, tag: { text: `第 ${it} 轮 · forward $\\alpha = ${a}$`, kind: better ? 'hit' : 'miss' }, hl: it, lamShow: true,
           cand: pts(nx), candU: nu.map(u => u.slice()), candOk: better, xs2: nx,
           lines: [L('for alpha in ALPHAS'), L('nx, nu = forward(xs, us, ks, Ks, alpha)'), L('u = [us[k][i] + alpha'), L('nJ = total_cost(nx, nu)'), L('if nJ < J')],
-          formula: `u_new = u + <span class="g">α</span>·k + K·(s_new − s)，α = <span class="g">${a}</span><br>真实前推得到候选轨迹，J_new = <span class="${better ? 'g' : 'r'}">${f4(nJ)}</span><br>J_new ${better ? '<' : '≥'} J = ${f4(J)}　→　${better ? '<span class="g">代价下降</span>' : '<span class="r">没有下降，α 减半再试</span>'}`,
+          formula: `$u_{\\text{new}} = u + \\class{g}{\\alpha}\\, k + K\\, (s_{\\text{new}} - s)$，$\\alpha =$ <span class="g">${a}</span><br>真实前推得到候选轨迹，$J_{\\text{new}} =$ <span class="${better ? 'g' : 'r'}">${f4(nJ)}</span><br>$J_{\\text{new}} ${better ? '<' : '\\ge'} J =$ ${f4(J)}　→　${better ? '<span class="g">代价下降</span>' : '<span class="r">没有下降，$\\alpha$ 减半再试</span>'}`,
           desc: better
-            ? `用<b>非线性</b>模型真实前推（虚线），代价从 ${f4(J)} 降到 ${f4(nJ)}，线搜索在 α = ${a} 停下。反馈项 K·(s_new − s) 让后面的控制跟着前面的偏差修正，比只加前馈稳定得多。`
-            : `线性化只在小邻域内准确，α = ${a} 走得太远，真实代价反而没降（虚线红色）。线搜索把 α 减半。` }));
+            ? `用<b>非线性</b>模型真实前推（虚线），代价从 ${f4(J)} 降到 ${f4(nJ)}，线搜索在 $\\alpha = ${a}$ 停下。反馈项 $K\\, (s_{\\text{new}} - s)$ 让后面的控制跟着前面的偏差修正，比只加前馈稳定得多。`
+            : `线性化只在小邻域内准确，$\\alpha = ${a}$ 走得太远，真实代价反而没降（虚线红色）。线搜索把 $\\alpha$ 减半。` }));
         if (better) break;
       }
       if (acc) {
@@ -1241,8 +1436,8 @@ const DEMO = {
         const conv = rel < TOL;
         steps.push(S({ phase: P1, tag: { text: `第 ${it} 轮 · 接受`, kind: 'hit' }, hl: it, accepted: true,
           lines: [L('rel = (J - nJ) / J'), L('xs, us, J = nx, nu, nJ'), L('lam = max(lam * 0.5, 1e-3)'), ...(conv ? [L('if rel < TOL'), L('break', 2)] : [])],
-          formula: `相对下降 (J − J_new)/J = ${f4(rel)}${conv ? ` < TOL = ${TOL}` : ''}<br>轨迹更新，J = <span class="b">${f4(J)}</span><br>λ ← max(λ/2, 0.001) = <span class="a">${f4(lam)}</span>`,
-          desc: `接受新轨迹（旧轨迹变灰）。成功说明二次模型可信，λ 减半，下一轮更接近牛顿步、收敛更快。` + (conv ? `相对下降已小于 ${TOL}，<b>收敛</b>。` : '') }));
+          formula: `相对下降 $\\frac{J - J_{\\text{new}}}{J} =$ ${f4(rel)}${conv ? ` $< \\mathrm{TOL} = 10^{-4}$` : ''}<br>轨迹更新，$J =$ <span class="b">${f4(J)}</span><br>$\\lambda \\leftarrow \\max(\\lambda / 2,\\ 0.001) =$ <span class="a">${f4(lam)}</span>`,
+          desc: `接受新轨迹（旧轨迹变灰）。成功说明二次模型可信，$\\lambda$ 减半，下一轮更接近牛顿步、收敛更快。` + (conv ? `相对下降已小于 ${TOL}，<b>收敛</b>。` : '') }));
         if (conv) { converged = true; break; }
       } else {
         lam *= 10;
@@ -1250,18 +1445,18 @@ const DEMO = {
         alpha = null;
         steps.push(S({ phase: P1, tag: { text: `第 ${it} 轮 · 拒绝`, kind: 'miss' }, hl: it,
           lines: [L('lam *= 10', 2)],
-          formula: `所有 α 都没能降低代价<br>保持原轨迹，λ ← λ × 10 = <span class="a">${f4(lam)}</span>`,
-          desc: `所有步长都失败：说明当前二次近似不可信。<b>增大 λ</b> 让下一轮 backward 给出更小、更像梯度下降的改进方向。` }));
+          formula: `所有 $\\alpha$ 都没能降低代价<br>保持原轨迹，$\\lambda \\leftarrow 10 \\lambda =$ <span class="a">${f4(lam)}</span>`,
+          desc: `所有步长都失败：说明当前二次近似不可信。<b>增大 $\\lambda$</b> 让下一轮 backward 给出更小、更像梯度下降的改进方向。` }));
       }
     }
     if (it > MAX_ITER) it = MAX_ITER;
     const mc = S0.maxC(xs), ok = S0.uOk(us);
     steps.push(S({ phase: P2, tag: { text: '完成', kind: 'warn' }, done: true, lines: [L('max_c = max(obs_c'), L('u_ok = all('), L('print(f"避障 max c')],
-      formula: `迭代 ${it} 轮${converged ? '后收敛' : '（到达上限）'}，J = <span class="b">${f4(J)}</span><br>避障 max c = <span class="${mc <= 0 ? 'g' : 'r'}">${f4(mc)}</span>　${mc <= 0 ? '满足' : '违反'}<br>控制约束 ${ok ? '<span class="g">满足</span>' : '<span class="r">违反</span>'}`,
+      formula: `迭代 ${it} 轮${converged ? '后收敛' : '（到达上限）'}，$J =$ <span class="b">${f4(J)}</span><br>避障 $\\max c =$ <span class="${mc <= 0 ? 'g' : 'r'}">${f4(mc)}</span>　${mc <= 0 ? '满足' : '违反'}<br>控制约束 ${ok ? '<span class="g">满足</span>' : '<span class="r">违反</span>'}`,
       desc: (mc <= 0
         ? `最终轨迹从障碍车${data.OBS[1] >= 0 ? '右侧（y < 0）' : '左侧（y > 0）'}绕过，全程在椭圆外，然后回到车道中心。`
-        : `障碍物太近 / 转向能力不够，来不及完全绕开：障碍函数是<b>软约束</b>，代价权衡后仍进入椭圆（max c > 0，红色圆点）。实际系统要靠更陡的 q1/q2、提前减速，或改用硬约束方法（如增广拉格朗日 AL-iLQR）。`) +
-        (ok ? '控制量 a、δ 都在上下界内。' : `控制量<b style="color:var(--red)">略微越界</b>（见下方小图）：控制约束同样是软约束，为了避障代价更低，优化器宁可付一点越界的障碍代价。`) }));
+        : `障碍物太近 / 转向能力不够，来不及完全绕开：障碍函数是<b>软约束</b>，代价权衡后仍进入椭圆（$\\max c > 0$，红色圆点）。实际系统要靠更陡的 $q_1$、$q_2$、提前减速，或改用硬约束方法（如增广拉格朗日 AL-iLQR）。`) +
+        (ok ? '控制量 $a$、$\\delta$ 都在上下界内。' : `控制量<b style="color:var(--red)">略微越界</b>（见下方小图）：控制约束同样是软约束，为了避障代价更低，优化器宁可付一点越界的障碍代价。`) }));
     return steps;
   },
 
@@ -1389,7 +1584,7 @@ const DEMO = {
     });
     U.lastU = s.us;
 
-    if (U.formula.innerHTML !== s.formula) { U.formula.innerHTML = s.formula; flash(U.formula, 'fade-in'); }
+    if (AV.setHTML(U.formula, s.formula)) { flash(U.formula, 'fade-in'); }
     keyed(U.tb, s.rows, r => r.k, () => el('div', 'trow', '<span></span>'.repeat(6)), (row, r) => {
       const sp = row.children;
       [r.it, r.J, r.lam, r.alpha, r.res, ''].forEach((v, q) => setText(sp[q], v));
