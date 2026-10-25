@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>滑移率与纵向力</title>
+<style>
+:root {
+  --bg: #f5f7fb; --card: #fff; --line: #e5e7eb; --text: #1f2937; --muted: #6b7280;
+  --blue: #2563eb; --green: #16a34a; --red: #dc2626; --amber: #d97706; --purple: #7c3aed; --gray: #64748b;
+  --blue-l: #eff6ff; --green-l: #f0fdf4; --red-l: #fef2f2; --amber-l: #fffbeb; --purple-l: #f5f3ff;
+  --ease: cubic-bezier(.4, 0, .2, 1);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; }
+
+header { flex: none; display: flex; align-items: center; gap: 16px; padding: 10px 20px 8px; min-width: 0; flex-wrap: wrap; }
+header h1 { margin: 0; font-size: 19px; white-space: nowrap; }
+header .sub { color: var(--muted); font-size: 13px; flex: 1; min-width: 200px; }
+nav { display: flex; gap: 6px; flex-wrap: wrap; }
+nav a { padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--text);
+  text-decoration: none; font-size: 12px; white-space: nowrap; transition: background .15s, border-color .15s; }
+nav a:hover { background: #eef2ff; border-color: #a5b4fc; }
+nav a.cur { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+main.page { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(400px, 0.85fr) minmax(0, 1.3fr);
+  gap: 14px; padding: 0 16px 14px 20px; }
+.notes, .side { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 2px; }
+@media (max-width: 1100px) {
+  body { overflow: auto; height: auto; }
+  main.page { grid-template-columns: minmax(0, 1fr); }
+  .notes, .side { overflow: visible; }
+}
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; min-width: 0; flex: none; }
+.card-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; font-weight: 600; font-size: 15px; }
+.card-h .hint { font-weight: 400; text-align: right; }
+.hint { color: var(--muted); font-size: 12px; }
+
+/* 讲解区 */
+.notes h2 { margin: 0 0 8px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.notes h2 .no { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--blue);
+  color: #fff; font-size: 12px; flex: none; }
+.notes p, .notes li { line-height: 1.75; margin: 6px 0; }
+.notes ul, .notes ol { padding-left: 22px; margin: 6px 0; }
+.formula { background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; margin: 8px 0; overflow-x: auto; }
+.box { border-radius: 8px; padding: 8px 12px; margin: 8px 0; line-height: 1.7; border-left: 4px solid; }
+.box.key { background: var(--blue-l); border-color: var(--blue); }
+.box.warn { background: var(--amber-l); border-color: var(--amber); }
+.box.ok { background: var(--green-l); border-color: var(--green); }
+.box b:first-child { margin-right: 4px; }
+table.t { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; }
+table.t th, table.t td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
+table.t th { background: #f8fafc; }
+table.t td:first-child { white-space: nowrap; }
+.c-blue { color: var(--blue); } .c-green { color: var(--green); } .c-red { color: var(--red); }
+.c-amber { color: var(--amber); } .c-purple { color: var(--purple); } .c-gray { color: var(--gray); }
+
+/* 公式 */
+math { font-family: 'Cambria Math', 'STIX Two Math', 'Latin Modern Math', math; font-size: 1.12em; }
+math[display="block"] { margin: 2px 0; }
+.stat .lab math, .card-h math, .sl label math, header math { font-size: 1em; }
+mrow.g { color: var(--green); } mrow.r { color: var(--red); } mrow.b { color: var(--blue); }
+mrow.a { color: var(--amber); } mrow.p { color: var(--purple); }
+
+/* 控件 */
+.ctl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 6px 22px; }
+.sl { display: grid; grid-template-columns: 132px minmax(80px, 1fr) 82px; align-items: center; gap: 8px; min-height: 30px; }
+.sl label { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl .val { font-family: Consolas, "Courier New", monospace; font-variant-numeric: tabular-nums; text-align: right; color: var(--blue); font-weight: 600; }
+input[type=range] { width: 100%; accent-color: var(--blue); cursor: pointer; }
+.seg { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
+.seg button { border: none; border-radius: 0; border-right: 1px solid #cbd5e1; }
+.seg button:last-child { border-right: none; }
+.seg button.on { background: var(--blue); color: #fff; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row + .row, .row + .ctl-grid, .ctl-grid + .row { margin-top: 8px; }
+.row .lbl-t { color: var(--muted); }
+button { padding: 5px 12px; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; cursor: pointer;
+  font-size: 13px; font-family: inherit; color: var(--text); transition: background .15s, border-color .15s; }
+button:hover { background: #eef2ff; border-color: #a5b4fc; }
+button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+button.primary:hover { background: #1d4ed8; }
+button.preset { font-size: 12px; padding: 3px 9px; }
+
+/* 统计卡片 */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; flex: none; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 14px; transition: box-shadow .3s; min-width: 0; }
+.stat .lab { font-size: 14px; font-weight: 600; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat .num { font-size: 30px; font-weight: 800; line-height: 1.4; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat .num small { font-size: 14px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+.stat .sub { font-size: 12px; color: var(--muted); height: 18px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat.red .num { color: var(--red); } .stat.green .num { color: var(--green); } .stat.blue .num { color: var(--blue); }
+.stat.amber .num { color: var(--amber); } .stat.purple .num { color: var(--purple); } .stat.gray .num { color: var(--gray); }
+.stat.alarm { box-shadow: 0 0 0 3px #fecaca; }
+
+/* SVG */
+.fig { width: 100%; height: auto; display: block; }
+.figs2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+svg text { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 13px; fill: var(--text); }
+svg text.lbl { paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
+svg text.ax { font-size: 11px; fill: var(--muted); }
+svg text.axt { font-size: 12px; fill: var(--muted); }
+svg .grid { stroke: #eef1f5; stroke-width: 1; }
+svg .zero { stroke: #cbd5e1; stroke-width: 1; }
+svg .frame { fill: none; stroke: #d1d5db; }
+.warnbar { border-radius: 8px; padding: 6px 12px; background: var(--red-l); color: var(--red); border: 1px solid #fecaca;
+  font-size: 13px; display: none; }
+.warnbar.on { display: block; }
+.warnbar.amber { background: var(--amber-l); color: #92400e; border-color: #fde68a; }
+
+
+</style>
+</head>
+<body>
+<header><h1>滑移率与纵向力</h1><span class="sub">驱动和制动力同样来自胎面变形：轮速与车速之间必须有差别（滑移率）才能产生纵向力。峰值附近附着力最大，抱死时反而下降，并且几乎失去侧向力。这就是 ABS 的原理</span><nav><a href="%E8%BD%A6%E8%BE%86%E5%8A%A8%E5%8A%9B%E5%AD%A6-0%20%E7%9B%AE%E5%BD%95.html">0 目录</a><a href="%E8%BD%A6%E8%BE%86%E5%8A%A8%E5%8A%9B%E5%AD%A6-1%20%E8%BF%90%E5%8A%A8%E5%AD%A6%E8%87%AA%E8%A1%8C%E8%BD%A6%E6%A8%A1%E5%9E%8B.html">1 运动学模型</a><a href="%E8%BD%A6%E8%BE%86%E5%8A%A8%E5%8A%9B%E5%AD%A6-2%20%E8%BD%AE%E8%83%8E%E4%BE%A7%E5%81%8F%E8%A7%92%E4%B8%8E%E4%BE%A7%E5%81%8F%E5%88%9A%E5%BA%A6.html">2 轮胎侧偏</a><a href="%E8%BD%A6%E8%BE%86%E5%8A%A8%E5%8A%9B%E5%AD%A6-3%20%E8%BD%B4%E8%8D%B7%E8%BD%AC%E7%A7%BB.html">3 轴荷转移</a><a href="%E8%BD%A6%E8%BE%86%E5%8A%A8%E5%8A%9B%E5%AD%A6-4%20%E5%8A%A8%E5%8A%9B%E5%AD%A6%E8%87%AA%E8%A1%8C%E8%BD%A6%E6%A8%A1%E5%9E%8B.html">4 动力学模型</a><a href="%E8%BD%A6%E8%BE%86%E5%8A%A8%E5%8A%9B%E5%AD%A6-5%20%E6%BB%91%E7%A7%BB%E7%8E%87%E4%B8%8E%E7%BA%B5%E5%90%91%E5%8A%9B.html" class=cur>5 滑移率</a></nav></header>
+<main class="page">
+<section class="notes">
+  <div class="card">
+    <h2><span class="no">1</span>滑移率的定义</h2>
+    <p>车轮半径为 $R$，角速度为 $\omega$，轮心速度为 $v$。纯滚动时 $\omega R = v$；驱动时轮子转得比车快，制动时转得比车慢。用滑移率 $\lambda$ 描述这个差别：</p>
+    <div class="formula">$$\text{驱动：}\ \lambda = \frac{\omega R - v}{\omega R}\in[0, 1],\qquad \text{制动：}\ \lambda = \frac{\omega R - v}{v}\in[-1, 0]$$</div>
+    <ul>
+      <li>$\lambda = 0$：纯滚动，没有纵向力。</li>
+      <li>$\lambda = -1$：制动<b>抱死</b>（$\omega = 0$，轮胎在地面上拖着走）。</li>
+      <li>$\lambda \to 1$：驱动<b>空转</b>（车不动，轮子在转）。</li>
+    </ul>
+    <div class="box warn"><b>注意：</b>很多教材把制动滑移率定义成正数 $s = \frac{v - \omega R}{v}$，抱死时 $s = 100\%$。本页用带符号的写法，好在同一张图里同时画出驱动和制动。</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="no">2</span>$\mu$–$\lambda$ 曲线</h2>
+    <p>纵向力 $F_x = \mu(\lambda)\,F_z$。曲线的特点：</p>
+    <ul>
+      <li><b>线性区</b>：$|\lambda|$ 很小时 $F_x \approx C_\lambda\,\lambda$，$C_\lambda$ 是纵向滑移刚度。</li>
+      <li><b>峰值</b>：干沥青上大约在 $|\lambda^*| = 0.1\sim0.2$，此时附着系数最大，为 $\mu_{\text{peak}}$。</li>
+      <li><b>不稳定区</b>：越过峰值后 $\mu$ 下降，抱死时 $\mu_{\text{lock}} < \mu_{\text{peak}}$。这一侧的曲线斜率为负，制动力矩稍大一点，车轮就会迅速“掉”到抱死。</li>
+    </ul>
+    <p>本页用 Burckhardt 模型（制动、驱动按 $|\lambda|$ 对称处理）：</p>
+    <div class="formula">$$\mu(\lambda) = c_1\big(1 - e^{-c_2 \lambda}\big) - c_3\lambda,\qquad \lambda^* = \frac{1}{c_2}\ln\frac{c_1 c_2}{c_3}$$</div>
+    <table class="t">
+      <tr><th>路面</th><th>$c_1$</th><th>$c_2$</th><th>$c_3$</th><th>$\mu_{\text{peak}}$ / $\lambda^*$</th></tr>
+      <tr><td>干沥青</td><td>1.2801</td><td>23.99</td><td>0.52</td><td>1.17 / 0.17</td></tr>
+      <tr><td>湿沥青</td><td>0.857</td><td>33.822</td><td>0.347</td><td>0.80 / 0.13</td></tr>
+      <tr><td>雪地</td><td>0.1946</td><td>94.129</td><td>0.0646</td><td>0.19 / 0.06</td></tr>
+      <tr><td>冰面</td><td>0.05</td><td>306.39</td><td>0</td><td>0.05 / —</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2><span class="no">3</span>车轮动力学：为什么会抱死</h2>
+    <p>四分之一车模型（一个车轮加上它分担的质量 $m$）：</p>
+    <div class="formula">$$m\,\dot v = F_x = \mu(\lambda)F_z,\qquad J\,\dot\omega = T_d - T_b - R\,F_x$$</div>
+    <p>制动力矩 $T_b$ 超过地面能提供的最大力矩 $R\,\mu_{\text{peak}}F_z$ 后，车轮的减速度就没有东西能平衡了，$\omega$ 迅速降到 0，整个过程只要几十毫秒。驾驶员的脚根本来不及反应。</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="no">4</span>ABS / TCS 的思路</h2>
+    <ul>
+      <li><b>ABS（防抱死）</b>：检测到滑移率超过目标值时<b>减压</b>，低于目标值时<b>增压</b>，让 $\lambda$ 在 $\lambda^*$ 附近来回振荡。这样有两个好处：<br>① 用到接近 $\mu_{\text{peak}}$ 的附着，干路面上制动距离通常更短；<br>② 车轮仍在滚动，<b>保留侧向力，方向盘还能转向</b>。这一点往往比缩短距离更重要。</li>
+      <li><b>TCS（牵引力控制）</b>：驱动轮滑移率过大时，降低发动机扭矩或制动打滑的车轮，防止起步空转、后驱车甩尾。</li>
+      <li><b>ESC（车身稳定）</b>：在 ABS/TCS 硬件基础上，对单个车轮施加制动力，产生纠正的横摆力矩，修正不足或过度转向（第 4 页）。</li>
+    </ul>
+    <div class="box ok"><b>右侧试一试：</b>点击“对比 ABS 与抱死”，观察滑移率曲线、工作点和两者的制动距离。在雪地上对比，差别更明显。</div>
+    <div class="box warn"><b>例外：</b>在松散的雪、砂石路面上，抱死的车轮会在前方推起一个“楔子”，制动距离可能反而比 ABS 更短。但 ABS 保留转向能力的优势仍然成立。</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="no">5</span>纵向滑移与侧向力的耦合（组合滑移）</h2>
+    <p>同时有滑移率 $\lambda$ 和侧偏角 $\alpha$ 时，Kiencke/Burckhardt 用合成滑移量来分配附着力：</p>
+    <div class="formula">$$s_L = |\lambda|,\quad s_S = \sin\alpha,\quad s = \sqrt{s_L^2 + s_S^2},\qquad \mu_x = \mu(s)\frac{s_L}{s},\quad \mu_y = \mu(s)\frac{s_S}{s}$$</div>
+    <p>$|\lambda|$ 越大，分给侧向的附着力越少（右图虚线）。抱死时 $s_L = 1 \gg s_S$，$\mu_y \approx 0$：</p>
+    <ul>
+      <li><b>前轮抱死</b>：转方向盘也没用，车直直往前冲。</li>
+      <li><b>后轮抱死</b>：后轴失去侧向力，一点扰动就会甩尾，这更危险。所以制动力分配必须保证前轮先于后轮抱死（第 3 页的 I 曲线）。</li>
+    </ul>
+  </div>
+</section>
+
+<section class="side">
+  <div class="card" id="ctl">
+    <div class="card-h">参数<span class="hint">四分之一车：$m = 375$ kg，$R = 0.31$ m，$J = 1.0$ kg·m²</span></div>
+  </div>
+  <div id="stats"></div>
+  <div class="figs2">
+    <div class="card">
+      <div class="card-h">车轮侧视<span class="hint">车向右行驶 · 转速放慢显示</span></div>
+      <svg id="wheel" class="fig" viewBox="0 0 400 330"></svg>
+    </div>
+    <div class="card">
+      <div class="card-h">ABS 制动仿真<span class="hint">初速 = 滑块 $v$ · 当前路面</span></div>
+      <div class="row">
+        <button class="primary" id="bCmp">对比 ABS 与抱死</button>
+        <button id="bAbs">只看 ABS</button>
+        <button id="bLock">只看抱死</button>
+      </div>
+      <svg id="abs" class="fig" viewBox="0 0 400 270"></svg>
+      <table class="t" id="absTbl"></table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-h">$\mu$–$\lambda$ 曲线<span class="hint"><span class="c-blue">纵向 μ_x</span> · <span class="c-green">侧向 μ_y（虚线，给定 α）</span> · 浅色为其他路面 · <span class="c-amber">ABS 目标区</span></span></div>
+    <svg id="curve" class="fig" viewBox="0 0 760 300"></svg>
+  </div>
+</section>
+</main>
+<script>
+(() => {
+/* ===================== 公式排版（复用 绘制动态算法示意/scripts/tex_engine.js） ===================== */
+  // —— 公式排版：文本里的 $…$（行内）/ $$…$$（独立一行）按 TeX 语法离线转成 MathML，
+  //    浏览器用数学字体按论文格式排版。支持 ^ _ {} \frac \sqrt \hat \bar \tilde \vec \mathbf \mathrm \text
+  //    \operatorname \mathcal \mathbb \left \right \class{色类}{…}、希腊字母与常用符号；也认 ∇ ᵀ ² ₀ x̂ ᾱ 等 Unicode 写法。
+  const TEX = (() => {
+    const GREEK = { alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ϵ', varepsilon: 'ε', zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'ϕ', varphi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω', ell: 'ℓ',
+      Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω' };
+    const OPS = { cdot: '⋅', times: '×', div: '÷', pm: '±', mp: '∓', le: '≤', leq: '≤', ge: '≥', geq: '≥', ne: '≠', neq: '≠', approx: '≈', sim: '∼', equiv: '≡', propto: '∝',
+      in: '∈', notin: '∉', subset: '⊂', cup: '∪', cap: '∩', to: '→', rightarrow: '→', leftarrow: '←', gets: '←', Rightarrow: '⇒', Leftarrow: '⇐', iff: '⇔', mapsto: '↦',
+      infty: '∞', nabla: '∇', partial: '∂', sum: '∑', prod: '∏', int: '∫', top: '⊤', mid: '∣', forall: '∀', exists: '∃', circ: '∘', odot: '⊙', otimes: '⊗', oplus: '⊕',
+      land: '∧', wedge: '∧', lor: '∨', vee: '∨', neg: '¬', lnot: '¬',
+      lfloor: '⌊', rfloor: '⌋', lceil: '⌈', rceil: '⌉', langle: '⟨', rangle: '⟩', lVert: '‖', rVert: '‖', Vert: '‖', lvert: '|', rvert: '|', '|': '‖', '{': '{', '}': '}',
+      ldots: '…', cdots: '⋯', dots: '…', '#': '#', '%': '%', '&': '&', _: '_', '$': '$' };
+    const FN = new Set('max min exp log ln sin cos tan tanh cot arctan arcsin sgn sigmoid arg det diag std var sup inf lim softmax argmin argmax'.split(' '));
+    const ACC = { hat: 'ˆ', widehat: 'ˆ', bar: '―', overline: '―', tilde: '˜', widetilde: '˜', vec: '→', dot: '˙', ddot: '¨' };
+    const SPACE = { ',': '0.17em', ':': '0.22em', ';': '0.28em', ' ': '0.28em', quad: '1em', qquad: '2em', '!': '-0.17em' };
+    const SUP = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁺': '+', '⁻': '-', 'ᵀ': '\\top ', 'ⁱ': 'i', 'ⁿ': 'n', 'ᵈ': 'd', 'ᵗ': 't' };
+    const SUB = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9', '₊': '+', '₋': '-', 'ₖ': 'k', 'ᵢ': 'i', 'ⱼ': 'j', 'ₜ': 't', 'ₙ': 'n', 'ₘ': 'm', 'ₓ': 'x' };
+    const COMB = { '̂': 'ˆ', '̄': '―', '̅': '―', '̃': '˜', '̇': '˙', '⃗': '→' };
+    const PRE = { 'ᾱ': 'ᾱ', 'ᾰ': 'ᾰ' };
+    const x = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const styled = (s, A, a, D) => [...s].map(c => c >= 'A' && c <= 'Z' ? String.fromCodePoint(A + c.charCodeAt(0) - 65)
+      : c >= 'a' && c <= 'z' ? String.fromCodePoint(a + c.charCodeAt(0) - 97) : D && c >= '0' && c <= '9' ? String.fromCodePoint(D + c.charCodeAt(0) - 48) : c).join('');
+    const CAL = { B: 'ℬ', E: 'ℰ', F: 'ℱ', H: 'ℋ', I: 'ℐ', L: 'ℒ', M: 'ℳ', R: 'ℛ' };
+    const BB = { C: 'ℂ', H: 'ℍ', N: 'ℕ', P: 'ℙ', Q: 'ℚ', R: 'ℝ', Z: 'ℤ' };
+    const cache = new Map();
+
+    function convert(src, display) {
+      const key = (display ? 'D' : 'I') + src;
+      if (cache.has(key)) return cache.get(key);
+      let s = src.replace(/[ᾱᾰ]/g, c => PRE[c]), i = 0;
+      const peek = () => s[i];
+      const skipWs = () => { while (i < s.length && /\s/.test(s[i])) i++; };
+      const readName = () => {
+        if (/[A-Za-z]/.test(s[i])) { const m = /^[A-Za-z]+/.exec(s.slice(i))[0]; i += m.length; return m; }
+        return s[i++] || '';
+      };
+      const readRaw = () => { // \text{…} 等的原文参数
+        skipWs();
+        if (s[i] !== '{') return s[i++] || '';
+        let d = 0, j = i;
+        for (; j < s.length; j++) { if (s[j] === '{') d++; else if (s[j] === '}' && --d === 0) break; }
+        const t = s.slice(i + 1, j); i = j + 1; return t;
+      };
+      const arg = () => { skipWs(); const a = atom(); return a == null ? '<mrow></mrow>' : a; };
+      const mrow = list => list.length === 1 ? list[0] : `<mrow>${list.join('')}</mrow>`;
+      const sub = t => convertInner(t);
+      // 不在 \left…\right 里的括号保持原高，不随分式拉伸
+      const mo = c => c === '/' ? '<mo lspace="0" rspace="0">/</mo>' : /^[()[\]{}|‖⌊⌋⌈⌉⟨⟩]$/.test(c) ? `<mo stretchy="false">${x(c)}</mo>` : `<mo>${x(c)}</mo>`;
+
+      const delim = () => { skipWs(); let d = s[i++] || '.'; if (d === '\\') { const m = readName(); d = OPS[m] || m; } return d === '.' ? '' : `<mo>${x(d)}</mo>`; };
+      function seq(stop, inLeft) {
+        const out = [];
+        while (i < s.length) {
+          skipWs();
+          if (i >= s.length) break;
+          if (stop && s[i] === stop) { i++; break; }
+          if (inLeft && s.startsWith('\\right', i)) break;
+          const a = atom();
+          if (a == null) continue;
+          out.push(scripts(a));
+          if (/^<mi>[A-Za-z]{2,}<\/mi>$/.test(a)) { skipWs(); if (s[i] !== '(') out.push('<mspace width="0.17em"></mspace>'); } // \max c 之间留细空
+        }
+        return out;
+      }
+      function scripts(base) {
+        let lo = null, hi = null;
+        for (;;) {
+          const c = s[i];
+          if (c === '^') { i++; hi = arg(); }
+          else if (c === '_') { i++; lo = arg(); }
+          else if (c === "'") { let p = ''; while (s[i] === "'") { p += '′'; i++; } hi = `<mo>${p}</mo>`; }
+          else if (c && COMB[c]) { base = `<mover accent="true">${base}<mo>${COMB[c]}</mo></mover>`; i++; }
+          else if (c && SUP[c]) { let t = ''; while (SUP[s[i]]) t += SUP[s[i++]]; hi = sub(t); }
+          else if (c && SUB[c]) { let t = ''; while (SUB[s[i]]) t += SUB[s[i++]]; lo = sub(t); }
+          else if (c && /\s/.test(c) && /^\s*[\^_]/.test(s.slice(i))) skipWs();
+          else break;
+        }
+        if (lo && hi) return `<msubsup>${base}${lo}${hi}</msubsup>`;
+        if (lo) return `<msub>${base}${lo}</msub>`;
+        if (hi) return `<msup>${base}${hi}</msup>`;
+        return base;
+      }
+      function atom() {
+        const c = s[i];
+        if (c === '{') { i++; return mrow(seq('}')); }
+        if (c === '}') { i++; return null; }
+        if (c === '\\') {
+          i++;
+          const n = readName();
+          if (n in GREEK) return /[A-Z]/.test(n[0]) ? `<mi mathvariant="normal">${GREEK[n]}</mi>` : `<mi>${GREEK[n]}</mi>`;
+          if (n in SPACE) return `<mspace width="${SPACE[n]}"></mspace>`;
+          if (FN.has(n)) return `<mi>${n}</mi>`;
+          if (n in ACC) return `<mover accent="true">${arg()}<mo>${ACC[n]}</mo></mover>`;
+          if (n in OPS) return mo(OPS[n]);
+          switch (n) {
+            case 'frac': case 'dfrac': case 'tfrac': { const a = arg(); return `<mfrac>${a}${arg()}</mfrac>`; }
+            case 'sqrt': return `<msqrt>${arg()}</msqrt>`;
+            case 'text': case 'textrm': case 'mbox': return `<mtext>${x(readRaw())}</mtext>`;
+            case 'mathrm': case 'operatorname': { const t = readRaw(); return t.length === 1 ? `<mi mathvariant="normal">${x(t)}</mi>` : `<mi>${x(t)}</mi>`; }
+            case 'mathbf': return `<mi>${x(styled(readRaw(), 0x1D400, 0x1D41A, 0x1D7CE))}</mi>`;
+            case 'boldsymbol': case 'bm': return `<mi>${x(styled(readRaw(), 0x1D468, 0x1D482, 0x1D7CE))}</mi>`;
+            case 'mathcal': return `<mi>${[...readRaw()].map(ch => CAL[ch] || styled(ch, 0x1D49C, 0x1D4B6)).join('')}</mi>`;
+            case 'mathbb': return `<mi>${[...readRaw()].map(ch => BB[ch] || styled(ch, 0x1D538, 0x1D552, 0x1D7D8)).join('')}</mi>`;
+            case 'class': { const cls = readRaw().replace(/[^\w -]/g, ''); return `<mrow class="${cls}">${arg()}</mrow>`; }
+            case 'left': {
+              const open = delim(), inner = seq(null, true);
+              const close = s.startsWith('\\right', i) ? (i += 6, delim()) : '';
+              return `<mrow>${open}${inner.join('')}${close}</mrow>`;
+            }
+            case 'right': case 'big': case 'Big': case 'bigl': case 'bigr': case 'Bigl': case 'Bigr': return delim() || null;
+            default: return `<mtext>\\${x(n)}</mtext>`;
+          }
+        }
+        let m;
+        if ((m = /^\d+(?:\.\d+)?/.exec(s.slice(i)))) { i += m[0].length; return `<mn>${m[0]}</mn>`; }
+        if (/[A-Za-z]/.test(c)) { i++; return `<mi>${c}</mi>`; }
+        if (/[α-ωϵϕℓ]/.test(c)) { i++; return `<mi>${c}</mi>`; }
+        if (/[Α-Ω]/.test(c)) { i++; return `<mi mathvariant="normal">${c}</mi>`; }
+        if (/[　-鿿＀-￯]/.test(c)) { // 中文说明文字
+          m = /^[　-鿿＀-￯]+/.exec(s.slice(i))[0]; i += m.length; return `<mtext>${x(m)}</mtext>`;
+        }
+        i++;
+        if (c === '-') return '<mo>−</mo>';
+        if (c === '*') return '<mo>∗</mo>';
+        if (c === '~') return '<mspace width="0.28em"></mspace>';
+        if (c === '·') return '<mo>⋅</mo>';
+        if (c === '∑' || c === '∏') return `<mo>${c}</mo>`;
+        return mo(c);
+      }
+      function convertInner(t) { const [s0, i0] = [s, i]; s = t; i = 0; const r = mrow(seq()); s = s0; i = i0; return r; }
+
+      const body = mrow(seq());
+      const out = `<math${display ? ' display="block"' : ''}>${body}</math>`;
+      cache.set(key, out);
+      return out;
+    }
+
+    // 把一个文本节点里的 $…$ / $$…$$ 换成 MathML；返回是否替换
+    const SKIP = '.code-card, script, style, textarea, math, svg, title, .no-tex';
+    function typesetText(node) {
+      const t = node.nodeValue;
+      if (!t || t.indexOf('$') < 0) return false;
+      const host = node.parentElement;
+      if (!host || host.closest(SKIP)) return false;
+      const re = /\$\$([\s\S]+?)\$\$|\$([^$]+?)\$/g;
+      let html = '', last = 0, hit = false, mm;
+      while ((mm = re.exec(t))) {
+        hit = true;
+        html += x(t.slice(last, mm.index)) + (mm[1] != null ? convert(mm[1].trim(), true) : convert(mm[2].trim(), false));
+        last = re.lastIndex;
+      }
+      if (!hit) return false;
+      html += x(t.slice(last));
+      const tpl = document.createElement('template');
+      tpl.innerHTML = html;
+      node.replaceWith(tpl.content);
+      return true;
+    }
+    function typeset(root) {
+      if (!root) return;
+      if (root.nodeType === 3) { typesetText(root); return; }
+      if (root.nodeType !== 1 && root.nodeType !== 11) return;
+      if (root.nodeType === 1 && root.closest(SKIP)) return;
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), list = [];
+      while (w.nextNode()) if (w.currentNode.nodeValue.indexOf('$') >= 0) list.push(w.currentNode);
+      list.forEach(typesetText);
+    }
+    // DEMO 直接写 innerHTML / textContent 的内容由 MutationObserver 兜底排版；render 结束时同步冲刷一次
+    const handle = recs => { for (const r of recs) { if (r.type === 'characterData') typeset(r.target); else r.addedNodes.forEach(typeset); } };
+    const mo = new MutationObserver(handle);
+    mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    const flush = () => handle(mo.takeRecords());
+    return { convert, typeset, flush };
+  })();
+  // 带公式的 innerHTML 写入：按原始字符串判断是否变化（排版后 innerHTML 已不同于源串）
+  function setHTML(node, html) {
+    html = html == null ? '' : String(html);
+    if (node._raw === html) return false;
+    node._raw = html;
+    node.innerHTML = html;
+    TEX.typeset(node);
+    return true;
+  }
+
+const AV = { tex: TEX.convert, typeset: TEX.typeset, setHTML };
+
+/* ===================== 通用工具：SVG、滑块、统计卡片、坐标图 ===================== */
+const NS = 'http://www.w3.org/2000/svg';
+const C = { blue: '#2563eb', green: '#16a34a', red: '#dc2626', amber: '#d97706', purple: '#7c3aed', gray: '#64748b',
+  text: '#1f2937', muted: '#94a3b8', light: '#cbd5e1' };
+const G = 9.81;
+const $ = (s, r = document) => r.querySelector(s);
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const deg = r => r * 180 / Math.PI, rad = d => d * Math.PI / 180;
+const fmt = (v, d = 0) => (Math.abs(v) < 0.5 * Math.pow(10, -d) ? 0 : v).toFixed(d).replace('-', '−');
+
+function attr(e, a) { for (const k in a) e.setAttribute(k, a[k]); return e; }
+function svgEl(tag, a, parent) { const e = attr(document.createElementNS(NS, tag), a || {}); if (parent) parent.appendChild(e); return e; }
+function el(tag, cls, html, parent) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html != null) e.innerHTML = html;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+// 卡片标题里可能夹着公式：把 .hint 之前的内容包成一个 span，避免被 flex 拆开
+document.querySelectorAll('.card-h').forEach(h => {
+  const span = document.createElement('span');
+  while (h.firstChild && !(h.firstChild.classList && h.firstChild.classList.contains('hint'))) span.appendChild(h.firstChild);
+  h.insertBefore(span, h.firstChild);
+});
+
+// 每种颜色一个箭头 marker，箭头颜色与线一致
+(function () {
+  const s = svgEl('svg', { width: 0, height: 0, style: 'position:absolute', 'aria-hidden': 'true' }, document.body);
+  const defs = svgEl('defs', {}, s);
+  for (const [k, v] of Object.entries(C)) {
+    const m = svgEl('marker', { id: 'ah-' + k, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 5, markerHeight: 5,
+      orient: 'auto-start-reverse', markerUnits: 'strokeWidth' }, defs);
+    svgEl('path', { d: 'M0,0 L10,5 L0,10 z', fill: v }, m);
+  }
+})();
+
+function arrow(parent, color, w = 2.5, extra = {}) {
+  return svgEl('line', { stroke: C[color], 'stroke-width': w, 'stroke-linecap': 'round', 'marker-end': `url(#ah-${color})`, ...extra }, parent);
+}
+function setLine(e, x1, y1, x2, y2, minLen = 4) {
+  e.style.display = Math.hypot(x2 - x1, y2 - y1) < minLen ? 'none' : '';
+  attr(e, { x1, y1, x2, y2 });
+}
+function text(parent, s, a = {}) { const t = svgEl('text', { class: 'lbl', ...a }, parent); t.textContent = s; return t; }
+function setText(t, s, x, y) { if (t.textContent !== s) t.textContent = s; if (x != null) attr(t, { x, y }); }
+function arcPath(cx, cy, r, a0, a1) {
+  // 屏幕坐标下从角 a0 到 a1 的圆弧（角度为数学正向，y 轴向上）
+  const p = a => [cx + r * Math.cos(a), cy - r * Math.sin(a)];
+  const [x0, y0] = p(a0), [x1, y1] = p(a1);
+  const large = Math.abs(a1 - a0) > Math.PI ? 1 : 0, sweep = a1 > a0 ? 0 : 1;
+  return `M${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} ${sweep} ${x1.toFixed(1)},${y1.toFixed(1)}`;
+}
+
+function niceStep(span, n) {
+  const raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+let clipSeq = 0;
+class Chart {
+  // box: {x, y, w, h} 为绘图区（不含刻度标签）
+  constructor(svg, box, opt = {}) {
+    this.svg = svg; this.b = box; this.o = opt;
+    const id = 'clip' + (++clipSeq);
+    const cp = svgEl('clipPath', { id }, svgEl('defs', {}, svg));
+    svgEl('rect', { x: box.x, y: box.y - 2, width: box.w, height: box.h + 4 }, cp);
+    this.gA = svgEl('g', {}, svg);
+    this.gD = svgEl('g', { 'clip-path': `url(#${id})` }, svg);
+    this.gT = svgEl('g', {}, svg);
+  }
+  range(xmin, xmax, ymin, ymax) {
+    if (this.r && this.r.join() === [xmin, xmax, ymin, ymax].join()) return;
+    this.r = [xmin, xmax, ymin, ymax];
+    const { x, y, w, h } = this.b, o = this.o, g = this.gA;
+    g.textContent = '';
+    const xs = niceStep(xmax - xmin, o.nx || 6), ys = niceStep(ymax - ymin, o.ny || 5);
+    const xd = o.xdig ?? (xs < 1 ? (xs < 0.1 ? 2 : 1) : 0), yd = o.ydig ?? (ys < 1 ? (ys < 0.1 ? 2 : 1) : 0);
+    for (let v = Math.ceil(xmin / xs) * xs; v <= xmax + 1e-9; v += xs) {
+      const X = this.X(v);
+      svgEl('line', { x1: X, x2: X, y1: y, y2: y + h, class: Math.abs(v) < 1e-9 ? 'zero' : 'grid' }, g);
+      text(g, fmt(v, xd), { x: X, y: y + h + 14, 'text-anchor': 'middle', class: 'ax' });
+    }
+    for (let v = Math.ceil(ymin / ys) * ys; v <= ymax + 1e-9; v += ys) {
+      const Y = this.Y(v);
+      svgEl('line', { x1: x, x2: x + w, y1: Y, y2: Y, class: Math.abs(v) < 1e-9 ? 'zero' : 'grid' }, g);
+      text(g, fmt(v, yd), { x: x - 5, y: Y + 4, 'text-anchor': 'end', class: 'ax' });
+    }
+    svgEl('rect', { x, y, width: w, height: h, class: 'frame' }, g);
+    if (o.xlabel) text(g, o.xlabel, { x: x + w, y: y + h + 30, 'text-anchor': 'end', class: 'axt' });
+    if (o.ylabel) text(g, o.ylabel, { x: x, y: y - 8, 'text-anchor': 'start', class: 'axt' });
+  }
+  X(v) { const [a, b] = this.r; return this.b.x + (v - a) / (b - a) * this.b.w; }
+  Y(v) { const [, , a, b] = this.r; return this.b.y + this.b.h - (v - a) / (b - a) * this.b.h; }
+  d(pts) {
+    let s = '', pen = false;
+    for (const p of pts) {
+      if (!p || !isFinite(p[1])) { pen = false; continue; }
+      const Y = clamp(this.Y(p[1]), this.b.y - 50, this.b.y + this.b.h + 50);
+      s += (pen ? 'L' : 'M') + this.X(p[0]).toFixed(1) + ',' + Y.toFixed(1);
+      pen = true;
+    }
+    return s;
+  }
+  path(a) { return svgEl('path', { fill: 'none', 'stroke-width': 2, 'stroke-linejoin': 'round', ...a }, this.gD); }
+}
+
+const UI = {
+  vals: {}, inputs: {}, defs: {}, segs: {}, statEls: {}, onChange: () => {},
+  sliders(container, defs) {
+    const grid = el('div', 'ctl-grid', null, container);
+    for (const d of defs) {
+      this.defs[d.id] = d;
+      const row = el('div', 'sl', null, grid);
+      el('label', '', d.label, row);
+      const inp = el('input', '', null, row);
+      attr(inp, { type: 'range', min: d.min, max: d.max, step: d.step, value: d.value });
+      const out = el('span', 'val', '', row);
+      this.inputs[d.id] = { inp, out };
+      inp.addEventListener('input', () => { this._store(d.id, +inp.value); this.onChange(d.id); });
+      this._store(d.id, d.value);
+    }
+    return grid;
+  },
+  _store(id, v) {
+    const d = this.defs[id];
+    this.vals[id] = v;
+    const t = fmt(v, d.digits ?? 0) + (d.unit ? ' ' + d.unit : '');
+    if (this.inputs[id].out.textContent !== t) this.inputs[id].out.textContent = t;
+  },
+  seg(container, id, label, options, value) {
+    const row = el('div', 'row', null, container);
+    if (label) el('span', 'lbl-t', label, row);
+    const box = el('div', 'seg', null, row);
+    this.segs[id] = [];
+    for (const [v, t] of options) {
+      const b = el('button', '', t, box);
+      b.dataset.v = v;
+      b.onclick = () => { this.setSeg(id, v); this.onChange(id); };
+      this.segs[id].push(b);
+    }
+    this.setSeg(id, value);
+    return row;
+  },
+  setSeg(id, v) { this.vals[id] = v; this.segs[id].forEach(b => b.classList.toggle('on', b.dataset.v === String(v))); },
+  set(id, v) {
+    if (this.segs[id]) { this.setSeg(id, v); return; }
+    const d = this.defs[id];
+    v = clamp(v, d.min, d.max);
+    this.inputs[id].inp.value = v;
+    this._store(id, v);
+  },
+  apply(obj) { for (const k in obj) this.set(k, obj[k]); this.onChange('*'); },
+  presets(container, list) {
+    const row = el('div', 'row', null, container);
+    el('span', 'lbl-t', '典型场景', row);
+    const defaults = {};
+    for (const id in this.defs) defaults[id] = this.defs[id].value;
+    this.presetBtns = list.map(p => { const b = el('button', 'preset', p.label, row); b.onclick = () => this.apply({ ...defaults, ...p.values }); return b; });
+    el('button', 'preset', '重置', row).onclick = () => this.apply(defaults);
+    return row;
+  },
+  stats(container, defs) {
+    const box = el('div', 'stats', null, container);
+    for (const d of defs) {
+      const c = el('div', 'stat ' + (d.color || 'blue'), null, box);
+      el('div', 'lab', d.label, c);
+      const num = el('div', 'num', '', c), sub = el('div', 'sub', '', c);
+      this.statEls[d.key] = { c, num, sub };
+    }
+    return box;
+  },
+  stat(key, v, unit = '', sub = '', alarm = false) {
+    const s = this.statEls[key];
+    const h = v + (unit ? `<small>${unit}</small>` : "");
+    setHTML(s.num, h);
+    setHTML(s.sub, sub);
+    s.c.classList.toggle('alarm', !!alarm);
+  },
+};
+
+function runChecks(list) {
+  if (!/check/.test(location.search)) return;
+  const ok = list.every(c => c[1]);
+  const pre = el('pre', '', null, document.body);
+  pre.id = 'check-out';
+  pre.textContent = JSON.stringify({ ok, items: list.map(([n, b, info]) => ({ n, ok: !!b, info })) });
+  document.title = (ok ? 'CHECK-OK ' : 'CHECK-FAIL ') + document.title;
+}
+
+/* ===================== 本页 ===================== */
+const ctl = $('#ctl');
+const ROADS = {
+  dry: { name: '干沥青', c: [1.2801, 23.99, 0.52], col: C.blue },
+  wet: { name: '湿沥青', c: [0.857, 33.822, 0.347], col: C.purple },
+  snow: { name: '雪地', c: [0.1946, 94.129, 0.0646], col: C.gray },
+  ice: { name: '冰面', c: [0.05, 306.39, 0], col: C.amber },
+};
+UI.seg(ctl, 'road', '路面', Object.entries(ROADS).map(([k, r]) => [k, r.name]), 'dry');
+UI.sliders(ctl, [
+  { id: 'lam', label: '滑移率 $\\lambda$', min: -1, max: 0.9, step: 0.005, value: -0.1, digits: 3 },
+  { id: 'v', label: '车速 $v$', min: 2, max: 40, step: 0.5, value: 20, unit: 'm/s', digits: 1 },
+  { id: 'alpha', label: '侧偏角 $\\alpha$', min: 0, max: 10, step: 0.5, value: 3, unit: '°', digits: 1 },
+]);
+UI.presets(ctl, [
+  { label: '轻踩刹车', values: { lam: -0.03 } },
+  { label: '峰值制动', values: { lam: -0.17 } },
+  { label: '抱死', values: { lam: -1 } },
+  { label: '正常加速', values: { lam: 0.05 } },
+  { label: '冰面起步空转', values: { lam: 0.6, road: 'ice', v: 2 } },
+]);
+UI.stats($('#stats'), [
+  { key: 'wr', label: '轮周速度 $\\omega R$', color: 'gray' },
+  { key: 'mux', label: '纵向附着 $\\mu_x$', color: 'blue' },
+  { key: 'muy', label: '剩余侧向 $\\mu_y$', color: 'green' },
+  { key: 'pk', label: '峰值滑移率 $\\lambda^*$', color: 'amber' },
+  { key: 'fx', label: '纵向力 $F_x$', color: 'purple' },
+]);
+
+/* ---------- 轮胎模型 ---------- */
+const mu = (c, s) => c[0] * (1 - Math.exp(-c[1] * s)) - c[2] * s;
+function peak(c) {
+  let best = -1, at = 0;
+  for (let s = 0; s <= 1.0000001; s += 0.0005) { const m = mu(c, s); if (m > best + 1e-12) { best = m; at = s; } }
+  return { s: at, mu: best };
+}
+// ABS 目标滑移率：达到 99% 峰值附着的最小 |λ|（冰面曲线单调，没有明显峰值）
+function target(c) {
+  const pk = peak(c);
+  for (let s = 0; s <= pk.s; s += 0.0005) if (mu(c, s) >= 0.99 * pk.mu) return s;
+  return pk.s;
+}
+function combined(c, lam, a) {
+  const sL = Math.abs(lam), sS = Math.sin(a), s = Math.hypot(sL, sS);
+  if (s < 1e-9) return { x: 0, y: 0 };
+  const m = mu(c, Math.min(s, 1.2));
+  return { x: Math.sign(lam) * m * sL / s, y: m * sS / s };
+}
+const omegaR = (v, lam) => lam <= 0 ? v * (1 + lam) : v / (1 - lam);
+
+/* ---------- 车轮侧视 ---------- */
+const wheel = $('#wheel'), WX = 200, WY = 170, WR = 95, GYw = WY + WR;
+svgEl('line', { x1: 10, y1: GYw, x2: 390, y2: GYw, stroke: '#94a3b8', 'stroke-width': 2 }, wheel);
+const ground = svgEl('g', {}, wheel);
+const gTicks = [];
+for (let i = 0; i < 14; i++) gTicks.push(svgEl('line', { y1: GYw + 2, y2: GYw + 12, stroke: '#cbd5e1', 'stroke-width': 2 }, ground));
+svgEl('circle', { cx: WX, cy: WY, r: WR, fill: '#334155' }, wheel);
+svgEl('circle', { cx: WX, cy: WY, r: WR - 16, fill: '#e2e8f0' }, wheel);
+const spokes = svgEl('g', {}, wheel);
+for (let i = 0; i < 5; i++) svgEl('line', { x1: WX, y1: WY, x2: WX, y2: WY - WR + 18, stroke: '#64748b', 'stroke-width': 7, 'stroke-linecap': 'round', transform: `rotate(${i * 72} ${WX} ${WY})` }, spokes);
+svgEl('circle', { cx: WX, cy: WY, r: 12, fill: '#475569' }, wheel);
+const wV = arrow(wheel, 'green', 4), wW = arrow(wheel, 'gray', 4), wF = arrow(wheel, 'red', 5);
+const wT = { v: text(wheel, '', { fill: C.green, 'font-weight': 700 }), w: text(wheel, '', { fill: C.gray, 'font-weight': 700 }),
+  f: text(wheel, '', { fill: C.red, 'font-weight': 700 }), s: text(wheel, '', { x: 12, y: 22 }), mode: text(wheel, '', { x: 12, y: 44, 'font-weight': 700 }) };
+let rotAng = 0, gOff = 0, lastT = performance.now();
+function drawWheel(p, c) {
+  const v = p.v, wr = omegaR(v, p.lam), k = 4.5;            // px per m/s
+  setLine(wV, WX, WY - 22, WX + v * k, WY - 22);
+  setText(wT.v, `v = ${v.toFixed(1)} m/s`, WX + v * k + 10, WY - 18);
+  // 轮顶部相对轮心的线速度为 ωR（向前）
+  setLine(wW, WX, WY - WR - 14, WX + Math.min(wr, 80) * k, WY - WR - 14);
+  setText(wT.w, `ωR = ${wr.toFixed(1)} m/s`, WX - 150, WY - WR - 10);
+  const Fx = combined(c, p.lam, rad(p.alpha)).x;
+  setLine(wF, WX, GYw - 6, WX + Fx * 120, GYw - 6);
+  setText(wT.f, `F_x = ${fmt(Fx, 2)}·F_z`, Fx >= 0 ? WX + 12 : WX - 132, GYw + 28);
+  setText(wT.s, `滑移速度 ωR − v = ${fmt(wr - v, 2)} m/s`);
+  const mode = Math.abs(p.lam) < 0.002 ? '纯滚动' : p.lam > 0 ? (p.lam > 0.5 ? '驱动 · 严重空转' : '驱动') : (p.lam <= -0.999 ? '制动 · 车轮抱死' : '制动');
+  setText(wT.mode, mode);
+  wT.mode.setAttribute('fill', p.lam <= -0.999 || p.lam > 0.5 ? C.red : C.text);
+}
+function spin(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+  const p = UI.vals, wr = playing ? playing.wr : omegaR(p.v, p.lam), v = playing ? playing.v : p.v;
+  rotAng = (rotAng + deg(wr / 0.31) * dt * 0.12) % 360;     // 放慢显示
+  gOff = (gOff + v * dt * 0.12 * 95 / 0.31) % 30;
+  spokes.setAttribute('transform', `rotate(${rotAng.toFixed(2)} ${WX} ${WY})`);
+  gTicks.forEach((t, i) => { const x = 10 + ((i * 30 - gOff) % 420 + 420) % 420; attr(t, { x1: x, x2: x - 6 }); });
+  if (playing) stepPlay(now);
+  requestAnimationFrame(spin);
+}
+
+/* ---------- μ–λ 曲线 ---------- */
+const cv = new Chart($('#curve'), { x: 50, y: 22, w: 690, h: 236 }, { xlabel: 'λ', ylabel: 'μ', nx: 10, xdig: 1 });
+cv.range(-1, 1, -1.3, 1.3);
+const band = [svgEl('rect', { fill: 'rgba(217,119,6,.12)' }, cv.gD), svgEl('rect', { fill: 'rgba(217,119,6,.12)' }, cv.gD)];
+const others = {};
+for (const k in ROADS) others[k] = cv.path({ stroke: ROADS[k].col, 'stroke-width': 1.2, opacity: 0.35 });
+const cX = cv.path({ stroke: C.blue, 'stroke-width': 3 }), cY = cv.path({ stroke: C.green, 'stroke-width': 2, 'stroke-dasharray': '6 4' });
+const pkD = [0, 1].map(() => svgEl('circle', { r: 5, fill: '#fff', stroke: C.amber, 'stroke-width': 2 }, cv.gT));
+const opX = svgEl('circle', { r: 7, fill: C.blue, stroke: '#fff', 'stroke-width': 2 }, cv.gT);
+const opY = svgEl('circle', { r: 6, fill: C.green, stroke: '#fff', 'stroke-width': 2 }, cv.gT);
+const cT = { brake: text(cv.gT, '← 制动', { x: 60, y: 40, class: 'lbl ax' }), drive: text(cv.gT, '驱动 →', { x: 730, y: 40, 'text-anchor': 'end', class: 'lbl ax' }),
+  pk: text(cv.gT, '', { fill: C.amber, class: 'lbl ax' }), op: text(cv.gT, '', { fill: C.blue, 'font-weight': 700 }) };
+function drawCurve(p, c, lamNow) {
+  const a = rad(p.alpha), pts = f => { const o = []; for (let l = -1; l <= 1.0001; l += 0.005) o.push([l, f(l)]); return o; };
+  for (const k in ROADS) others[k].setAttribute('d', k === p.road ? '' : cv.d(pts(l => Math.sign(l) * mu(ROADS[k].c, Math.abs(l)))));
+  cX.setAttribute('d', cv.d(pts(l => combined(c, l, a).x)));
+  cY.setAttribute('d', p.alpha > 0 ? cv.d(pts(l => combined(c, l, a).y)) : '');
+  const pk = peak(c), tg = target(c), bw = Math.max(0.01, 0.25 * tg);
+  [-1, 1].forEach((s, i) => {
+    attr(pkD[i], { cx: cv.X(s * pk.s), cy: cv.Y(s * pk.mu) });
+    const x0 = cv.X(s * (tg - bw)), x1 = cv.X(s * (tg + bw));
+    attr(band[i], { x: Math.min(x0, x1), y: cv.b.y, width: Math.abs(x1 - x0), height: cv.b.h });
+  });
+  band[1].style.display = 'none';                             // ABS 只在制动侧
+  setText(cT.pk, `λ* = ±${pk.s.toFixed(3)}, μ = ${pk.mu.toFixed(2)}`, cv.X(pk.s) + 8, cv.Y(pk.mu) - 8);
+  const m = combined(c, lamNow, a);
+  attr(opX, { cx: cv.X(lamNow), cy: cv.Y(m.x) });
+  attr(opY, { cx: cv.X(lamNow), cy: cv.Y(m.y) });
+  opY.style.display = p.alpha > 0 ? '' : 'none';
+  setText(cT.op, `μ_x = ${fmt(m.x, 2)}`, cv.X(lamNow) + (lamNow > 0.5 ? -90 : 10), cv.Y(m.x) + (m.x >= 0 ? 22 : -10));
+  return { pk, tg, m };
+}
+
+/* ---------- ABS 仿真 ---------- */
+const QM = 375, QR = 0.31, QJ = 1.0, FZ = QM * G;
+function brakeSim(c, v0, abs) {
+  const dt = 2e-5, rec = 0.005, tg = target(c), bw = Math.max(0.01, 0.25 * tg), Tmax = 2500;
+  let v = v0, w = v0 / QR, Tb = 0, x = 0, t = 0, next = 0, nextCtl = 0, cmd = 1;
+  const out = [];
+  while (v > 0.5 && t < 120) {
+    const lam = (w * QR - v) / Math.max(v, 1);
+    if (t >= next) { out.push({ t, v, wr: w * QR, lam: clamp((w * QR - v) / v, -1, 0), x }); next += rec; }
+    // ABS 控制器每 10 ms 决策一次：滑移过大则减压，过小则增压，中间保压
+    if (abs && t >= nextCtl) { cmd = -lam > tg + bw ? -1 : -lam < tg - bw ? 1 : 0; nextCtl += 0.01; }
+    if (!abs) Tb = Math.min(Tmax, Tb + 20000 * dt);
+    else Tb = clamp(Tb + (cmd > 0 ? 15000 : cmd < 0 ? -40000 : 0) * dt, 0, Tmax);
+    const Fx = Math.sign(lam) * mu(c, Math.min(1, Math.abs(lam))) * FZ;
+    v += Fx / QM * dt; x += v * dt;
+    w = Math.max(0, w + (-Tb - QR * Fx) / QJ * dt);
+    t += dt;
+  }
+  out.push({ t, v: 0, wr: 0, lam: abs ? -tg : -1, x });
+  return { out, dist: x, time: t, steer: abs };
+}
+const absSvg = $('#abs');
+const sCh = new Chart(absSvg, { x: 44, y: 20, w: 340, h: 100 }, { ylabel: '速度 / (m/s)', nx: 5, ny: 3 });
+const lCh = new Chart(absSvg, { x: 44, y: 162, w: 340, h: 70 }, { ylabel: '滑移率 λ', xlabel: 't / s', nx: 5, ny: 2 });
+const runs = { abs: { v: sCh.path({ stroke: C.blue, 'stroke-width': 2.5 }), w: sCh.path({ stroke: C.blue, 'stroke-width': 1, opacity: 0.6 }), l: lCh.path({ stroke: C.blue, 'stroke-width': 1.5 }) },
+  lock: { v: sCh.path({ stroke: C.red, 'stroke-width': 2.5 }), w: sCh.path({ stroke: C.red, 'stroke-width': 1, opacity: 0.6 }), l: lCh.path({ stroke: C.red, 'stroke-width': 1.5 }) } };
+const cursor = [svgEl('line', { stroke: C.text, 'stroke-dasharray': '3 3' }, sCh.gD), svgEl('line', { stroke: C.text, 'stroke-dasharray': '3 3' }, lCh.gD)];
+let playing = null, simRes = {};
+function runAbs(which) {
+  const p = UI.vals, c = ROADS[p.road].c;
+  simRes = {};
+  if (which !== 'lock') simRes.abs = brakeSim(c, p.v, true);
+  if (which !== 'abs') simRes.lock = brakeSim(c, p.v, false);
+  const T = Math.max(...Object.values(simRes).map(r => r.time));
+  sCh.range(0, T * 1.02, 0, p.v * 1.05); lCh.range(0, T * 1.02, -1, 0);
+  for (const k of ['abs', 'lock']) {
+    const r = simRes[k], g = runs[k];
+    g.v.setAttribute('d', r ? sCh.d(r.out.map(q => [q.t, q.v])) : '');
+    g.w.setAttribute('d', r ? sCh.d(r.out.map(q => [q.t, q.wr])) : '');
+    g.l.setAttribute('d', r ? lCh.d(r.out.map(q => [q.t, q.lam])) : '');
+  }
+  let h = '<tr><th></th><th>制动距离</th><th>时间</th><th>能否转向</th></tr>';
+  if (simRes.abs) h += `<tr><td class="c-blue">ABS</td><td>${simRes.abs.dist.toFixed(1)} m</td><td>${simRes.abs.time.toFixed(2)} s</td><td class="c-green">能（车轮仍在滚动）</td></tr>`;
+  if (simRes.lock) h += `<tr><td class="c-red">抱死</td><td>${simRes.lock.dist.toFixed(1)} m</td><td>${simRes.lock.time.toFixed(2)} s</td><td class="c-red">不能（μ_y ≈ 0）</td></tr>`;
+  setHTML($('#absTbl'), h);
+  const main = simRes.abs || simRes.lock;
+  playing = { r: main, t0: performance.now(), T: main.time, v: p.v, wr: p.v, lam: 0 };
+}
+function stepPlay(now) {
+  const t = (now - playing.t0) / 1000;
+  if (t > playing.T + 1.0) { playing = null; cursor.forEach(c => c.style.display = 'none'); update(); return; }
+  const arr = playing.r.out, q = arr[Math.min(arr.length - 1, Math.floor(Math.min(t, playing.T) / 0.005))];
+  playing.v = q.v; playing.wr = q.wr; playing.lam = q.lam;
+  cursor.forEach((c, i) => { const ch = i ? lCh : sCh; c.style.display = ''; attr(c, { x1: ch.X(q.t), x2: ch.X(q.t), y1: ch.b.y, y2: ch.b.y + ch.b.h }); });
+  const p = UI.vals, c = ROADS[p.road].c;
+  drawCurve(p, c, q.lam);
+  drawWheel({ ...p, v: q.v, lam: q.v > 0.5 ? q.lam : 0 }, c);
+}
+$('#bCmp').onclick = () => runAbs('both');
+$('#bAbs').onclick = () => runAbs('abs');
+$('#bLock').onclick = () => runAbs('lock');
+
+function update(id) {
+  if (id && id !== 'alpha') playing = null;
+  const p = UI.vals, c = ROADS[p.road].c;
+  if (playing) return;
+  drawWheel(p, c);
+  const r = drawCurve(p, c, p.lam);
+  const wr = omegaR(p.v, p.lam);
+  UI.stat('wr', wr.toFixed(1), 'm/s', `ω = ${(wr / QR).toFixed(1)} rad/s`);
+  UI.stat('mux', fmt(r.m.x, 3), '', `峰值 ${r.pk.mu.toFixed(2)} 的 ${(Math.abs(r.m.x) / r.pk.mu * 100).toFixed(0)}%`);
+  const y0 = combined(c, 0, rad(p.alpha)).y;
+  UI.stat('muy', r.m.y.toFixed(3), '', p.alpha ? `λ=0 时 ${y0.toFixed(3)}，剩 ${(y0 ? r.m.y / y0 * 100 : 0).toFixed(0)}%` : 'α = 0，无侧向力', p.alpha > 0 && r.m.y < 0.3 * y0);
+  UI.stat('pk', ROADS[p.road].c[2] ? r.pk.s.toFixed(3) : '≈1', '', ROADS[p.road].c[2] ? `ABS 目标 ≈ ${r.tg.toFixed(3)}` : '冰面曲线单调，ABS 目标 ' + r.tg.toFixed(3), Math.abs(p.lam) > r.pk.s + 0.02);
+  UI.stat('fx', fmt(r.m.x * FZ / 1000, 2), 'kN', `F_z = ${(FZ / 1000).toFixed(2)} kN（四分之一车）`);
+}
+UI.onChange = update;
+update();
+runAbs('both');
+playing = null;
+requestAnimationFrame(spin);
+
+{
+  const d = ROADS.dry.c, pk = peak(d);
+  const a = brakeSim(d, 25, true), l = brakeSim(d, 25, false);
+  const minLam = Math.min(...a.out.slice(0, -1).map(q => q.lam));
+  runChecks([
+    ['λ=0 时 μ=0', mu(d, 0) === 0 && combined(d, 0, 0).x === 0],
+    ['干沥青 λ* 与解析式一致', Math.abs(pk.s - Math.log(d[0] * d[1] / d[2]) / d[1]) < 1e-3, pk.s],
+    ['ωR 定义可逆（制动/驱动）', Math.abs((omegaR(20, -0.2) - 20) / 20 + 0.2) < 1e-12 && Math.abs((omegaR(20, 0.3) - 20) / omegaR(20, 0.3) - 0.3) < 1e-12],
+    ['干路 ABS 制动距离 < 抱死', a.dist < l.dist, [a.dist, l.dist]],
+    ['ABS 不抱死（λ 始终 > −0.6）', minLam > -0.6, minLam],
+    ['抱死工况 λ 到达 −1', Math.min(...l.out.map(q => q.lam)) <= -0.999],
+    ['组合滑移：抱死时 μ_y 接近 0', combined(d, -1, rad(4)).y < 0.1 * combined(d, 0, rad(4)).y],
+  ]);
+}
+TEX.typeset(document.body);
+const hp = /#p=(\d+)/.exec(location.hash);   // 调试：#p=N 打开时套用第 N 个预设
+if (hp && UI.presetBtns && UI.presetBtns[+hp[1]]) UI.presetBtns[+hp[1]].click();
+})();
+</script>
+</body>
+</html>
