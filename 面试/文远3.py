@@ -20,17 +20,17 @@
 # 思路（先理解“早访问能多得分”，再理解为什么只需计算局部变化）：
 # 1. 第 d 个访问的节点得分为 (n-d+1)*权值；提前一位，就多得一份自身权值。
 #    随机性只在“先完整走哪棵子树”，不是在左右子树之间交替访问。
-# 2. children[p] 存 p 的直接子节点编号，不是整棵子树的所有后代。
+# 2. children[parent[i]] 存 p 的直接子节点编号，不是整棵子树的所有后代。
 #    例如 parent=[-1,0,0,1,1]，children=[[1,2],[3,4],[],[],[]]。
 #    size[i] 是子树节点数，sums[i] 是子树权值总和；两者都包含 i 自身。
 # 3. dp[i] 不是路径长度，而是节点 i 的平均得分系数 E[n-dfn[i]+1]。
 #    原始总期望 res = Σ nums[i]*dp[i]，这是期望的线性性质。
-#    根必定第一个访问，dp[0]=n。独生子紧跟父节点，dp[i]=dp[p]-1。
+#    根必定第一个访问，dp[0]=n。独生子紧跟父节点，dp[i]=dp[parent[i]]-1。
 #    有兄弟 j 时：若 j 先走，i 还要等 j 整棵子树的 size[j] 个节点。
-#    所以 dp[i]=dp[p]-1-size[j]*nums[j]/(nums[i]+nums[j])。
+#    所以 dp[i]=dp[parent[i]]-1-size[j]*nums[j]/(nums[i]+nums[j])。
 # 4. 独立尝试把每个节点 i 的权值改成 w，change=w-nums[i]。
 #    概率只由兄弟根节点的权值决定，不由子树总权值决定。
-#    因此只改变父节点 p 处 i、j 的先后概率，不改变其他分支的概率。
+#    因此只改变父节点 parent[i] 处 i、j 的先后概率，不改变其他分支的概率。
 # 5. 修改收益拆成两步相加，避免把权值变化和概率变化混在一起：
 #    A. 暂时保持原概率，只换 i 的权值，收益为 change*dp[i]。
 #    B. 使用修改后的权值，再调整 i 先走的概率：
@@ -116,9 +116,8 @@ for i in range(1, n):
 # 将 i 的完整子树信息累加到父节点，相当于后序遍历，不需要递归。
 # 若没有“父编号小于子编号”的保证，就不能直接靠编号顺序计算。
 for i in range(n - 1, 0, -1):
-    p = parent[i]
-    size[p] += size[i]
-    sums[p] += sums[i]
+    size[parent[i]] += size[i]
+    sums[parent[i]] += sums[i]
 
 # dp[i] = E[n-dfn[i]+1]：节点越早访问，得分系数越大。
 # 根节点总是第 1 个访问，故 dp[0]=n，原始贡献为 n*nums[0]。
@@ -133,27 +132,26 @@ res = n * nums[0]
 best = max(0, n * (w - nums[0]))
 
 for i in range(1, n):
-    p = parent[i]
     # change 可以为负：不能只根据权值增减判断收益，还要考虑访问顺序变化。
     change = w - nums[i]
 
-    if len(children[p]) == 1:
+    if len(children[parent[i]]) == 1:
         # 唯一子节点紧跟父节点访问，dfn 比父节点大 1，得分系数就小 1。
         # 修改 i 不改变任何分支概率，因此只有自身贡献变化。
-        dp.append(dp[p] - 1)
+        dp.append(dp[parent[i]] - 1)
         tmp = change * dp[i]
     else:
         # 找到兄弟节点
-        j = children[p][0]
+        j = children[parent[i]][0]
         if j == i:
-            j = children[p][1]
+            j = children[parent[i]][1]
 
         # 如果 i 先访问，dfn[i]=dfn[p]+1；如果 j 先访问，还需等整棵 j 子树。
         # j 先访问的概率为 nums[j]/(nums[i]+nums[j])，所以期望等待量
         # 是 size[j] 乘以该概率；得分系数随等待量增加而减少。
-        dp.append(dp[p] - 1 - size[j] * nums[j] / (nums[i] + nums[j]))
+        dp.append(dp[parent[i]] - 1 - size[j] * nums[j] / (nums[i] + nums[j]))
 
-        # 只有父节点 p 处选择 i、j 先后的概率会因修改 nums[i] 而改变。
+        # 只有父节点 parent[i] 处选择 i、j 先后的概率会因修改 nums[i] 而改变。
         # 祖先的分支概率及 i 内部的分支概率依赖其他节点权值，均不受影响。
         # prob 为“修改后 i 先访问的概率 - 原先 i 先访问的概率”。
         prob = w / (w + nums[j]) - nums[i] / (nums[i] + nums[j])
