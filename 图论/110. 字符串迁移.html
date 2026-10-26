@@ -161,7 +161,7 @@ math[display="block"] { margin: 2px 0; }
 .mig-main{display:grid;grid-template-columns:1fr 1fr;gap:16px;height:100%;min-height:0}.mig-graph{width:100%;height:100%;min-height:220px}.mig-graph text{font-size:13px;font-weight:600;paint-order:stroke;stroke:white;stroke-width:3px}.mig-graph circle{transition:fill .2s,stroke .2s}.mig-matrix{display:grid;align-content:center;justify-content:center;gap:3px;min-width:0}.mig-cell{display:flex;align-items:center;justify-content:center;border-radius:5px;background:#f1f5f9;font:12px monospace;min-width:0;transition:background .2s}.mig-cell.edge{background:#dcfce7;color:#15803d}.mig-cell.active{background:#dbeafe;border:2px solid #2563eb}.mig-cell.head{background:transparent;color:#64748b}.mig-info{display:flex;flex-direction:column;gap:10px;font:13px/1.6 monospace}.mig-queue{display:flex;flex-wrap:wrap;gap:7px;min-height:28px}.mig-item{padding:4px 9px;background:#dbeafe;color:#1d4ed8;border-radius:6px}.mig-table{display:grid;gap:4px;font:12px monospace}.mig-row{display:grid;grid-template-columns:36px 1fr 65px 72px;gap:6px;padding:4px 7px;border-radius:5px;min-height:24px}.mig-row.active{background:#dbeafe}.mig-row.seen{color:#15803d}.mig-compare{white-space:pre-wrap;overflow-wrap:anywhere}.mig-note{color:#64748b;font:12px/1.6 sans-serif}
 .canvas-card{height:34vh;min-height:260px;display:flex;flex-direction:column}.canvas-card>.card-b{flex:1;min-height:0}.mig-graph{min-height:0}.mig-vars{white-space:pre-wrap}.mig-cell.head{white-space:nowrap}.bottom{min-height:0}.col>#stateCard{min-height:0;overflow:auto}
 #canvas{flex:1;min-height:0}.mig-main{height:100%}
-.mig-visited{display:flex;gap:5px}.mig-visit{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;background:#f1f5f9;border:2px solid transparent;border-radius:6px;padding:4px 0;font-size:12px;transition:background .2s,border-color .2s}.mig-visit span{color:#64748b;font-size:11px}.mig-visit.seen{background:#dcfce7;color:#15803d}.mig-visit.writing{border-color:#2563eb;background:#dbeafe}.mig-visited-label{font:12px/1.5 sans-serif;color:#64748b}.mig-info{gap:7px}
+.mig-visited{display:flex;flex-wrap:wrap;gap:5px;min-height:30px}.mig-set-text{font:13px/1.6 monospace}.mig-visit{flex:none;width:32px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;background:#f1f5f9;border:2px solid transparent;border-radius:6px;padding:4px 0;font-size:12px;transition:background .2s,border-color .2s}.mig-visit span{color:#64748b;font-size:11px}.mig-visit.seen{background:#dcfce7;color:#15803d}.mig-visit.writing{border-color:#2563eb;background:#dbeafe}.mig-visited-label{font:12px/1.5 sans-serif;color:#64748b}.mig-info{gap:7px}
 </style>
 </head>
 <body>
@@ -258,10 +258,11 @@ for i in range(node_count):
             graph[j][i] = 1
 
 # 使用 BFS 搜索从节点 0 到节点 n + 1 的最短路径
-visited = [False] * node_count
+# 集合保存已经发现的节点编号，成员查询平均为 O(1)。
+visited = set()
 distance = [0] * node_count
 queue = deque([0])
-visited[0] = True
+visited.add(0)
 
 while queue:
     current = queue.popleft()
@@ -273,10 +274,11 @@ while queue:
     for next_node in range(node_count):
         # 两个条件必须同时成立，才发现并加入一个新的相邻节点：
         # 1. graph[current][next_node] == 1：两个字符串恰好相差一位，可以直接迁移。
-        # 2. not visited[next_node]：这个节点以前没有被发现，避免重复入队。
+        # 2. next_node not in visited：这个节点以前没有被发现，避免重复入队。
         # and 从左到右短路判断：如果不相连，就不再检查第二个条件。
-        if graph[current][next_node] == 1 and not visited[next_node]:
-            visited[next_node] = True
+        if graph[current][next_node] == 1 and next_node not in visited:
+            # 发现时立即加入集合，避免同一节点被不同邻居重复放入队列。
+            visited.add(next_node)
             distance[next_node] = distance[current] + 1
             queue.append(next_node)
 else:
@@ -1039,14 +1041,14 @@ const presets=[
  {label:'重复字符串',values:{begin:'aaa',end:'abb',words:'aaa aab aab'}}
 ];
 const DEMO={
- file:'110. 字符串迁移.py',title:'110. 字符串迁移 · 建图 + BFS',
+ file:'110. 字符串迁移BFS.py',title:'110. 字符串迁移 · 建图 + BFS',
  subtitle:'逐字符判断是否恰好相差一位，建立无向图；BFS 按距离从小到大出队，distance 记录迁移次数，答案为 distance + 1（包含起点）；不可达返回 0。',
  inputs:[{id:'begin',label:'beginstr',value:'abc',width:80},{id:'end',label:'endstr',value:'def',width:80},{id:'words',label:'strlist（空格分隔）',value:presets[0].values.words,flex:true}],presets,
  stats:[{key:'pair',label:'建图 (i, j)',color:'purple'},{key:'count',label:'judge · count',color:'amber'},{key:'current',label:'出队 current',color:'blue'},{key:'queue',label:'队列长度',color:'purple'},{key:'answer',label:'输出 · 字符串数',color:'green'}],
- panels:{canvas:{title:'字符串节点与邻接矩阵 graph',hint:'节点号与矩阵下标对应 · 蓝色为当前比较 / 检查'},state:{title:'visited 数组 / 当前变量',hint:'judge 内部 i 与建图循环 i 属于不同作用域'},aux:[{id:'arrays',title:'queue / visited / distance',hint:'队首在左；visited=False 时 distance=0 不表示已到达',grow:true}]},
+ panels:{canvas:{title:'字符串节点与邻接矩阵 graph',hint:'节点号与矩阵下标对应 · 蓝色为当前比较 / 检查'},state:{title:'visited 集合 / 当前变量',hint:'judge 内部 i 与建图循环 i 属于不同作用域'},aux:[{id:'arrays',title:'queue / visited / distance',hint:'队首在左；不在 visited 中时，distance=0 不表示已到达',grow:true}]},
  parse(v){const begin=v.begin.trim(),end=v.end.trim(),words=v.words.trim()?v.words.trim().split(/[\s,，;；]+/):[];const nodes=[begin,...words,end];if(nodes.some(x=>!(/^[a-zA-Z]+$/).test(x)))return {error:'请输入非空英文字母字符串'};if(nodes.some(x=>x.length!==begin.length))return {error:'字符串长度必须相同'};if(words.length>6||begin.length>6)return {error:'演示限制：最多 6 个中间字符串，每个最多 6 个字符'};return {begin,end,words,nodes,N:nodes.length};},
- build(d){const {nodes,N,words,begin,end}=d,steps=[],graph=Array.from({length:N},()=>Array(N).fill(null)),visited=Array(N).fill(null),distance=Array(N).fill(null),queue=[],parent=Array(N).fill(-1);let phase='读入',pair=null,count=null,current=null,next=null,char=null,read=0,ready=false,answer=null,path=[];
- const snap=(code,desc,kind='info')=>steps.push({phase,tag:{text:phase,kind},desc,lines:[L(code)],visitWrite:code==='visited[0] = True'?0:code==='visited[next_node] = True'?next:null,graph:graph.map(r=>r.slice()),visited:visited.slice(),distance:distance.slice(),queue:queue.slice(),pair:pair&&pair.slice(),count,current,next,char,read,ready,answer,path:path.slice(),stats:{pair:pair?pair.join(', '):'—',count:count??'—',current:current??'—',queue:queue.length,answer:answer??'—'}});
+ build(d){const {nodes,N,words,begin,end}=d,steps=[],graph=Array.from({length:N},()=>Array(N).fill(null)),visited=new Set(),distance=Array(N).fill(null),queue=[],parent=Array(N).fill(-1);let phase='读入',pair=null,count=null,current=null,next=null,char=null,read=0,ready=false,visitedReady=false,answer=null,path=[];
+ const snap=(code,desc,kind='info')=>steps.push({phase,tag:{text:phase,kind},desc,lines:[L(code)],visitWrite:code==='visited.add(0)'?0:code==='visited.add(next_node)'?next:null,graph:graph.map(r=>r.slice()),visited:[...visited],visitedReady,distance:distance.slice(),queue:queue.slice(),pair:pair&&pair.slice(),count,current,next,char,read,ready,answer,path:path.slice(),stats:{pair:pair?pair.join(', '):'—',count:count??'—',current:current??'—',queue:queue.length,answer:answer??'—'}});
  snap('n=int(input())',`读入 n = ${words.length}，表示中间字符串个数。`);snap('beginstr,endstr=',`读入起点 <b>${begin}</b> 与终点 <b>${end}</b>。`);snap('if beginstr==endstr:',`起终点${begin===end?'相同，无需迁移':'不同，继续读取中间字符串'}。`);
  if(begin===end){answer=1;phase='结束';snap('print(1)','起点已是终点，序列只有起点一个字符串，输出 1；不会建图或执行 BFS。','hit');return steps;}
  snap('strlist=[]','创建空的 strlist。');for(let i=0;i<words.length;i++){read++;snap('strlist.append(input())',`读入循环 i = ${i}：strlist.append('${words[i]}')。`);}
@@ -1058,28 +1060,31 @@ const DEMO={
  for(let k=0;k<begin.length;k++){char=k;const different=nodes[i][k]!==nodes[j][k];snap('if s1[i]!=s2[i]:',`judge 内 i=${k}：比较 '${nodes[i][k]}' 与 '${nodes[j][k]}'，${different?'不同，将累加 count':'相同，count 不变'}。`,different?'warn':'info');if(different){count++;snap('count+=1',`不同字符数 count += 1 → ${count}。`);}}
  char=null;snap('return count==1',`count=${count}，judge 返回 ${count===1?'True：恰好一位不同，可以一步迁移':'False：必须恰好一位不同，不能连边'}。`,count===1?'hit':'miss');
  if(count===1){graph[i][j]=1;snap('graph[i][j] = 1',`写入 graph[${i}][${j}] = 1。`);graph[j][i]=1;snap('graph[j][i] = 1',`写入 graph[${j}][${i}] = 1；无向连接建立完成。`);}}
- phase='初始化 BFS';pair=null;count=null;visited.fill(false);snap('visited = [False]','一次列表乘法创建 visited，全部为 False。');distance.fill(0);snap('distance = [0]','一次列表乘法创建 distance，初值全部为 0；尚未访问的点没有有效距离。');queue.push(0);snap('queue = deque([0])','起点 0 入队。');visited[0]=true;snap('visited[0] = True','标记起点已访问，防止重复入队。');
+ phase='初始化 BFS';pair=null;count=null;visitedReady=true;snap('visited = set()','创建空集合 visited=set()。只有已发现的节点编号才会加入集合。');distance.fill(0);snap('distance = [0]','一次列表乘法创建 distance，初值全部为 0；尚未访问的点没有有效距离。');queue.push(0);snap('queue = deque([0])','起点 0 入队。');visited.add(0);snap('visited.add(0)','visited.add(0)：把起点编号 0 加入集合，防止重复入队。');
  phase='BFS';while(queue.length){current=queue.shift();next=null;snap('current = queue.popleft()',`从队首取出 current=${current}（${nodes[current]}），distance=${distance[current]}。`);snap('if current == n + 1:',`检查 current 是否等于终点编号 ${N-1}：${current===N-1?'是，准备输出最短距离':'否，遍历这一行邻接矩阵'}。`);
  if(current===N-1){answer=distance[current]+1;for(let p=current;p!==-1;p=parent[p])path.unshift(p);phase='结束';snap('print(distance[current] + 1)',`输出 <b>${answer}</b> 个字符串。路径示意：${path.map(p=>nodes[p]).join(' → ')}。distance=${distance[current]} 次迁移，加上起点，字符串数为 ${answer}。随后 break 跳过 while 的 else。路径由演示辅助记录。`,'hit');return steps;}
- for(next=0;next<N;next++){const ok=graph[current][next]===1&&!visited[next];snap('if graph[current][next_node]',`next_node=${next}：graph[${current}][${next}]=${graph[current][next]}；${graph[current][next]!==1?'不相连，and 短路，跳过':visited[next]?'已访问，跳过以避免重复入队':'相连且未访问，准备发现新节点'}。`,ok?'hit':'info');if(ok){visited[next]=true;parent[next]=current;snap('visited[next_node] = True',`visited[${next}] = True，在入队前标记。`);distance[next]=distance[current]+1;snap('distance[next_node] =',`distance[${next}] = distance[${current}] + 1 = ${distance[current]} + 1 = ${distance[next]}。`);queue.push(next);snap('queue.append(next_node)',`将 ${next}（${nodes[next]}）加入队尾，稍后按层处理。`);}}
+ for(next=0;next<N;next++){const ok=graph[current][next]===1&&!visited.has(next);snap('if graph[current][next_node]',`next_node=${next}：graph[${current}][${next}]=${graph[current][next]}；${graph[current][next]!==1?'不相连，and 短路，跳过':visited.has(next)?'已访问，跳过以避免重复入队':'相连且未访问，准备发现新节点'}。`,ok?'hit':'info');if(ok){visited.add(next);parent[next]=current;snap('visited.add(next_node)',`visited.add(${next})：在入队前把节点编号 ${next} 加入集合，后续用 next_node not in visited 判断是否发现过。`);distance[next]=distance[current]+1;snap('distance[next_node] =',`distance[${next}] = distance[${current}] + 1 = ${distance[current]} + 1 = ${distance[next]}。`);queue.push(next);snap('queue.append(next_node)',`将 ${next}（${nodes[next]}）加入队尾，稍后按层处理。`);}}
  next=null;}answer=0;phase='结束';snap('print(0)', '队列耗尽，未遇到终点，执行 while 的 else，输出 0（表示不可达）。','miss');return steps;},
  mount(d,P){const main=el('div','mig-main');main.innerHTML='<svg class="mig-graph" viewBox="0 0 400 300"><defs><marker id="mig-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#94a3b8"/></marker></defs><g class="edges"></g><g class="nodes"></g></svg><div class="mig-matrix"></div>';P.canvas.append(main);const svg=main.querySelector('svg'),eg=svg.querySelector('.edges'),ng=svg.querySelector('.nodes'),matrix=main.querySelector('.mig-matrix');const ns='http://www.w3.org/2000/svg';const make=(tag,attrs)=>{const e=document.createElementNS(ns,tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);return e;};
  const pos=d.nodes.map((_,i)=>{const a=-Math.PI/2+i*2*Math.PI/d.N;return [200+140*Math.cos(a),150+108*Math.sin(a)];});const edges=[];for(let i=0;i<d.N;i++)for(let j=i+1;j<d.N;j++){const a=pos[i],b=pos[j],len=Math.hypot(b[0]-a[0],b[1]-a[1]),dx=(b[0]-a[0])/len*32,dy=(b[1]-a[1])/len*32;const e=make('path',{d:`M${a[0]+dx},${a[1]+dy} L${b[0]-dx},${b[1]-dy}`,fill:'none',stroke:'#94a3b8','stroke-width':2,'marker-start':'url(#mig-arrow)','marker-end':'url(#mig-arrow)'});eg.append(e);edges.push({i,j,e});}
  const circles=[],labels=[];pos.forEach(([x,y],i)=>{const c=make('circle',{cx:x,cy:y,r:30,fill:'#f1f5f9',stroke:'#cbd5e1','stroke-width':2});const t=make('text',{x,y:y+4,'text-anchor':'middle'});ng.append(c,t);circles.push(c);labels.push(t);});
  const cells=[];for(let i=-1;i<d.N;i++)for(let j=-1;j<d.N;j++){const c=el('div','mig-cell'+(i<0||j<0?' head':''));c.textContent=i<0?(j<0?'#':j):j<0?i:'·';matrix.append(c);if(i>=0&&j>=0)cells.push({i,j,c});}
- P.state.innerHTML='<div class="mig-info"><div class="mig-visited-label">visited：灰色 False 未发现 · 绿色 True 已发现 · 蓝框为本步写入</div><div class="mig-visited"></div><div class="mig-vars"></div><div class="mig-compare"></div><div class="mig-note">0 为起点，最后一个编号为终点。蓝：当前；绿：已访问。相同字符串仍是不同编号，差 0 位不连边。</div></div>';
- P.aux.arrays.innerHTML='<div class="mig-info"><div>queue（队首 → 队尾）</div><div class="mig-queue"></div><div class="mig-table"><div class="mig-row"><b>#</b><b>nodes</b><b>visited</b><b>distance</b></div></div></div>';const visitBox=P.state.querySelector('.mig-visited');const visitCells=d.nodes.map((_,i)=>{const c=el('div','mig-visit',`<span>[${i}]</span><b>·</b>`);visitBox.append(c);return c;});const table=P.aux.arrays.querySelector('.mig-table');const rows=d.nodes.map(()=>{const r=el('div','mig-row');for(let k=0;k<4;k++)r.append(el('span'));table.append(r);return r;});U={visitCells,main,matrix,edges,circles,labels,cells,rows,vars:P.state.querySelector('.mig-vars'),compare:P.state.querySelector('.mig-compare'),queue:P.aux.arrays.querySelector('.mig-queue')};},
+ P.state.innerHTML='<div class="mig-info"><div class="mig-visited-label">显示按发现顺序排列；集合本身无序。visited 集合：只保存已发现的节点编号；蓝框表示本步加入</div><div class="mig-set-text"></div><div class="mig-visited"></div><div class="mig-vars"></div><div class="mig-compare"></div><div class="mig-note">0 为起点，最后一个编号为终点。蓝：当前；绿：已访问。相同字符串仍是不同编号，差 0 位不连边。</div></div>';
+ P.aux.arrays.innerHTML='<div class="mig-info"><div>queue（队首 → 队尾）</div><div class="mig-queue"></div><div class="mig-table"><div class="mig-row"><b>#</b><b>nodes</b><b>集合成员</b><b>distance</b></div></div></div>';const visitBox=P.state.querySelector('.mig-visited');const table=P.aux.arrays.querySelector('.mig-table');const rows=d.nodes.map(()=>{const r=el('div','mig-row');for(let k=0;k<4;k++)r.append(el('span'));table.append(r);return r;});U={visitBox,setText:P.state.querySelector('.mig-set-text'),main,matrix,edges,circles,labels,cells,rows,vars:P.state.querySelector('.mig-vars'),compare:P.state.querySelector('.mig-compare'),queue:P.aux.arrays.querySelector('.mig-queue')};},
  layout(d){const size=Math.max(18,Math.min(32,Math.floor((U.main.clientHeight-16)/(d.N+1)),Math.floor((U.matrix.clientWidth-16)/(d.N+1))));U.matrix.style.gridTemplateColumns=`repeat(${d.N+1},${size}px)`;U.matrix.style.gridAutoRows=size+'px';},
  render(s,prev,d){const active=(i)=>s.pair?s.pair.includes(i):i===s.current||i===s.next;
  U.edges.forEach(({i,j,e})=>{e.style.opacity=s.graph[i][j]===1&&s.graph[j][i]===1?'1':'0';});
- U.circles.forEach((c,i)=>{c.setAttribute('fill',active(i)?'#dbeafe':s.visited[i]?'#dcfce7':'#f1f5f9');c.setAttribute('stroke',active(i)?'#2563eb':'#cbd5e1');setText(U.labels[i],s.ready?`${i}: ${d.nodes[i]}`:`${i}: ·`);});
+ U.circles.forEach((c,i)=>{c.setAttribute('fill',active(i)?'#dbeafe':s.visited.includes(i)?'#dcfce7':'#f1f5f9');c.setAttribute('stroke',active(i)?'#2563eb':'#cbd5e1');setText(U.labels[i],s.ready?`${i}: ${d.nodes[i]}`:`${i}: ·`);});
  U.cells.forEach(({i,j,c})=>{setText(c,s.graph[i][j]??'·');const a=s.pair?s.pair[0]===i&&s.pair[1]===j:s.current===i&&s.next===j;c.className='mig-cell'+(s.graph[i][j]===1?' edge':'')+(a?' active':'');});
- U.visitCells.forEach((c,i)=>{c.className="mig-visit"+(s.visited[i]?" seen":"")+(s.visitWrite===i?" writing":"");setText(c.children[1],s.visited[i]===null?"·":s.visited[i]?"True":"False");});
- U.rows.forEach((r,i)=>{r.className='mig-row'+(active(i)?' active':s.visited[i]?' seen':'');const values=[i,s.ready?d.nodes[i]:(i>0&&i<=s.read?d.nodes[i]:'·'),s.visited[i]===null?'·':s.visited[i]?'True':'False',s.distance[i]??'·'];values.forEach((v,k)=>setText(r.children[k],v));});
+ setText(U.setText,!s.visitedReady?'visited：尚未创建':s.visited.length?'visited = {'+s.visited.join(', ')+'}':'visited = set()');
+ AV.keyed(U.visitBox,s.visited,x=>x,()=>el('div','mig-visit'),(cell,x)=>{setText(cell,x);cell.className='mig-visit seen'+(s.visitWrite===x?' writing':'');});
+
+ U.rows.forEach((r,i)=>{r.className='mig-row'+(active(i)?' active':s.visited.includes(i)?' seen':'');const values=[i,s.ready?d.nodes[i]:(i>0&&i<=s.read?d.nodes[i]:'·'),!s.visitedReady?'·':s.visited.includes(i)?'在集合中':'未加入',s.distance[i]??'·'];values.forEach((v,k)=>setText(r.children[k],v));});
  setText(U.vars,`current = ${s.current??'·'}    next_node = ${s.next??'·'}\n建图 (i, j) = ${s.pair?s.pair.join(', '):'·'}    judge 内 i = ${s.char??'·'}`);
  setText(U.compare,s.pair?`s1 = ${d.nodes[s.pair[0]]}\ns2 = ${d.nodes[s.pair[1]]}\n${s.char===null?'比较完成 / 准备比较':`第 ${s.char} 位：${d.nodes[s.pair[0]][s.char]} vs ${d.nodes[s.pair[1]][s.char]}`}    count = ${s.count??'·'}`:s.answer!==null?`输出 = ${s.answer}`:`strlist 已读入 ${s.read} / ${d.words.length} 项`);
  AV.keyed(U.queue,s.queue,x=>x,()=>el('span','mig-item'),(e,x)=>setText(e,`${x}: ${d.nodes[x]}`));}
 };
+window.MIGRATION_DEMO=DEMO;
 AV.start(DEMO);
 </script>
 </body>

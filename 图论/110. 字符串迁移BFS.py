@@ -35,10 +35,11 @@ for i in range(node_count):
             graph[j][i] = 1
 
 # 使用 BFS 搜索从节点 0 到节点 n + 1 的最短路径
-visited = [False] * node_count
+# 集合保存已经发现的节点编号，成员查询平均为 O(1)。
+visited = set()
 distance = [0] * node_count
 queue = deque([0])
-visited[0] = True
+visited.add(0)
 
 while queue:
     current = queue.popleft()
@@ -50,10 +51,11 @@ while queue:
     for next_node in range(node_count):
         # 两个条件必须同时成立，才发现并加入一个新的相邻节点：
         # 1. graph[current][next_node] == 1：两个字符串恰好相差一位，可以直接迁移。
-        # 2. not visited[next_node]：这个节点以前没有被发现，避免重复入队。
+        # 2. next_node not in visited：这个节点以前没有被发现，避免重复入队。
         # and 从左到右短路判断：如果不相连，就不再检查第二个条件。
-        if graph[current][next_node] == 1 and not visited[next_node]:
-            visited[next_node] = True
+        if graph[current][next_node] == 1 and next_node not in visited:
+            # 发现时立即加入集合，避免同一节点被不同邻居重复放入队列。
+            visited.add(next_node)
             distance[next_node] = distance[current] + 1
             queue.append(next_node)
 else:
