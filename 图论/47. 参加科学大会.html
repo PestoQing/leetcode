@@ -52,6 +52,8 @@ button:hover { background: #eef2ff; border-color: #a5b4fc; }
 button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
 button.primary:hover { background: #1d4ed8; }
 button.preset { font-size: 12px; padding: 3px 9px; }
+button.preset.on { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 0 0 2px #bfdbfe; }
+button.preset.on:hover { background: #1d4ed8; }
 .progress { flex: 1; min-width: 140px; height: 8px; background: var(--line); border-radius: 4px; cursor: pointer;
   position: relative; touch-action: none; margin: 0 8px; }
 .progress::before { content: ""; position: absolute; left: -8px; right: -8px; top: -9px; bottom: -9px; }
@@ -349,7 +351,7 @@ const AV = (() => {
     if (ms <= 0) { step(1); done && done(); return; }
     const t0 = performance.now();
     const f = now => {
-      const p = Math.min(1, (now - t0) / ms);
+      const p = Math.min(1, Math.max(0, now - t0) / ms);   // rAF 时间戳可能早于点击时记下的 t0
       step(ease(p));
       if (p < 1) anims.set(key, requestAnimationFrame(f)); else { anims.delete(key); done && done(); }
     };
@@ -641,8 +643,16 @@ const AV = (() => {
     };
   }
 
+  // 输入框内容与哪个预设一致就高亮哪个按钮（同值时优先刚点的那个），手动改输入后自动取消
+  let lastPreset = -1;
+  function markPreset() {
+    const same = p => Object.keys(p.values).every(k => $('in-' + k) && String($('in-' + k).value) === String(p.values[k]));
+    const list = D.presets || [], hit = list[lastPreset] && same(list[lastPreset]) ? lastPreset : list.findIndex(same);
+    $('inputs').querySelectorAll('button.preset').forEach((b, i) => b.classList.toggle('on', i === hit));
+  }
   function apply() {
     stop();
+    markPreset();
     const values = {};
     (D.inputs || []).forEach(f => { values[f.id] = $('in-' + f.id).value; });
     const r = D.parse(values);
@@ -677,11 +687,12 @@ const AV = (() => {
     });
     const btn = el('button', 'primary', '生成演示'); btn.onclick = apply; inputs.appendChild(btn);
     if (D.presets && D.presets.length) inputs.appendChild(el('span', 'hint', '预设：'));
-    (D.presets || []).forEach(p => {
+    (D.presets || []).forEach((p, i) => {
       const b = el('button', 'preset', p.label);
-      b.onclick = () => { for (const k in p.values) $('in-' + k).value = p.values[k]; apply(); };
+      b.onclick = () => { lastPreset = i; for (const k in p.values) $('in-' + k).value = p.values[k]; apply(); };
       inputs.appendChild(b);
     });
+    inputs.addEventListener('input', markPreset);
     inputs.appendChild(el('span', 'err')).id = 'err';
 
     (D.stats || []).forEach(def => {

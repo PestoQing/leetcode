@@ -38,7 +38,7 @@ description: 为一个算法题的 Python 解法（.py）生成离线、单文�
 
 ## 工作流程
 
-1. **读懂解法**：完整阅读目标 `.py`，理清阶段划分、关键变量和值得可视化的数据结构。
+1. **读懂解法**：完整阅读目标 `.py`，理清阶段划分、关键变量和值得可视化的数据结构。**动手前先读 `<skill>/踩坑记录.md`**，里面是已经踩过的坑和规避方法；新踩到的坑要追加进去。
 2. **复制模板**：`cp <skill>/assets/template.html <py 所在目录>/<同名>.html`
 3. **嵌入源码**：`python <skill>/scripts/embed_source.py <同名>.html <同名>.py`
 4. **重写 DEMO 部分**：即最后一个 `<script>`，以及 `<style>` 里 `DEMO STYLE` 以下的样式。建议把它们写成临时目录里的 `demo.css`、`demo.js`，再用 `python <skill>/scripts/splice_demo.py <同名>.html demo.css demo.js` 填进去（可反复执行）。ENGINE 部分不要改；如果确实需要改，说明这是通用问题，要同步改回模板。DEMO 对象需要实现：
@@ -55,6 +55,7 @@ description: 为一个算法题的 Python 解法（.py）生成离线、单文�
    - 引擎提供的工具：`AV.keyed`、`AV.animate`、`AV.setText(node, text, 'av-flash')`、`AV.setHTML(node, html)`（按原始串比较，含公式时必须用它）、`AV.tex(src, display)`（TeX → MathML 字符串）、`AV.typeset(node)`、`AV.flash`、`AV.el`、`AV.esc`、`AV.clamp`、`AV.dur()`、`AV.isInstant()`
 5. **验证逻辑**：用 node 提取 `build` 跑题目里的测试用例，最终答案要和 `python xxx.py` 的输出一致。
 6. **自检布局**：`python <skill>/scripts/check.py <同名>.html [步骤号 | 预设号@步骤号 ...]`。它会用无头 Edge 在 80% 和 100% 两种缩放下遍历**所有预设输入的所有步骤**，检查文字重叠、元素遮挡文字、左侧是否需要滚动、代码是否横向滚动，并截图到系统临时目录下的 `algoviz-shots/`（Windows 为 `%TEMP%`，Linux 为 `/tmp`；Linux 下自动使用 google-chrome / chromium）。必须两种缩放都是 OK；再用 Read 打开截图，人工看一眼效果。
+   接着跑**真实点击回归**：`node <skill>/scripts/check_click.cjs <同名>.html [额外按钮选择器]`。它用真实鼠标事件逐个点击预设、分段等按钮，检查有无未捕获异常、动画是否还在动、点过的按钮有没有 `.on` 高亮，失败时退出码非 0。不是用本模板生成的交互页（如 自动驾驶/车辆动力学-*）也要跑。
 7. 用 `start "" <同名>.html`（Linux 用 `xdg-open`）在浏览器里打开，然后向用户简要说明：页面怎么操作、演示了哪些内容、验证结果如何。
 
 修改播放器交互时，另运行 `node <skill>/scripts/check_drag.cjs <同名>.html`，验证高频拖动合帧、松手落点、取消/丢失捕获清理、拖动中切换预设、分隔条宽度保存和恢复播放。该检查验证行为，不以无头浏览器帧率代表真实桌面性能。
@@ -84,5 +85,7 @@ description: 为一个算法题的 Python 解法（.py）生成离线、单文�
 - 三维 DP 演示（如 Floyd）必须同时展示上一层的来源矩阵和当前层的结果矩阵，并分别高亮读取与写入的格子；历史切片下拉框不能替代并排对照。需要空间总览时配可旋转的三维分层网格，阶段维度与源码索引保持一致。
 - 集合与字典 DP 的状态表按当前最优记录的实际纳入顺序展示节点（如 `{2, 1}`），不要为显示而按编号排序；状态去重仍按无序集合与停留点进行。显示顺序与内部规范化键分开，表头注明顺序含义。
 - 页面支持 `#preset=P&step=N` 直接打开某个预设的某一步，方便截图排查。
+- **自写的 `requestAnimationFrame` 循环**（如车辆动力学系列的轨迹回放）：浏览器在帧开头处理真实鼠标点击，点击时记下的 `t0 = performance.now()` 会晚于同一帧 rAF 回调拿到的时间戳 `now`，`now - t0` 为负，若用它当数组下标会读到 `undefined`、抛错，循环就永久停止。必须 `Math.max(0, now - t0)`，并且在回调**开头**先 `requestAnimationFrame(loop)`，让单帧出错不至于停掉动画。用 CDP 的 `Input.dispatchMouseEvent` 做真实点击才能复现，脚本 `el.click()` 复现不了。
+- **预设 / 典型场景按钮要高亮当前选中项**：记下每个预设的完整取值，参数与哪个预设一致就给哪个按钮加 `.on`（同值时优先刚点的那个），手动拖滑块偏离后自动取消；"重置"也算一个预设。
 - 有"尝试 → 失败 → 回退"分支的算法（如线搜索、拒绝步、回溯）：**默认预设**就要让失败分支出现至少一次（如 CILQR 默认预设第 1 轮 α=1 的候选代价未下降、α 减半后才接受）。用 node 跑 `build` 遍历参数，挑出步数适中、且包含失败分支的输入。
 - 最后一步给出最终答案；有意义的话，再和朴素解法或其他策略做对比。

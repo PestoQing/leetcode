@@ -2,7 +2,7 @@ from math import sqrt
 import sys
 while True:
     # 读取本地数据
-    # sys.stdin = open('input.txt', 'r')
+    sys.stdin = open('input.txt', 'r')
     # 按行读取数据,两个以上
     n, m = map(int, input().split())
     # 按行读取数据，单个

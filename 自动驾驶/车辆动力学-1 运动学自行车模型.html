@@ -84,6 +84,8 @@ button:hover { background: #eef2ff; border-color: #a5b4fc; }
 button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
 button.primary:hover { background: #1d4ed8; }
 button.preset { font-size: 12px; padding: 3px 9px; }
+button.preset.on { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 0 0 2px #bfdbfe; }
+button.preset.on:hover { background: #1d4ed8; }
 
 /* 统计卡片 */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; flex: none; }
@@ -504,6 +506,7 @@ const UI = {
     this.vals[id] = v;
     const t = fmt(v, d.digits ?? 0) + (d.unit ? ' ' + d.unit : '');
     if (this.inputs[id].out.textContent !== t) this.inputs[id].out.textContent = t;
+    this.markPreset();
   },
   seg(container, id, label, options, value) {
     const row = el('div', 'row', null, container);
@@ -519,7 +522,7 @@ const UI = {
     this.setSeg(id, value);
     return row;
   },
-  setSeg(id, v) { this.vals[id] = v; this.segs[id].forEach(b => b.classList.toggle('on', b.dataset.v === String(v))); },
+  setSeg(id, v) { this.vals[id] = v; this.segs[id].forEach(b => b.classList.toggle('on', b.dataset.v === String(v))); this.markPreset(); },
   set(id, v) {
     if (this.segs[id]) { this.setSeg(id, v); return; }
     const d = this.defs[id];
@@ -533,9 +536,23 @@ const UI = {
     el('span', 'lbl-t', '典型场景', row);
     const defaults = {};
     for (const id in this.defs) defaults[id] = this.defs[id].value;
-    this.presetBtns = list.map(p => { const b = el('button', 'preset', p.label, row); b.onclick = () => this.apply({ ...defaults, ...p.values }); return b; });
-    el('button', 'preset', '重置', row).onclick = () => this.apply(defaults);
+    // 每个场景记下完整取值；当前参数与哪个场景一致就高亮哪个，手动拖动滑块偏离后自动取消高亮
+    this.presetList = list.map(p => ({ vals: { ...defaults, ...p.values } }));
+    this.presetList.push({ vals: defaults });
+    this.presetBtns = list.map((p, i) => { const b = el('button', 'preset', p.label, row); b.onclick = () => { this.lastPreset = i; this.apply(this.presetList[i].vals); }; return b; });
+    const rb = el('button', 'preset', '重置', row);
+    rb.onclick = () => { this.lastPreset = list.length; this.apply(defaults); };
+    this.presetList.forEach((p, i) => { p.btn = i < list.length ? this.presetBtns[i] : rb; });
+    this.markPreset();
     return row;
+  },
+  markPreset() {
+    if (!this.presetList) return;
+    const cur = (k, v) => this.defs[k] ? clamp(+v, this.defs[k].min, this.defs[k].max) : v;   // 场景值超出滑块范围时按截断后的值比较
+    const same = p => Object.keys(p.vals).every(k => String(this.vals[k]) === String(cur(k, p.vals[k])) || Math.abs(this.vals[k] - cur(k, p.vals[k])) < 1e-9);
+    const last = this.presetList[this.lastPreset];
+    const hit = last && same(last) ? last : this.presetList.find(same);   // 多个场景取值相同时，优先刚点的那个
+    this.presetList.forEach(p => p.btn.classList.toggle('on', p === hit));
   },
   stats(container, defs) {
     const box = el('div', 'stats', null, container);
@@ -734,8 +751,9 @@ function drawCar(t) {
 }
 let t0 = performance.now();
 function loop(now) {
-  if (sim) drawCar(((now - t0) / 1000) % sim.Tend);
-  requestAnimationFrame(loop);
+  requestAnimationFrame(loop);   // 先排下一帧：即使本帧绘制出错，动画也不会就此停住
+  // 点击按钮时 update() 把 t0 设为 performance.now()，它可能晚于本帧的时间戳 now，差值为负要截到 0
+  if (sim) drawCar((Math.max(0, now - t0) / 1000) % sim.Tend);
 }
 
 function update() {
