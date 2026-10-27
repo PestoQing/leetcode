@@ -1,0 +1,686 @@
+{
+  "date": "2026-10-27",
+  "root": "/home/yimu/Desktop/leetcode",
+  "scope": "原有非 HTML 源码；排除美团面试、隐藏目录和 __pycache__；未包含本次新增文档。",
+  "method": "全文静态扫描；Python 使用 AST 语法解析；风格重点参考算法题人工阅读。扫描不等于运行验证。",
+  "counts": {
+    ".py": 58,
+    ".js": 3,
+    ".css": 1,
+    ".cjs": 2
+  },
+  "files": [
+    {
+      "path": "/home/yimu/Desktop/leetcode/ACM输入.py",
+      "lines": 20,
+      "bytes": 514,
+      "sha256": "17e764b7f0a9001a9869a18e2f630073040ab0c4cd54ab187fb28922ec4691ec",
+      "syntax": "ok",
+      "functions": []
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/app.js",
+      "lines": 100,
+      "bytes": 13132,
+      "sha256": "e1e549a6496a3f75a7baf5dca84d3a3d76e09195d870990566ad1acfc911406c"
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/dp/509. 斐波那契数.py",
+      "lines": 13,
+      "bytes": 294,
+      "sha256": "b614b2ca2c6b17a99fed5b20cde47379112e3aca55af607a03a8b50259919e4f",
+      "syntax": "ok",
+      "functions": [
+        "fib"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/dp/70. 爬楼梯.py",
+      "lines": 15,
+      "bytes": 356,
+      "sha256": "c98125706d208dcf234dd5b3015766e65b90ddf99b12b39fb0b5ca8efbf1d7f9",
+      "syntax": "ok",
+      "functions": [
+        "climbStairs"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/market-data.js",
+      "lines": 158,
+      "bytes": 8686,
+      "sha256": "632984416e236d08c691b0bbbaab9edaa94025fb7cdf4de47875dfc30674714c"
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/self_examples.py",
+      "lines": 125,
+      "bytes": 3894,
+      "sha256": "dd584b7c412bb275e45aa65c28e4599defbdc8b46fffd16c3e86fd6397dd9bab",
+      "syntax": "ok",
+      "functions": [
+        "main",
+        "__init__",
+        "introduce",
+        "grow",
+        "change_school",
+        "get_summary",
+        "say_to",
+        "introduce_again",
+        "__init__",
+        "add",
+        "__init__",
+        "add_member",
+        "show"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/server.py",
+      "lines": 239,
+      "bytes": 13331,
+      "sha256": "5c950e603e57e11ac9e60edaca4c4a44bc52a29909f1f4e2ff712833dc5fd35a",
+      "syntax": "ok",
+      "functions": [
+        "fetch_json",
+        "fetch_sina",
+        "sina_jsonp",
+        "sina_future_quote",
+        "__init__",
+        "end_headers",
+        "send_json",
+        "do_GET",
+        "quotes",
+        "candles",
+        "sina_candles",
+        "tencent_candles",
+        "bucket_of"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/style.css",
+      "lines": 21,
+      "bytes": 9739,
+      "sha256": "b65572921abb9470fca85fb9dee15142577c1633e1de7498d74bde8db99cfe67"
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/二叉树/102.二叉树的层序遍历.py",
+      "lines": 36,
+      "bytes": 1015,
+      "sha256": "49a1b93f5fb646d00b38f13b0dac7ccc2d9df784df7ac9ef829f62dfb545e361",
+      "syntax": "ok",
+      "functions": [
+        "levelOrder"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/二叉树/144.二叉树的前序遍历.py",
+      "lines": 20,
+      "bytes": 478,
+      "sha256": "41fe41f1aee6317304f14238eec4d23981af4ad9f74ba2055f0f9960c6499587",
+      "syntax": "ok",
+      "functions": [
+        "preorderTraversal",
+        "dfs"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/二叉树/145.二叉树的后序遍历.py",
+      "lines": 26,
+      "bytes": 657,
+      "sha256": "e715e53623288a530fb1459ccd0883f251f4d18ac29ae8fa2236c24ff37cdf94",
+      "syntax": "ok",
+      "functions": [
+        "postorderTraversal",
+        "dfs"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/二叉树/94.二叉树的中序遍历.py",
+      "lines": 17,
+      "bytes": 486,
+      "sha256": "c160af042c3869ee100422c2d90aa0e926ab82cd9c4915ef345adeec8ee08ff0",
+      "syntax": "ok",
+      "functions": [
+        "inorderTraversal",
+        "dfs"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/二叉树/binaryTree.py",
+      "lines": 31,
+      "bytes": 842,
+      "sha256": "899bccfa30e9725fa0037c67cb77bb9213b59204f91df362f075a09a69433177",
+      "syntax": "ok",
+      "functions": [
+        "construct",
+        "__init__"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/双指针/15.三数之和.py",
+      "lines": 38,
+      "bytes": 1289,
+      "sha256": "09530ff989bd46121a2de660aeb97fdd95f8e31d021471fdc823545eedbde37c",
+      "syntax": "ok",
+      "functions": [
+        "threeSum"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/哈希表/1. 两数之和.py",
+      "lines": 22,
+      "bytes": 489,
+      "sha256": "0835a1ce56b026a0c3cca74aeedb2ee701651dcd3103d6cd704705170c09897f",
+      "syntax": "ok",
+      "functions": [
+        "twoSum"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/哈希表/15.三数之和.py",
+      "lines": 29,
+      "bytes": 817,
+      "sha256": "19025d0fe4ac1feac50ecabdc324f5e00188970bb997a4e85100b54195e66cfa",
+      "syntax": "ok",
+      "functions": [
+        "threeSum"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/回溯/216.组合总和III.py",
+      "lines": 25,
+      "bytes": 577,
+      "sha256": "3fb31cfd5a12bd58f05e1148d61bb09713f58149f1a20c3df40952593931a2e2",
+      "syntax": "ok",
+      "functions": [
+        "combinationSum3",
+        "back"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/回溯/77. 组合.py",
+      "lines": 20,
+      "bytes": 452,
+      "sha256": "12f4456b08708734763441bcdae2a69503be686ad3a8cdfa94120659078320d5",
+      "syntax": "ok",
+      "functions": [
+        "back",
+        "combine"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/图论/105. 有向图的完全联通BFS.py",
+      "lines": 67,
+      "bytes": 2717,
+      "sha256": "e7f834ae413718725ed2d10a29e33713d449bb343be64b946cc7c50b131081e9",
+      "syntax": "ok",
+      "functions": []
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/图论/105. 有向图的完全联通DFS.py",
+      "lines": 74,
+      "bytes": 3130,
+      "sha256": "fff31c6062be351451e63dc83a1b6eeb73cd238d736a29e7b2a68bc9bb9140d0",
+      "syntax": "ok",
+      "functions": [
+        "dfs"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/图论/107. 寻找存在的路线.py",
+      "lines": 89,
+      "bytes": 2891,
+      "sha256": "aec894190610686f7a1f8d5cb34a848c2ba158bd19c5112074cf6be08a6b6368",
+      "syntax": "ok",
+      "functions": [
+        "find"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/图论/110. 字符串迁移BFS.py",
+      "lines": 62,
+      "bytes": 2074,
+      "sha256": "8db31c7c6bfc26f883a17d269681ad22eb694eeeb1242b98a03d154347f693e4",
+      "syntax": "ok",
+      "functions": [
+        "judge"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/图论/47. 参加科学大会(迪杰斯特拉).py",
+      "lines": 80,
+      "bytes": 3404,
+      "sha256": "9c1b01a4bfd6ff9738d0822a584e062afecefee7b1a4a73d5f894e0c926f7d23",
+      "syntax": "ok",
+      "functions": [
+        "dijkstra"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/图论/97. 小明逛公园(floyd).py",
+      "lines": 88,
+      "bytes": 3639,
+      "sha256": "7fab9efba7439c4889d394ad06395e30b8ade9a48d9e2768704164e6f51c56e7",
+      "syntax": "ok",
+      "functions": []
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/图论/99. 岛屿数量BFS.py",
+      "lines": 51,
+      "bytes": 1484,
+      "sha256": "0e611fd681f405540e8a3758d289e23f2cca4affb8b4b0651a9705276ded5d3d",
+      "syntax": "ok",
+      "functions": [
+        "bfs"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/图论/99. 岛屿数量DFS.py",
+      "lines": 44,
+      "bytes": 1545,
+      "sha256": "033d7f862ca3e01fa07c03b887b57bed5de63623675f2e6598304e02ccf4d872",
+      "syntax": "ok",
+      "functions": [
+        "dfs"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/字符串/3. 无重复字符的最长子串.py",
+      "lines": 26,
+      "bytes": 683,
+      "sha256": "567c1bd5ef1113b5bb1a89519fe419de9b306e5fdd84f52ae4a2eed42d6ef92e",
+      "syntax": "ok",
+      "functions": [
+        "lengthOfLongestSubstring"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/字符串/344.反转字符串.py",
+      "lines": 15,
+      "bytes": 403,
+      "sha256": "948ba00dd6b3f35e56932b4dc9d043ab85b4abe072e2087d739f1d6bbbbacad4",
+      "syntax": "ok",
+      "functions": [
+        "reverseString"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/字符串/5. 最长回文子串.py",
+      "lines": 31,
+      "bytes": 1195,
+      "sha256": "62e42dbcb8143517efbd5483386f94bf1b0d2f3a417e55bb1c818c74f2a3bd47",
+      "syntax": "ok",
+      "functions": [
+        "longestPalindrome"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/数组/209.长度最小的子数组.py",
+      "lines": 27,
+      "bytes": 769,
+      "sha256": "f717e5ee836b4c9932f1c189ef5a33fd953586c83c55dce216ad89c10ce29dd2",
+      "syntax": "ok",
+      "functions": [
+        "minSubArrayLen"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/数组/27.移除元素.py",
+      "lines": 15,
+      "bytes": 365,
+      "sha256": "06b381fe66a6ef2b8b06badc9bf858c528b1d29ce7b7cd9e21b836eb66408252",
+      "syntax": "ok",
+      "functions": [
+        "removeElement"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/数组/4. 寻找两个正序数组的中位数.py",
+      "lines": 88,
+      "bytes": 2810,
+      "sha256": "38cbdda418d114bb6cad0672f0f31a956c6e9d73d52fb59c97073750aa8290e6",
+      "syntax": "ok",
+      "functions": [
+        "findMedianSortedArrays"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/数组/58. 区间和.py",
+      "lines": 27,
+      "bytes": 518,
+      "sha256": "e61166f07ea20175eb407f6aa62e3c9dab670083a2d3fb6e535388beaea3f3da",
+      "syntax": "ok",
+      "functions": []
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/数组/59.螺旋矩阵II.py",
+      "lines": 47,
+      "bytes": 1441,
+      "sha256": "589308383f8856ba3dbbb30a9b827d4d986ea0d91d838a75f92bf2d2c707ebe8",
+      "syntax": "ok",
+      "functions": [
+        "generateMatrix"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/数组/704.二分查找.py",
+      "lines": 20,
+      "bytes": 509,
+      "sha256": "5344684fde9e2282d3db10824383703497e162bb862c63a024798598a0d9cb38",
+      "syntax": "ok",
+      "functions": [
+        "search"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/数组/977.有序数组的平方.py",
+      "lines": 21,
+      "bytes": 627,
+      "sha256": "440018b87f22e537f96663a869001b0b11b84faca4ce5aa269bdd23aa1096a4c",
+      "syntax": "ok",
+      "functions": [
+        "sortedSquares"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/绘制动态算法示意/scripts/check.py",
+      "lines": 74,
+      "bytes": 3095,
+      "sha256": "94014091ce0ea333d747aae0c65510e93bae4f50153c4d9b33c18318ffc4991f",
+      "syntax": "ok",
+      "functions": [
+        "run"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/绘制动态算法示意/scripts/check_click.cjs",
+      "lines": 78,
+      "bytes": 5820,
+      "sha256": "0fafe534ef0cd57c97193629826993476067b584449f9a520313321796513cf3"
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/绘制动态算法示意/scripts/check_drag.cjs",
+      "lines": 71,
+      "bytes": 7199,
+      "sha256": "dad5581b72c85fc8f1317463d4b6bdcd6634f1284ceeec9039db95ac6041bbad"
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/绘制动态算法示意/scripts/embed_source.py",
+      "lines": 20,
+      "bytes": 774,
+      "sha256": "57b511bdfcb5c39d83646b740c34d2f40650b029be53ecfa81f8997d0610af6d",
+      "syntax": "ok",
+      "functions": []
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/绘制动态算法示意/scripts/patch_tex.py",
+      "lines": 80,
+      "bytes": 4842,
+      "sha256": "c1b5bffa14ee7396f8fe015c74aba35960440d26147ca9e8232868322156f6da",
+      "syntax": "ok",
+      "functions": [
+        "sub1",
+        "patch"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/绘制动态算法示意/scripts/splice_demo.py",
+      "lines": 25,
+      "bytes": 1162,
+      "sha256": "0cfd2e140c5f156976d868bc86ad1bf9cce557f3531fc95ebe38e8f26cb8a8ea",
+      "syntax": "ok",
+      "functions": []
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/绘制动态算法示意/scripts/tex_engine.js",
+      "lines": 183,
+      "bytes": 11814,
+      "sha256": "cec019b82e0c74bbfd841eb184ec02464a610adec702714930d3d672c2838abe"
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/自动驾驶/CILQR.py",
+      "lines": 236,
+      "bytes": 9506,
+      "sha256": "da3ee0e8e8a3c82a7f9241d97a032503720d17663abfe69c1ba1b13ed4d3db9b",
+      "syntax": "ok",
+      "functions": [
+        "mat_mul",
+        "mat_vec",
+        "tr",
+        "add",
+        "inv2",
+        "step",
+        "jac",
+        "rollout",
+        "obs_c",
+        "u_cons",
+        "barrier",
+        "stage_cost",
+        "total_cost",
+        "stage_derivs",
+        "backward",
+        "forward",
+        "main"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/自动驾驶/DiffusionDrive.py",
+      "lines": 206,
+      "bytes": 9463,
+      "sha256": "d1e3ac4b15af05422315dacae67dc714b3e25e588735ee5576d283a554a38149",
+      "syntax": "ok",
+      "functions": [
+        "imul",
+        "rand",
+        "gauss",
+        "rollout",
+        "norm",
+        "denorm",
+        "dist2",
+        "denoise",
+        "ddim",
+        "cost",
+        "score"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/自动驾驶/ResAD.py",
+      "lines": 205,
+      "bytes": 9469,
+      "sha256": "da25dd8095a65f350aa30f574cedc14b712123ef23848ab019bbb23c0a5c5dbb",
+      "syntax": "ok",
+      "functions": [
+        "imul",
+        "mulberry32",
+        "gauss",
+        "inertial_ref",
+        "expert",
+        "residual",
+        "minmax",
+        "prdenorm",
+        "rms_per_t",
+        "std_per_dim",
+        "flat",
+        "denoise",
+        "score",
+        "rnd"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/贪心/11. 盛最多水的容器.PY",
+      "lines": 18,
+      "bytes": 436,
+      "sha256": "bff5c53a8d0b5cfac24c5aca2e04db852d5235a8d7cd435597fa8a8583b2d128",
+      "syntax": "ok",
+      "functions": [
+        "maxArea"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/贪心/455.分发饼干.py",
+      "lines": 29,
+      "bytes": 667,
+      "sha256": "0ff69969f4021604c4583ab6e036dd71c24a47ce020bee208e7a9d2df2e2f3ac",
+      "syntax": "ok",
+      "functions": [
+        "findContentChildren"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/链表/2. 两数相加.py",
+      "lines": 30,
+      "bytes": 843,
+      "sha256": "613d4fb82f271c565fa8993056f7ce545667ab4eac9c4480e183cd8164dd92a9",
+      "syntax": "ok",
+      "functions": [
+        "addTwoNumbers"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/链表/203.移除链表元素.py",
+      "lines": 22,
+      "bytes": 583,
+      "sha256": "b1dc57a1d28045584a21ac4614422a6da1e6a1955af28cde7eef34f66137d51d",
+      "syntax": "ok",
+      "functions": [
+        "removeElements"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/链表/707.设计链表.py",
+      "lines": 136,
+      "bytes": 3291,
+      "sha256": "404bfdcd20b1bdc19cfb763bc726b929f7a011c1c77501f3d49b47dc466d7bf4",
+      "syntax": "ok",
+      "functions": [
+        "__init__",
+        "__init__",
+        "get",
+        "addAtHead",
+        "addAtTail",
+        "addAtIndex",
+        "deleteAtIndex",
+        "addAtHead",
+        "addAtTail",
+        "addAtIndex",
+        "deleteAtIndex"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/链表/ListNode.py",
+      "lines": 15,
+      "bytes": 292,
+      "sha256": "3aafe771d3d068a995d2e6fa973c9a4c427248b1e93dc4199eff697cf6735abd",
+      "syntax": "ok",
+      "functions": [
+        "constructListNode",
+        "__init__"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/2449. 使数组相似的最少操作次数.py",
+      "lines": 99,
+      "bytes": 4006,
+      "sha256": "912df95967fdd5c5959620a9e64bada0000ae78320cf40f7fef846430b304ccb",
+      "syntax": "ok",
+      "functions": []
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/3.无重复字符的最长子串.py",
+      "lines": 29,
+      "bytes": 874,
+      "sha256": "0c7ba53311bf0058b95b317d45b9f7a1c203d7e57283403aae08b10169541285",
+      "syntax": "ok",
+      "functions": [
+        "lengthOfLongestSubstring"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/文远1.py",
+      "lines": 112,
+      "bytes": 4000,
+      "sha256": "84044f8fac07c9a0084d2c6b2f6196f307941b8aebba467dc0165374ae65fdca",
+      "syntax": "ok",
+      "functions": []
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/文远2.py",
+      "lines": 142,
+      "bytes": 5670,
+      "sha256": "3238e759710b2957dfd176c93d14e5645a58f61d0201b3e5dc70e180a8625c0a",
+      "syntax": "ok",
+      "functions": []
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/文远3.py",
+      "lines": 176,
+      "bytes": 8075,
+      "sha256": "f28b591f3550aecf98730981f7fff0efde48d09778a9e89aa8492de1796474eb",
+      "syntax": "ok",
+      "functions": []
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/梯度下降求根号.py",
+      "lines": 19,
+      "bytes": 496,
+      "sha256": "3bab9c07e2901ae4b65cccdb6c602e3487d8f5bde9824505730441249846c4e0",
+      "syntax": "ok",
+      "functions": [
+        "sqrt_by_gradient_descent"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/滴滴加减2.py",
+      "lines": 84,
+      "bytes": 2206,
+      "sha256": "4eaa8e36a3a0a9dbb6888966be5fdcedc133a42a002ef4d37d56d0f146d3fe2f",
+      "syntax": "ok",
+      "functions": [
+        "solve"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/滴滴紧急降温.py",
+      "lines": 46,
+      "bytes": 2074,
+      "sha256": "fb94e531a1250799a9514e05df4c2092c6020b6f874d01eb6f908455ecc5dcec",
+      "syntax": "ok",
+      "functions": [
+        "main"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/零跑第一题.py",
+      "lines": 27,
+      "bytes": 979,
+      "sha256": "092e936ff95f87baa5ca7e49438cb9208149bd6964dc283629267f561a6f9dcf",
+      "syntax": "2: invalid syntax"
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/零跑第三题.py",
+      "lines": 26,
+      "bytes": 691,
+      "sha256": "c3f7a8f42a91fd23e7eeff6416e3ea5d1fe4832c183f5f73f76328ab6e097eae",
+      "syntax": "ok",
+      "functions": [
+        "rnn_cell_forward"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试/零跑第二题.py",
+      "lines": 21,
+      "bytes": 645,
+      "sha256": "a6dc54fe47ac66daf8a08c497bcb5ae38b7639581402efd470557b542c9fcaab",
+      "syntax": "ok",
+      "functions": [
+        "solution"
+      ]
+    },
+    {
+      "path": "/home/yimu/Desktop/leetcode/面试.py",
+      "lines": 78,
+      "bytes": 3499,
+      "sha256": "15d7ce511c289124bb3428548520d0868d6fd0f8321f13d6e34980e83c492cfe",
+      "syntax": "ok",
+      "functions": []
+    }
+  ]
+}
