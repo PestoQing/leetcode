@@ -5,24 +5,23 @@ nums = []
 for i in range(len(candidate)):
     nums.append((candidate[i][0], candidate[i][1], i))
 
-# s 已经升序时不用排序，此时整体时间为 O(n)。
-flag = True
-for i in range(1, len(nums)):
-    if nums[i][0] < nums[i - 1][0]:
-        flag = False
-        break
-if not flag:
-    nums.sort()
+# 每条记录是 (s, c, 原下标)，sort 按三个字段依次比较：
+# 先按 s 升序；s 相同才按 c 升序；s、c 都相同才按原下标升序。
+# 例如原轨迹 #2 为 (1, 1)，排序后位于 nums[0]=(1, 1, 2)。
+nums.sort()
 
 seen = set()
 best = None
 left = 0
 while left < len(nums):
     # 同一个 s 的轨迹一起处理，找出最小 c 及其出现次数。
-    right = left
     min_c = nums[left][1]
-    cnt = 0
+    # left 是 nums 中的位置；index 是这条轨迹在原 candidate 中的位置。
+    # index 用来把排序后的候选对应回原数据，不是排序后的下标。
     index = nums[left][2]
+    cnt = 1                # 组首已统计
+    right = left + 1        # 从下一条开始扫描
+    # 先确认 right 没有越界，再判断是否仍属于当前 s 分组；and 会短路。
     while right < len(nums) and nums[right][0] == nums[left][0]:
         if nums[right][1] < min_c:
             min_c = nums[right][1]
@@ -32,12 +31,13 @@ while left < len(nums):
             cnt += 1
         right += 1
 
-    # 组内最小 c 必须唯一，并且不能被之前更小 s 的轨迹排除。
-    # 完全相同的轨迹确实要排除：条件是 >=（非严格），
-    # 两条相同轨迹互相满足 si >= sj 且 ci >= cj，都被剔除。
-    if cnt == 1 and (best is None or min_c < best):
-        seen.add(index)
+    # 没有前面的组，或本组 min_c 更小，才可能保留。
+    # best 为 None 时，or 短路，不会把数值与 None 比较。
     if best is None or min_c < best:
+        # 同组已按 c 升序，前 cnt 条都是最小值，重复项全部保留。
+        for i in range(left, left + cnt):
+            index = nums[i][2]
+            seen.add(index)
         best = min_c
     left = right
 
@@ -49,26 +49,32 @@ print(res)
 
 
 # 思路
-# 按 s 升序处理，best 记录所有更小 s 的轨迹中的最小 c。
-# 对相同 s 的一组轨迹，只有最小 c 才可能保留。
-# 如果最小 c 重复出现，按截图两个 >= 的规则，它们会互相排除。
-# 如果 best <= 本组最小 c，本组也全部被之前的轨迹排除。
-# 即使一组没有保留任何轨迹，也要更新 best，因为排除条件针对原始集合。
-# 最后按原下标收集结果，不改原数据，不用 -1 作删除标记。
+# 1. 给每条轨迹带上原下标，然后排序，让相同 s 的轨迹相邻。
+#    排序只改 nums，不改 candidate。原下标不会因为排序而改变。
+# 2. 同一个 s 内，c 较大的轨迹一定被 c 最小的轨迹排除。
+#    所以一组只需要考虑最小 c；最小 c 的所有重复项都保留，不互相排除。
+# 3. 前面处理过的组都具有更小的 s，best 是这些原始轨迹中的最小 c。
+#    若 min_c >= best，就存在一条 s 更小、c 也不大的轨迹，本组不能保留。
+#    因此 min_c < best（或还没有 best）时，保留本组全部 cnt 条最小值。
+# 4. 同组按 c 升序，最小值正好占据 [left, left+cnt) 这段位置。
+#    逐项取出原下标 index=nums[i][2]，全部加入 seen，不能只记一个 index。
+#    当前例子中 nums[0]=(1,1,2)：left=0，而 index=2，指向 candidate[2]。
+#    保存 seen.add(2)，不是 seen.add(0)，否则会错误保留 candidate[0]=(1,2)。
+# 5. 更新 best 后，后面更大 s、且 c 不小于 best 的轨迹会被排除。
+#    排除要求另一条轨迹两项都不更差、且至少一项更好；完全相同不算更好。
+# 6. 最后按 i=0,1,... 遍历 candidate，i 在 seen 中才加入 res，恢复原顺序。
 #
 # 常见问题
-# 1. 整体真的是 O(n) 吗？
-#    输入按 s 非递减排列时，是 O(n)；相同 s 内的 c 不必有序。
-#    任意未排序输入需要先排序，最坏 O(n log n)，不能只算后续扫描的 O(n)。
-#    当前给定输入未按 s 排序，会执行排序分支。题目没有给出值域限制，
-#    不能直接假设可以用计数排序得到线性复杂度。
+# 1. 时间复杂度是多少？
+#    统一先执行 nums.sort()，再线性扫描。最坏时间 O(n log n)，空间 O(n)。
+#    后续分组扫描是 O(n)，不能将整个算法说成总是 O(n)。
 #
 # 2. 为什么有两层 while，扫描仍然是 O(n)？
 #    right 每次处理一组，left 随后直接跳到 right；每条轨迹只扫描一次。
 #
 # 3. 为什么要把相同 s 的轨迹放在一组？
 #    同组里较小的 c 可以排除较大的 c，不能看见一条就立即决定保留。
-#    还需要统计最小 c 的重复次数，保持原来的两个 >= 比较规则。
+#    统计 cnt 是为了保留全部最小值重复项，不是用重复次数来排除它们。
 #
 # 4. 空间复杂度是多少？
 #    nums、seen 和 res 最多各存 O(n) 个元素，总额外空间 O(n)。
@@ -79,7 +85,8 @@ print(res)
 #    这里仅将原轨迹引用加入 res，没有修改轨迹内部的值。
 
 
-# 以下为原文件完整内容，逐行注释保留，不参与执行。
+# 以下为历史旧版本，逐行注释归档，不参与执行。
+# 注意：旧版将完全相同轨迹互相排除，与当前题意不符；以以上代码为准。
 # candidata = [(1, 1), (2, 2), (3, 3)]
 #
 # res = []
