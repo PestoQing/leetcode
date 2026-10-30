@@ -1,5 +1,11 @@
 // Browser-side market data: loads Tencent / Sina / Eastmoney endpoints via <script> tags (no CORS, no local server needed).
 const SYMBOLS={
+  nvda:{tencent:'us.NVDA',currency:'USD',market:'NASDAQ'},
+  aapl:{tencent:'us.AAPL',currency:'USD',market:'NASDAQ'},
+  mu:{tencent:'us.MU',currency:'USD',market:'NASDAQ'},
+  meta:{tencent:'us.META',currency:'USD',market:'NASDAQ'},
+  googl:{tencent:'us.GOOGL',currency:'USD',market:'NASDAQ'},
+  goog:{tencent:'us.GOOG',currency:'USD',market:'NASDAQ'},
   ndx:{tencent:'us.NDX',currency:'USD',market:'NASDAQ-100',isIndex:true},
   nq:{sina:'NQ',currency:'USD',market:'CME 期货',isIndex:true},
   hstech:{tencent:'hkHSTECH',currency:'HKD',market:'恒生科技指数',isIndex:true},
@@ -70,22 +76,28 @@ async function quoteFor(key){
       asOf:new Date(last.time*1000).toLocaleString('zh-CN',{hour12:false})};
   }
   const code=cfg.tencent,q=await tencentQuote(code);
-  let turnover=key==='ndx'||key==='hstech'?null:+q[37]*(key==='momenta'?1:10000),pe=null;
+  const isUS=code.startsWith('us.'),isHK=code.startsWith('hk');
+  const positive=v=>Number.isFinite(+v)&&+v>0?+v:null;
+  // 腾讯总市值字段45以亿计；美股/港股成交额为原币，A股为万元。
+  let marketCap=cfg.isIndex?null:positive(q[45])===null?null:+q[45]*1e8;
+  let turnover=key==='ndx'||key==='hstech'?null:positive(q[37])===null?null:+q[37]*(isUS||isHK?1:10000);
+  let pe=cfg.isIndex?null:positive(q[39]);
   const turnoverRate=q.length>38&&!['','0','0.00'].includes(q[38])?+q[38]:null;
   // Eastmoney adds valuation fields where available; prices stay on the same Tencent feed as the chart.
   if(cfg.secid){
     try{
-      const m=(await loadJsonp(`https://push2.eastmoney.com/api/qt/stock/get?secid=${cfg.secid}&fields=f162,f48`)).data||{};
-      if(m.f162)pe=m.f162/100;
+      const m=(await loadJsonp(`https://push2.eastmoney.com/api/qt/stock/get?secid=${cfg.secid}&fields=f162,f48,f116`)).data||{};
+      if(Number.isFinite(+m.f162)&&+m.f162>0)pe=m.f162/100;
+      if(!cfg.isIndex&&Number.isFinite(+m.f116)&&+m.f116>0)marketCap=+m.f116;
       if(m.f48!=null)turnover=m.f48;
     }catch(e){}
   }
-  return {...base,price:+q[3],change:+q[31],changePercent:+q[32],turnover,turnoverRate,pe,volume:+q[6],asOf:q[30]};
+  return {...base,price:+q[3],change:+q[31],changePercent:+q[32],turnover,turnoverRate,pe,marketCap,volume:+q[6],asOf:q[30]};
 }
 
 async function fetchQuotes(){
   const keys=Object.keys(SYMBOLS),results=await Promise.allSettled(keys.map(quoteFor)),quotes={};
-  keys.forEach((k,i)=>{const r=results[i];quotes[k]=r.status==='fulfilled'?r.value:{error:r.reason?.message||'获取失败',currency:SYMBOLS[k].currency,market:SYMBOLS[k].market}});
+  keys.forEach((k,i)=>{const r=results[i];quotes[k]=r.status==='fulfilled'?r.value:{error:r.reason?.message||'获取失败',currency:SYMBOLS[k].currency,market:SYMBOLS[k].market,isIndex:!!SYMBOLS[k].isIndex}});
   return {quotes,updatedAt:new Date().toISOString()};
 }
 
@@ -138,13 +150,13 @@ async function tencentCandles(key,period){
     return out;
   }
   const [interval,count]={day:['day',240],week:['week',180],month:['month',180],quarter:['month',240],year:['month',240]}[period]||['day',240];
-  const response=(await loadVar(n=>tencent(`fqkline/get?param=${code},${interval},,,${count},qfq`,n))).data[code];
+  const response=(await loadVar(n=>tencent(`${code.startsWith('us.')?'usfqkline':'fqkline'}/get?param=${code},${interval},,,${count},qfq`,n))).data[code];
   const rows=response[interval]||response['qfq'+interval]||[],candles=[];
   for(const r of rows){
     // Tencent rows are [date, open, close, high, low, volume]; drop corrupt records occasionally returned for global indices.
     // Also drop rows far from the previous close (e.g. a bogus ~11 point bar for the live US session).
     const prev=candles[candles.length-1];
-    if(r.length<6||+r[1]<=0||+r[2]<=0||Math.abs(r[2]/r[1]-1)>.5||(prev&&Math.abs(r[2]/prev.close-1)>.5))continue;
+    if(r.length<6||+r[1]<=0||+r[2]<=0||Math.abs(r[2]/r[1]-1)>.5||(SYMBOLS[key].isIndex&&prev&&Math.abs(r[2]/prev.close-1)>.5))continue;
     candles.push({time:dayStamp(r[0]),open:+r[1],close:+r[2],high:+r[3],low:+r[4],volume:+r[5]||0});
   }
   return period==='quarter'||period==='year'?groupCandles(candles,period):candles;

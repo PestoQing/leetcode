@@ -218,48 +218,22 @@ math[display="block"] { margin: 2px 0; }
 
 <!-- 对应 .py 的完整源码，用 scripts/embed_source.py 写入（保持与源文件一致） -->
 <script type="text/plain" id="py-source">
-candidate = ([1, 2], [2, 1], [1, 1], [3, 3])
+candidate = [(1, 1), (1, 1), (2, 2), (3, 0), (3, 4)]
 
-# 记录原下标，最后按输入顺序输出，不修改原始轨迹。
+# 带上原下标，先按 s 升序，再按 c 升序。
 nums = []
 for i in range(len(candidate)):
     nums.append((candidate[i][0], candidate[i][1], i))
-
-# 每条记录是 (s, c, 原下标)，sort 按三个字段依次比较：
-# 先按 s 升序；s 相同才按 c 升序；s、c 都相同才按原下标升序。
-# 例如原轨迹 #2 为 (1, 1)，排序后位于 nums[0]=(1, 1, 2)。
 nums.sort()
 
-seen = set()
 best = None
-left = 0
-while left < len(nums):
-    # 同一个 s 的轨迹一起处理，找出最小 c 及其出现次数。
-    min_c = nums[left][1]
-    # left 是 nums 中的位置；index 是这条轨迹在原 candidate 中的位置。
-    # index 用来把排序后的候选对应回原数据，不是排序后的下标。
-    index = nums[left][2]
-    cnt = 1                # 组首已统计
-    right = left + 1        # 从下一条开始扫描
-    # 先确认 right 没有越界，再判断是否仍属于当前 s 分组；and 会短路。
-    while right < len(nums) and nums[right][0] == nums[left][0]:
-        if nums[right][1] < min_c:
-            min_c = nums[right][1]
-            cnt = 1
-            index = nums[right][2]
-        elif nums[right][1] == min_c:
-            cnt += 1
-        right += 1
-
-    # 没有前面的组，或本组 min_c 更小，才可能保留。
-    # best 为 None 时，or 短路，不会把数值与 None 比较。
-    if best is None or min_c < best:
-        # 同组已按 c 升序，前 cnt 条都是最小值，重复项全部保留。
-        for i in range(left, left + cnt):
-            index = nums[i][2]
-            seen.add(index)
-        best = min_c
-    left = right
+seen = set()
+for s, c, index in nums:
+    # 前面轨迹的 s 不大于当前 s；c 也不大于当前 c 时，当前轨迹排除。
+    # 完全相同的轨迹只会保留最先出现的一条。
+    if best is None or c < best:
+        seen.add(index)
+        best = c
 
 res = []
 for i in range(len(candidate)):
@@ -269,131 +243,203 @@ print(res)
 
 
 # 思路
-# 1. 给每条轨迹带上原下标，然后排序，让相同 s 的轨迹相邻。
-#    排序只改 nums，不改 candidate。原下标不会因为排序而改变。
-# 2. 同一个 s 内，c 较大的轨迹一定被 c 最小的轨迹排除。
-#    所以一组只需要考虑最小 c；最小 c 的所有重复项都保留，不互相排除。
-# 3. 前面处理过的组都具有更小的 s，best 是这些原始轨迹中的最小 c。
-#    若 min_c >= best，就存在一条 s 更小、c 也不大的轨迹，本组不能保留。
-#    因此 min_c < best（或还没有 best）时，保留本组全部 cnt 条最小值。
-# 4. 同组按 c 升序，最小值正好占据 [left, left+cnt) 这段位置。
-#    逐项取出原下标 index=nums[i][2]，全部加入 seen，不能只记一个 index。
-#    当前例子中 nums[0]=(1,1,2)：left=0，而 index=2，指向 candidate[2]。
-#    保存 seen.add(2)，不是 seen.add(0)，否则会错误保留 candidate[0]=(1,2)。
-# 5. 更新 best 后，后面更大 s、且 c 不小于 best 的轨迹会被排除。
-#    排除要求另一条轨迹两项都不更差、且至少一项更好；完全相同不算更好。
-# 6. 最后按 i=0,1,... 遍历 candidate，i 在 seen 中才加入 res，恢复原顺序。
+# 相同轨迹去重保留一条，再筛选没有被其他轨迹压过的轨迹。
+# 按 (s,c,原下标) 排序后，前面轨迹的 s 一定不大于当前 s。
+# best 记录前面轨迹的最小 c，当前 c >= best 就排除，否则保留并更新 best。
+# 相同 (s,c) 中，原下标最小的一条先处理，其余重复项因 c == best 被排除。
+# 最后按原下标输出，得到 [(1, 1), (3, 0)]。
 #
 # 常见问题
-# 1. 时间复杂度是多少？
-#    统一先执行 nums.sort()，再线性扫描。最坏时间 O(n log n)，空间 O(n)。
-#    后续分组扫描是 O(n)，不能将整个算法说成总是 O(n)。
-#
-# 2. 为什么有两层 while，扫描仍然是 O(n)？
-#    right 每次处理一组，left 随后直接跳到 right；每条轨迹只扫描一次。
-#
-# 3. 为什么要把相同 s 的轨迹放在一组？
-#    同组里较小的 c 可以排除较大的 c，不能看见一条就立即决定保留。
-#    统计 cnt 是为了保留全部最小值重复项，不是用重复次数来排除它们。
-#
-# 4. 空间复杂度是多少？
-#    nums、seen 和 res 最多各存 O(n) 个元素，总额外空间 O(n)。
-#    包含输入存储后仍为 O(n)，不需要 deepcopy。
-#
-# 5. 为什么不用 -1 标记删除？
-#    会改动输入，也可能和合法数据冲突；记录保留下标更直接。
-#    这里仅将原轨迹引用加入 res，没有修改轨迹内部的值。
+# 1. 两个 (1,1) 为什么只剩一个？
+#    按用户最新确认，相同轨迹删除多余副本，保留第一条，不是两条同时删除。
+# 2. 为什么 (3,0) 保留？
+#    (1,1) 虽然 s 更小，但 c=1 大于 0，不能排除 (3,0)。
+# 3. 为什么 (2,2)、(3,4) 被排除？
+#    (1,1) 的两个指标都不大于它们，满足排除条件。
+# 4. 时间和空间复杂度是多少？
+#    排序 O(n log n)，扫描 O(n)，整体最坏 O(n log n)，额外空间 O(n)。
+#    如果输入已经按 (s,c) 升序排列，省去排序后可以 O(n) 处理。
+# 5. 会修改输入吗，输出顺序如何？
+#    只排序新建的 nums，candidate 保持原样；结果按原输入顺序输出。
 
 
-# 以下为历史旧版本，逐行注释归档，不参与执行。
-# 注意：旧版将完全相同轨迹互相排除，与当前题意不符；以以上代码为准。
-# candidata = [(1, 1), (2, 2), (3, 3)]
+# 以下为修改前的完整文件，注释保留，不参与执行。
+# candidate = ([1, 2], [2, 1], [1, 1], [3, 3])
+#
+# # 记录原下标，最后按输入顺序输出，不修改原始轨迹。
+# nums = []
+# for i in range(len(candidate)):
+#     nums.append((candidate[i][0], candidate[i][1], i))
+#
+# # 每条记录是 (s, c, 原下标)，sort 按三个字段依次比较：
+# # 先按 s 升序；s 相同才按 c 升序；s、c 都相同才按原下标升序。
+# # 例如原轨迹 #2 为 (1, 1)，排序后位于 nums[0]=(1, 1, 2)。
+# nums.sort()
+#
+# seen = set()
+# best = None
+# left = 0
+# while left < len(nums):
+#     # 同一个 s 的轨迹一起处理，找出最小 c 及其出现次数。
+#     min_c = nums[left][1]
+#     # left 是 nums 中的位置；index 是这条轨迹在原 candidate 中的位置。
+#     # index 用来把排序后的候选对应回原数据，不是排序后的下标。
+#     index = nums[left][2]
+#     cnt = 1                # 组首已统计
+#     right = left + 1        # 从下一条开始扫描
+#     # 先确认 right 没有越界，再判断是否仍属于当前 s 分组；and 会短路。
+#     while right < len(nums) and nums[right][0] == nums[left][0]:
+#         if nums[right][1] < min_c:
+#             min_c = nums[right][1]
+#             cnt = 1
+#             index = nums[right][2]
+#         elif nums[right][1] == min_c:
+#             cnt += 1
+#         right += 1
+#
+#     # 没有前面的组，或本组 min_c 更小，才可能保留。
+#     # best 为 None 时，or 短路，不会把数值与 None 比较。
+#     if best is None or min_c < best:
+#         # 同组已按 c 升序，前 cnt 条都是最小值，重复项全部保留。
+#         for i in range(left, left + cnt):
+#             index = nums[i][2]
+#             seen.add(index)
+#         best = min_c
+#     left = right
 #
 # res = []
-# for i in range(len(candidata)):
-#     s1, c1 = candidata[i]
-#     flag = True
-#
-#     for j in range(len(candidata)):
-#         if i == j:
-#             continue
-#
-#         s2, c2 = candidata[j]
-#         # 按截图条件：两个指标都不小于另一条轨迹，就排除当前轨迹。
-#         if s1 >= s2 and c1 >= c2:
-#             flag = False
-#             break
-#
-#     if flag:
-#         res.append(candidata[i])
+# for i in range(len(candidate)):
+#     if i in seen:
+#         res.append(candidate[i])
 # print(res)
 #
 #
 # # 思路
-# # 逐条判断轨迹 i 是否应该保留，再遍历其他轨迹 j。
-# # 只要存在 j，使 si >= sj 且 ci >= cj，就排除 i。
-# # 如果检查完所有其他轨迹仍未被排除，就加入 res，保留原输入顺序。
-# # 给定数据中，(2,2)、(3,3) 都满足相对 (1,1) 的排除条件。
-# # 输出：[(1, 1)]。
+# # 1. 给每条轨迹带上原下标，然后排序，让相同 s 的轨迹相邻。
+# #    排序只改 nums，不改 candidate。原下标不会因为排序而改变。
+# # 2. 同一个 s 内，c 较大的轨迹一定被 c 最小的轨迹排除。
+# #    所以一组只需要考虑最小 c；最小 c 的所有重复项都保留，不互相排除。
+# # 3. 前面处理过的组都具有更小的 s，best 是这些原始轨迹中的最小 c。
+# #    若 min_c >= best，就存在一条 s 更小、c 也不大的轨迹，本组不能保留。
+# #    因此 min_c < best（或还没有 best）时，保留本组全部 cnt 条最小值。
+# # 4. 同组按 c 升序，最小值正好占据 [left, left+cnt) 这段位置。
+# #    逐项取出原下标 index=nums[i][2]，全部加入 seen，不能只记一个 index。
+# #    当前例子中 nums[0]=(1,1,2)：left=0，而 index=2，指向 candidate[2]。
+# #    保存 seen.add(2)，不是 seen.add(0)，否则会错误保留 candidate[0]=(1,2)。
+# # 5. 更新 best 后，后面更大 s、且 c 不小于 best 的轨迹会被排除。
+# #    排除要求另一条轨迹两项都不更差、且至少一项更好；完全相同不算更好。
+# # 6. 最后按 i=0,1,... 遍历 candidate，i 在 seen 中才加入 res，恢复原顺序。
 # #
 # # 常见问题
-# # 1. 时间和空间复杂度是多少？
-# #    最坏每条轨迹都要和其他轨迹比较，时间 O(n²)。
-# #    不计输入和结果，辅助空间 O(1)；结果最多 O(n)，包含输入后也是 O(n)。
+# # 1. 时间复杂度是多少？
+# #    统一先执行 nums.sort()，再线性扫描。最坏时间 O(n log n)，空间 O(n)。
+# #    后续分组扫描是 O(n)，不能将整个算法说成总是 O(n)。
 # #
-# # 2. 为什么必须跳过 i == j？
-# #    每条轨迹和自身比较都满足两个 >=，不跳过就会把所有轨迹排除。
+# # 2. 为什么有两层 while，扫描仍然是 O(n)？
+# #    right 每次处理一组，left 随后直接跳到 right；每条轨迹只扫描一次。
 # #
-# # 3. 为什么找到一条满足条件的轨迹就可以 break？
-# #    排除条件只要求存在一个这样的 j，找到之后 i 已经确定不保留。
+# # 3. 为什么要把相同 s 的轨迹放在一组？
+# #    同组里较小的 c 可以排除较大的 c，不能看见一条就立即决定保留。
+# #    统计 cnt 是为了保留全部最小值重复项，不是用重复次数来排除它们。
 # #
-# # 4. 如果一条轨迹 s 小，但 c 大，应该排除哪条？
-# #    这两条轨迹不能仅凭彼此排除；需要继续检查其他轨迹。
-# #    最终结果可能不止一条，本题求的是剩余集合，并未给出唯一最优的打分规则。
+# # 4. 空间复杂度是多少？
+# #    nums、seen 和 res 最多各存 O(n) 个元素，总额外空间 O(n)。
+# #    包含输入存储后仍为 O(n)，不需要 deepcopy。
 # #
-# # 5. 完全相同的两条轨迹怎么办？
-# #    当前严格按截图的两个 >= 执行，不同下标的相同轨迹会互相满足条件而被排除。
-# #    如果要求相同轨迹保留，则需在判断中再加：
-# #    and (s1 > s2 or c1 > c2)，也就是至少一项严格更差才排除。
-# #    这属于另一种重复项规则，不能悄悄改变题目的比较条件。
+# # 5. 为什么不用 -1 标记删除？
+# #    会改动输入，也可能和合法数据冲突；记录保留下标更直接。
+# #    这里仅将原轨迹引用加入 res，没有修改轨迹内部的值。
+#
+#
+# # 以下为历史旧版本，逐行注释归档，不参与执行。
+# # 注意：旧版将完全相同轨迹互相排除，与当前题意不符；以以上代码为准。
+# # candidata = [(1, 1), (2, 2), (3, 3)]
 # #
-# # 6. 为什么不边遍历边删除原列表？
-# #    删除会改变下标，也可能改变后续轨迹的比较对象。
-# #    对原列表逐条判断，再用新列表收集结果，逻辑更清楚。
-#
-# # n 条轨迹，
-# # (s, c) {(s1, c1), ...， (sn, cn)} cost 越小越好
-# # 选一条最好的轨迹
-# # 1. 排除掉一些 (si >= sj, ci >= cj) i 肯定比 j 更差， 把 i 排除；
-# # 求所有满足上述条件排除之后剩下的轨迹集合
-#
-# from copy import deepcopy
-# candidate=([1,2], [2,1],[1,1], [3,3])
-# tmp=[]
-# tmp = deepcopy(candidate)
-#
-# # for a in candidate:
-# #     b=a[0]
-# #     c=a[1]
-# #     d=[]
-# #     d.append(b)
-# #     d.append(c)
-# #     tmp.append(d)
-#
-# res=[]
-#
-# for j in  range(len(candidate)):
-#     
-#     for  i in range(len(candidate)):
-#         if i!=j and tmp[i][0]>=tmp[j][0] and tmp[i][1]>=tmp[j][1] :
-#             candidate[i][0]=-1
-#             candidate[i][1]=-1
-#         
-# for i in  range(len(candidate)):
-#     if candidate[i][0]!=-1:
-#         res.append(candidate[i])
-# print(res)
-# print(tmp)
+# # res = []
+# # for i in range(len(candidata)):
+# #     s1, c1 = candidata[i]
+# #     flag = True
+# #
+# #     for j in range(len(candidata)):
+# #         if i == j:
+# #             continue
+# #
+# #         s2, c2 = candidata[j]
+# #         # 按截图条件：两个指标都不小于另一条轨迹，就排除当前轨迹。
+# #         if s1 >= s2 and c1 >= c2:
+# #             flag = False
+# #             break
+# #
+# #     if flag:
+# #         res.append(candidata[i])
+# # print(res)
+# #
+# #
+# # # 思路
+# # # 逐条判断轨迹 i 是否应该保留，再遍历其他轨迹 j。
+# # # 只要存在 j，使 si >= sj 且 ci >= cj，就排除 i。
+# # # 如果检查完所有其他轨迹仍未被排除，就加入 res，保留原输入顺序。
+# # # 给定数据中，(2,2)、(3,3) 都满足相对 (1,1) 的排除条件。
+# # # 输出：[(1, 1)]。
+# # #
+# # # 常见问题
+# # # 1. 时间和空间复杂度是多少？
+# # #    最坏每条轨迹都要和其他轨迹比较，时间 O(n²)。
+# # #    不计输入和结果，辅助空间 O(1)；结果最多 O(n)，包含输入后也是 O(n)。
+# # #
+# # # 2. 为什么必须跳过 i == j？
+# # #    每条轨迹和自身比较都满足两个 >=，不跳过就会把所有轨迹排除。
+# # #
+# # # 3. 为什么找到一条满足条件的轨迹就可以 break？
+# # #    排除条件只要求存在一个这样的 j，找到之后 i 已经确定不保留。
+# # #
+# # # 4. 如果一条轨迹 s 小，但 c 大，应该排除哪条？
+# # #    这两条轨迹不能仅凭彼此排除；需要继续检查其他轨迹。
+# # #    最终结果可能不止一条，本题求的是剩余集合，并未给出唯一最优的打分规则。
+# # #
+# # # 5. 完全相同的两条轨迹怎么办？
+# # #    确实要排除：条件是两个 >=（非严格），两条完全相同的轨迹
+# # #    互相满足 si >= sj 且 ci >= cj，因此都被剔除，一条也不保留。
+# # #    优化版对应"组内最小 c 必须唯一（cnt == 1）"这一步。
+# # #
+# # # 6. 为什么不边遍历边删除原列表？
+# # #    删除会改变下标，也可能改变后续轨迹的比较对象。
+# # #    对原列表逐条判断，再用新列表收集结果，逻辑更清楚。
+# #
+# # # n 条轨迹，
+# # # (s, c) {(s1, c1), ...， (sn, cn)} cost 越小越好
+# # # 选一条最好的轨迹
+# # # 1. 排除掉一些 (si >= sj, ci >= cj) i 肯定比 j 更差， 把 i 排除；
+# # # 求所有满足上述条件排除之后剩下的轨迹集合
+# #
+# # from copy import deepcopy
+# # candidate=([1,2], [2,1],[1,1], [3,3])
+# # tmp=[]
+# # tmp = deepcopy(candidate)
+# #
+# # # for a in candidate:
+# # #     b=a[0]
+# # #     c=a[1]
+# # #     d=[]
+# # #     d.append(b)
+# # #     d.append(c)
+# # #     tmp.append(d)
+# #
+# # res=[]
+# #
+# # for j in  range(len(candidate)):
+# #     
+# #     for  i in range(len(candidate)):
+# #         if i!=j and tmp[i][0]>=tmp[j][0] and tmp[i][1]>=tmp[j][1] :
+# #             candidate[i][0]=-1
+# #             candidate[i][1]=-1
+# #         
+# # for i in  range(len(candidate)):
+# #     if candidate[i][0]!=-1:
+# #         res.append(candidate[i])
+# # print(res)
+# # print(tmp)
+# #
 #
 </script>
 
@@ -1145,7 +1191,7 @@ const AV = (() => {
 (() => {
 const {el,setText,keyed,lineOf:L}=AV;let U;
 const presets=[
- {label:'原代码示例',values:{pairs:'1 2; 2 1; 1 1; 3 3'}},
+ {label:'当前代码示例',values:{pairs:'1 1; 1 1; 2 2; 3 0; 3 4'}},
  {label:'重复最小值',values:{pairs:'1 1; 1 1; 2 2; 3 0; 3 4'}},
  {label:'同组也按 c 排序',values:{pairs:'1 6; 1 2; 1 4; 2 1'}},
  {label:'各有优势',values:{pairs:'1 5; 2 4; 3 3; 4 2'}},
@@ -1155,54 +1201,41 @@ const presets=[
  {label:'空输入',values:{pairs:''}}
 ];
 const pairText=p=>'('+p[0]+', '+p[1]+')';
-const DEMO={file:'轨迹筛选.py',title:'轨迹筛选 · 同 s 分组与前缀最小 c',subtitle:'s、c 都越小越好；只有另一条轨迹两项都不更差、且至少一项更好时才排除。完全相同的最小值重复项全部保留。',
+const DEMO={file:'轨迹筛选.py',title:'轨迹筛选 · 排序与前缀最小 c',subtitle:'s、c 都越小越好；相同轨迹只保留第一条。排序后仅当 c 严格小于前缀最小值时保留，最终按原输入顺序输出。',
  inputs:[{id:'pairs',label:'candidate：s c；',value:presets[0].values.pairs,flex:true}],presets,
- stats:[{key:'left',label:'组首 left',color:'blue'},{key:'right',label:'扫描 right',color:'amber'},{key:'min',label:'组内 min_c',color:'purple'},{key:'cnt',label:'最小值次数 cnt',color:'red'},{key:'best',label:'前缀最小 best',color:'green'}],
- panels:{canvas:{title:'原始轨迹坐标与 nums 扫描',hint:'位置下标与原下标分开；原 candidate 不会被修改'},state:{title:'本步变量与判断',hint:'本组 min_c 优于 best 时，保留全部 cnt 条最小值'},aux:[{id:'result',title:'原始顺序、seen 与 res',hint:'原下标从 0 开始；输出保留原始顺序',grow:true}]},
+ stats:[{key:'scan',label:'扫描位置',color:'blue'},{key:'s',label:'当前 s',color:'amber'},{key:'c',label:'当前 c',color:'purple'},{key:'index',label:'原下标 index',color:'red'},{key:'best',label:'前缀最小 best',color:'green'}],
+ panels:{canvas:{title:'原始轨迹坐标与 nums 扫描',hint:'位置下标与原下标分开；原 candidate 不会被修改'},state:{title:'本步变量与判断',hint:'c 严格小于 best 时保留；相同轨迹去重'},aux:[{id:'result',title:'原始顺序、seen 与 res',hint:'原下标从 0 开始；输出保留原始顺序',grow:true}]},
  parse(v){const candidate=[];for(const part of v.pairs.split(/[;；\n]+/).filter(s=>s.trim())){const a=part.trim().replace(/[\[\]()]/g,'').split(/[\s,，]+/).filter(Boolean).map(Number);if(a.length!==2||a.some(x=>!Number.isInteger(x)||x< -99||x>99))return {error:'每条填写两个 -99～99 的整数，多条用分号分隔。'};candidate.push(a);}if(candidate.length>10)return {error:'演示最多 10 条轨迹。'};return {candidate};},
  build({candidate}){
-  const nums=[],seen=new Set(),res=[],status=candidate.map(()=>null),steps=[];let best=null,left=null,right=null,minC=null,cnt=null,index=null,group=false,scan=null,outputIndex=null,seenReady=false,bestReady=false;
-  const push=(phase,desc,line,extra={})=>steps.push({phase,tag:{text:phase,kind:extra.kind||'info'},desc,lines:[L(line,phase==='重置次数'?2:1)],nums:nums.map(p=>p.slice()),seen:[...seen],res:res.map(p=>p.slice()),status:status.slice(),best,left,right,minC,cnt,index,group,scan,outputIndex,seenReady,bestReady,
-   stats:{left:left??'—',right:right??'—',min:minC??'—',cnt:cnt??'—',best:bestReady?(best??'None'):'—'},...extra});
-  push('读取数据','candidate 保存原始轨迹；每条轨迹的原下标区分完全相同的重复项。','candidate =');push('创建 nums','nums 先为空列表，随后逐个保存 (s, c, 原下标)。','nums = []');
-  for(let i=0;i<candidate.length;i++){nums.push([...candidate[i],i]);push('追加轨迹',`循环 i=${i}：添加 (${candidate[i][0]}, ${candidate[i][1]}, ${i})，最后一项是原下标。`,'nums.append((candidate[i][0], candidate[i][1], i))',{scan:i,expr:`nums.append((${candidate[i][0]}, ${candidate[i][1]}, ${i}))`});}
-  push('理解排序字段','nums 中每项是 (s, c, 原下标)。先比较 s；仅在 s 相同时比较 c；前两项都相同时才比较原下标。不是分别把每一列独立排序。','nums.sort()', {expr:'排序优先级：s → c → 原下标'});
+  const nums=[],seen=new Set(),res=[],status=candidate.map(()=>null),steps=[];
+  let best=null,scan=null,index=null,outputIndex=null,seenReady=false,bestReady=false;
+  const push=(phase,desc,line,extra={})=>steps.push({phase,tag:{text:phase,kind:extra.kind||'info'},desc,lines:[L(line)],nums:nums.map(p=>p.slice()),seen:[...seen],res:res.map(p=>p.slice()),status:status.slice(),best,scan,index,outputIndex,seenReady,bestReady,group:false,left:null,right:null,
+   stats:{scan:scan??'—',s:scan==null?'—':nums[scan][0],c:scan==null?'—':nums[scan][1],index:index??'—',best:bestReady?(best??'None'):'—'},...extra});
+  push('读取数据','相同轨迹只保留第一条，结果保持原输入顺序。','candidate =');
+  push('创建 nums','新建列表，记录每条轨迹及其原下标。','nums = []');
+  for(let i=0;i<candidate.length;i++){nums.push([...candidate[i],i]);push('追加轨迹',`添加 (${candidate[i][0]}, ${candidate[i][1]}, ${i})。`,'nums.append((candidate[i][0], candidate[i][1], i))');}
   nums.sort((a,b)=>a[0]-b[0]||a[1]-b[1]||a[2]-b[2]);
-  push('排序 nums','直接执行 nums.sort()。每条三元组整体移动：位置下标可以改变，紫色原下标保持不变。candidate 保留原始输入顺序。','nums.sort()', {kind:'pre',expr:'按 (s, c, 原下标) 的字典序升序排列'});
-  seenReady=true;push('创建 seen','seen 保存最终保留轨迹的原下标。','seen = set()');bestReady=true;push('初始化 best','best=None：之前还没有处理任何 s 分组。','best = None');left=0;push('设置组首','left=0，从 nums 第一个位置开始分组。','left = 0');
-  while(left<nums.length){group=true;scan=null;
-   minC=nums[left][1];push('初始化 min_c',`新组 s=${nums[left][0]}，用组首的 c=${minC} 初始化最小值。`,'min_c = nums[left][1]',{expr:`min_c = nums[${left}][1] = ${minC}`});
-   index=nums[left][2];push('记录候选原下标',`nums[${left}]=(${nums[left].join(', ')})。left=${left} 是排序后位置；index=${index} 指向原 candidate[${index}]=${pairText(candidate[index])}。`,'index = nums[left][2]',{expr:`index = nums[${left}][2] = ${index}`});
-   cnt=1;push('组首计数一次','组首已经作为当前最小值，直接计入 cnt=1，无需再与自身比较。','cnt = 1',{expr:'cnt = 1（组首已统计）'});
-   right=left+1;push('从下一条扫描',`right=left+1=${right}。从组首之后开始，只检查本组剩余轨迹；如果组内只有一条，将直接结束内层循环。`,'right = left + 1',{expr:`right = ${left} + 1 = ${right}`});
-   while(true){const inside=right<nums.length,same=inside&&nums[right][0]===nums[left][0];push('检查组边界',!inside?'right 已到数组末尾，and 短路，不再访问 nums[right]。':same?`nums[${right}].s=${nums[right][0]}，仍在当前分组。`:`nums[${right}].s=${nums[right][0]} 与组首 s=${nums[left][0]} 不同，本组扫描结束。`,'while right < len(nums) and nums[right][0] == nums[left][0]:',{scan:inside?right:null,expr:`right = ${right}；${same?'进入本轮扫描':'结束内层 while'}`});if(!same)break;
-    const c=nums[right][1];push('比较组内 c',`当前 c=${c}，已记录 min_c=${minC}。`,'if nums[right][1] < min_c:',{scan:right,expr:`${c} < ${minC} → ${c<minC?'True':'False'}`});
-    if(c<minC){minC=c;push('更新最小 c',`发现更小的 c=${c}，替换旧最小值。`,'min_c = nums[right][1]',{scan:right});cnt=1;push('重置次数','新的最小值目前仅出现一次，cnt 重置为 1，而不是累加。','cnt = 1',{scan:right});index=nums[right][2];push('更新原下标',`新的最小值来自原轨迹 #${index}。`,'index = nums[right][2]',{scan:right});}
-    else{push('判断是否等于最小值',`当前 c=${c}${c===minC?'等于':'不等于'} min_c=${minC}。`,'elif nums[right][1] == min_c:',{scan:right});if(c===minC){cnt++;push('累加最小值次数',`cnt 增加为 ${cnt}。${cnt>1?'最小值有重复项；通过跨组判断后，这些重复项全部保留。':'这是当前最小值的第一次出现。'}`,'cnt += 1',{scan:right});}}
-    right++;push('扫描下一条',`right 增加到 ${right}，再判断是否仍属于同组。`,'right += 1');
-   }
-   const update=best===null||minC<best;
-   push('比较前缀最小值',`min_c=${minC}，best=${best===null?'None':best}。${update?`本组未被前面轨迹排除，准备保留全部 ${cnt} 条最小值。`:'更小 s 的组已有更小或相等 c，本组全部排除；完全相同的组内重复项则不会互相排除。'}`,'if best is None or min_c < best:',{expr:`best is None or min_c < best → ${update?'True':'False'}`,kind:update?'info':'miss'});
-   for(let p=left;p<right;p++)status[nums[p][2]]=update&&nums[p][1]===minC?null:nums[p][1]>minC?'同组存在更小 c':'被更小 s 的轨迹排除';
-   if(update){
-    for(let i=left;i<left+cnt;i++){
-     push('逐项保留最小值',`同组按 c 升序排列，位置 ${left}～${left+cnt-1} 的 ${cnt} 条记录都是最小值。当前循环 i=${i}。`,'for i in range(left, left + cnt):',{scan:i,expr:`range(${left}, ${left+cnt})；i = ${i}`});
-     index=nums[i][2];push('读取原下标',`index=nums[${i}][2]=${index}，对应原 candidate[${index}]=${pairText(candidate[index])}。重复项有不同原下标，都要保存。`,'index = nums[i][2]',{scan:i,expr:`index = ${index}`});
-     seen.add(index);status[index]='保留';push('保存原下标',`seen.add(${index})。保留这条最小值；重复轨迹不会合并为一条，最后逐条按原输入顺序输出。`,'seen.add(index)',{scan:i,kind:'hit'});
-    }
-    best=minC;push('更新前缀最小值',`best=${best}，后面更大 s 且 c 不小于它的轨迹会被排除。`,'best = min_c',{expr:`best = ${best}`,kind:'pre'});
-   }
-   left=right;group=false;scan=null;push('进入下一组',`left=right=${left}，整组已处理，直接跳到下一组，避免重复扫描。`,'left = right');
+  push('排序','按 s、c、原下标依次升序。排序 O(n log n)，后续扫描 O(n)。','nums.sort()');
+  bestReady=true;push('初始化 best','best=None 表示尚未处理轨迹。','best = None');
+  seenReady=true;push('创建 seen','seen 保存保留轨迹的原下标。','seen = set()');
+  for(let i=0;i<nums.length;i++){
+   scan=i;const [s,c,origin]=nums[i];index=origin;
+   push('读取轨迹',`排序后位置 ${i}，原下标 #${index}，s=${s}，c=${c}。`,'for s, c, index in nums:');
+   const keep=best===null||c<best;
+   push('比较前缀最小值',keep?'当前 c 严格更小，不能被前面轨迹排除。':'前面已有 s、c 都不大的轨迹；相同轨迹也只保留先出现的一条。','if best is None or c < best:',{expr:`best is None or ${c} < ${best===null?'None':best} → ${keep?'True':'False'}`,kind:keep?'info':'miss'});
+   if(keep){seen.add(index);status[index]='保留';push('保存原下标',`seen.add(${index})，保留原轨迹 #${index}。`,'seen.add(index)',{kind:'hit'});best=c;push('更新 best',`best=${c}，作为后续轨迹的比较下界。`,'best = c');}
+   else{status[index]='排除';push('排除轨迹',`原轨迹 #${index} 被排除。`,'if best is None or c < best:',{kind:'miss'});}
   }
-  push('创建输出列表','res=[]，按原下标从小到大收集，不按 nums 排序后的顺序输出。','res = []');
-  for(let i=0;i<candidate.length;i++){outputIndex=i;push('检查原下标',`原轨迹 #${i} ${pairText(candidate[i])} ${seen.has(i)?'在 seen 中，加入输出。':'不在 seen 中，跳过。'}`,'if i in seen:',{expr:`${i} in seen → ${seen.has(i)?'True':'False'}`});if(seen.has(i)){res.push(candidate[i].slice());push('追加结果',`将原轨迹 #${i} 加入 res，原始数据没有被修改。`,'res.append(candidate[i])',{kind:'hit'});}}
-  outputIndex=null;push('最终结果',`保留 ${res.length} 条轨迹：${JSON.stringify(res)}。符合条件的重复最小值全部保留，数量和原输入顺序保持不变。`,'print(res)',{done:true,answer:res.map(p=>p.slice()),expr:`print(res) → ${JSON.stringify(res)}`,kind:'hit'});return steps;
+  scan=null;index=null;push('创建结果','按原输入顺序收集保留下标对应的轨迹。','res = []');
+  for(let i=0;i<candidate.length;i++){outputIndex=i;push('检查原下标',`原轨迹 #${i} ${seen.has(i)?'保留':'跳过'}。`,'if i in seen:');if(seen.has(i)){res.push(candidate[i].slice());push('追加结果',`加入 ${pairText(candidate[i])}。`,'res.append(candidate[i])',{kind:'hit'});}}
+  outputIndex=null;push('最终结果',`保留 ${res.length} 条轨迹：${JSON.stringify(res)}。相同轨迹只保留第一条。`,'print(res)',{done:true,answer:res.map(p=>p.slice()),kind:'hit'});
+  return steps;
  },
- mount(d,P){P.canvas.innerHTML='<div class="tf-main"><div class="tf-plot"><svg><defs><marker id="tf-axis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker></defs><g class="axes"></g><g class="points"></g></svg></div><div class="tf-nums"><div class="tf-caption">nums：每格保存 (s, c, 原下标)</div><div class="tf-strip"></div><div class="tf-hint">位置下标用于扫描，紫色 # 为原下标。</div><div class="tf-caption">蓝：当前 s 分组　橙：扫描位置　绿：保留　灰：排除</div></div></div>';
+ mount(d,P){P.canvas.innerHTML='<div class="tf-main"><div class="tf-plot"><svg><defs><marker id="tf-axis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker></defs><g class="axes"></g><g class="points"></g></svg></div><div class="tf-nums"><div class="tf-caption">nums：每格保存 (s, c, 原下标)</div><div class="tf-strip"></div><div class="tf-hint">位置下标用于扫描，紫色 # 为原下标。</div><div class="tf-caption">橙：当前扫描位置　绿：保留　灰：排除</div></div></div>';
  const svg=P.canvas.querySelector('svg'),ns='http://www.w3.org/2000/svg',sv=t=>document.createElementNS(ns,t),points=[];const groups=new Map();d.candidate.forEach((p,i)=>{const key=p.join(',');if(!groups.has(key))groups.set(key,{s:p[0],c:p[1],ids:[]});groups.get(key).ids.push(i);});
  for(const p of groups.values()){const dot=sv('circle'),text=sv('text');dot.setAttribute('r',6);text.textContent=p.ids.map(i=>'#'+i).join(',');svg.querySelector('.points').append(dot,text);points.push({...p,dot,text});}
  const axisX=sv('path'),axisY=sv('path');for(const p of [axisX,axisY]){p.setAttribute('stroke','#94a3b8');p.setAttribute('fill','none');p.setAttribute('marker-end','url(#tf-axis)');svg.querySelector('.axes').append(p);}const labelX=sv('text'),labelY=sv('text');labelX.textContent='s →';labelY.textContent='c ↑';svg.querySelector('.axes').append(labelX,labelY);
- P.state.innerHTML='<div class="tf-vars"></div><div class="tf-formula"></div>';const vars={};for(const name of ['left / right','min_c / cnt','index（原下标）','candidate[index]','best']){P.state.querySelector('.tf-vars').append(el('div','name',name));vars[name]=P.state.querySelector('.tf-vars').appendChild(el('div','tf-values','—'));}
+ P.state.innerHTML='<div class="tf-vars"></div><div class="tf-formula"></div>';const vars={};for(const name of ['扫描位置','当前 s / c','index（原下标）','candidate[index]','best']){P.state.querySelector('.tf-vars').append(el('div','name',name));vars[name]=P.state.querySelector('.tf-vars').appendChild(el('div','tf-values','—'));}
  P.aux.result.innerHTML='<div class="tf-set"></div><div class="tf-row head"><span>原下标</span><span>(s, c)</span><span>当前结论</span></div><div class="tf-rows"></div><div class="tf-result"></div>';const rows=d.candidate.map((p,i)=>{const row=el('div','tf-row',`<span>#${i}</span><span>${pairText(p)}</span><span>待判断</span>`);P.aux.result.querySelector('.tf-rows').append(row);return row;});
  U={plot:P.canvas.querySelector('.tf-plot'),strip:P.canvas.querySelector('.tf-strip'),hint:P.canvas.querySelector('.tf-hint'),points,axisX,axisY,labelX,labelY,vars,formula:P.state.querySelector('.tf-formula'),rows,seen:P.aux.result.querySelector('.tf-set'),res:P.aux.result.querySelector('.tf-result')};
  },
@@ -1216,7 +1249,7 @@ const DEMO={file:'轨迹筛选.py',title:'轨迹筛选 · 同 s 分组与前缀�
  keyed(U.strip,items,x=>x.key,()=>el('div','tf-cell','<div class="tf-pos"></div><div class="tf-pair"></div><div class="tf-origin"></div><div class="tf-left"></div><div class="tf-right"></div>'),(cell,item)=>{const {p,pos,end}=item,st=end?null:s.status[p[2]];setText(cell.children[0],pos);setText(cell.children[1],end?'末尾':`(${p[0]},${p[1]})`);setText(cell.children[2],end?'':`原 #${p[2]}`);setText(cell.children[3],pos===s.left?'↑ left':'');setText(cell.children[4],pos===s.right?'↑ right':'');cell.className='tf-cell'+(end?' end':'')+(!end&&s.group&&s.nums[s.left]?.[0]===p[0]?' group':'')+(pos===s.scan?' current':'')+(st==='保留'?' keep':st?' drop':'');});
  setText(U.hint,s.group?`当前组 s=${s.nums[s.left][0]}；left=${s.left}，right=${s.right}（结束时指向组外）。`:'位置下标用于扫描；原下标随元素移动，最后用它恢复输入顺序。');
  for(const p of U.points){const keep=p.ids.some(i=>s.seen.includes(i)),drop=p.ids.every(i=>s.status[i]&&s.status[i]!=='保留'),focus=p.ids.includes(active)||p.ids.includes(s.outputIndex);p.dot.style.fill=keep?'#16a34a':drop?'#cbd5e1':focus?'#d97706':'#2563eb';p.dot.style.stroke=focus?'#d97706':keep?'#15803d':'white';}
- const f=v=>v==null?'—':v,values={'left / right':`${f(s.left)} / ${f(s.right)}`,'min_c / cnt':`${f(s.minC)} / ${f(s.cnt)}`,'index（原下标）':f(s.index),'candidate[index]':s.index==null?'—':pairText(d.candidate[s.index]),best:s.bestReady?s.best===null?'None':s.best:'—'};for(const [k,v]of Object.entries(values))setText(U.vars[k],v);setText(U.formula,s.expr||'按高亮源码顺序执行。');
+ const f=v=>v==null?'—':v,values={'扫描位置':f(s.scan),'当前 s / c':s.scan==null?'—':`${s.nums[s.scan][0]} / ${s.nums[s.scan][1]}`,'index（原下标）':f(s.index),'candidate[index]':s.index==null?'—':pairText(d.candidate[s.index]),best:s.bestReady?s.best===null?'None':s.best:'—'};for(const [k,v]of Object.entries(values))setText(U.vars[k],v);setText(U.formula,s.expr||'按高亮源码顺序执行。');
  U.rows.forEach((row,i)=>{const status=s.status[i];setText(row.children[2],status||'待判断');row.className='tf-row'+(s.outputIndex===i?' active':status==='保留'?' keep':status?' drop':'');});setText(U.seen,s.seenReady?'seen = {'+s.seen.join(', ')+'}（原下标）':'seen：尚未创建');setText(U.res,`res = ${JSON.stringify(s.res)}${s.done?'\n筛选完成；原 candidate 保持不变。':''}`);
  }
 };window.TRAJECTORY_FILTER_DEMO=DEMO;AV.start(DEMO);

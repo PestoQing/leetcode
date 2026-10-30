@@ -19,3 +19,6 @@ body{background:radial-gradient(ellipse at 48% -20%,#e5eefb 0,transparent 49%),#
 @media(min-width:901px) and (max-width:1200px){.stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(min-width:1301px){.ticker-grid{grid-template-columns:repeat(7,minmax(0,1fr))}.ticker-card .card-price{font-size:20px}}
 @media(min-width:901px) and (max-width:1300px){.ticker-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+.card-cap{display:block;margin-top:9px;color:#627188;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+@media(min-width:1201px){.stats-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
