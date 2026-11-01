@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>算法动态演示</title>
+<style>
+/* =====================================================================
+   ENGINE STYLE —— 通用布局与风格（固定，生成新演示时不要改动）
+   ===================================================================== */
+:root {
+  --bg: #f5f7fb; --card: #fff; --line: #e5e7eb; --text: #1f2937; --muted: #6b7280;
+  --blue: #2563eb; --green: #16a34a; --red: #dc2626; --amber: #d97706; --purple: #7c3aed; --gray: #64748b;
+  --blue-l: #eff6ff; --green-l: #f0fdf4; --red-l: #fef2f2; --amber-l: #fffbeb; --purple-l: #f5f3ff;
+  --dur: 420ms; --ease: cubic-bezier(.4, 0, .2, 1);
+  --code-w: 720px; --code-fs: 14px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; }
+body.instant *, body.instant *::before, body.instant *::after { transition: none !important; animation: none !important; }
+
+header { flex: none; display: flex; align-items: baseline; gap: 14px; padding: 12px 20px 8px; min-width: 0; }
+header h1 { margin: 0; font-size: 19px; white-space: nowrap; }
+header .sub { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--code-w);
+  padding: 0 16px 14px 20px; transition: grid-template-columns var(--dur) var(--ease); }
+.app.dragging { transition: none; user-select: none; }
+.app.code-collapsed { grid-template-columns: minmax(0, 1fr) 12px 44px; }
+.left { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; min-width: 0; }
+.card-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px;
+  font-weight: 600; font-size: 15px; }
+.card-h .hint { font-weight: 400; text-align: right; }
+.hint { color: var(--muted); font-size: 12px; }
+.mono { font-family: Consolas, "Courier New", monospace; }
+.dim { opacity: .5; transition: opacity var(--dur); }
+
+/* 工具栏 */
+.toolbar { flex: none; display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.toolbar label { color: var(--muted); }
+input[type=text], input[type=number] { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px;
+  font-family: inherit; transition: border-color .15s, box-shadow .15s; }
+input[type=text]:focus, input[type=number]:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px #dbeafe; }
+button { padding: 6px 12px; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; cursor: pointer;
+  font-size: 14px; font-family: inherit; color: var(--text); transition: background .15s, border-color .15s; }
+button:hover { background: #eef2ff; border-color: #a5b4fc; }
+button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+button.primary:hover { background: #1d4ed8; }
+button.preset { font-size: 12px; padding: 3px 9px; }
+button.preset.on { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 0 0 2px #bfdbfe; }
+button.preset.on:hover { background: #1d4ed8; }
+.progress { flex: 1; min-width: 140px; height: 8px; background: var(--line); border-radius: 4px; cursor: pointer;
+  position: relative; touch-action: none; margin: 0 8px; }
+.progress::before { content: ""; position: absolute; left: -8px; right: -8px; top: -9px; bottom: -9px; }
+.progress #prog { height: 100%; background: var(--blue); border-radius: 4px; transition: width var(--dur) var(--ease); }
+.progress .thumb { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--blue); box-shadow: 0 1px 4px rgba(0, 0, 0, .2); cursor: grab;
+  transition: left var(--dur) var(--ease), transform .15s; }
+.progress:hover .thumb, .progress.dragging .thumb { transform: scale(1.2); }
+.progress.dragging .thumb { cursor: grabbing; }
+.progress.dragging #prog, .progress.dragging .thumb { transition: none; }
+.progress .tip { position: absolute; bottom: 18px; transform: translateX(-50%); background: var(--text); color: #fff;
+  font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.progress.dragging .tip { opacity: 1; }
+.err { color: var(--red); font-size: 13px; }
+
+/* 统计卡片（保持这一风格：标题 + 大号彩色数字） */
+.stats { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 16px; transition: box-shadow .3s; }
+.stat .lab { font-size: 14px; font-weight: 600; line-height: 20px; }
+.stat .num { font-size: 32px; font-weight: 800; line-height: 1.45; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat .num small { font-size: 15px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+.stat .sub { font-size: 12px; color: var(--muted); height: 18px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat.red .num { color: var(--red); } .stat.green .num { color: var(--green); } .stat.blue .num { color: var(--blue); }
+.stat.amber .num { color: var(--amber); } .stat.purple .num { color: var(--purple); } .stat.gray .num { color: var(--gray); }
+.stat.bump { animation: bump .6s var(--ease); }
+@keyframes bump { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .35); } 100% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } }
+
+/* 主画布 + 下方两列 */
+.canvas-card { flex: none; }
+.bottom { flex: 1; min-height: 200px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
+.col > .card { flex: none; }
+.col > .card.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.card.grow > .card-b { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+
+/* 步骤说明 */
+.desc { font-size: 15px; line-height: 1.75; }
+.desc b { color: var(--blue); }
+.fade-in { animation: fadeIn var(--dur) var(--ease); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.tag { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-right: 6px; color: #fff; line-height: 20px; }
+.tag.pre { background: var(--purple); } .tag.hit { background: var(--green); } .tag.miss { background: var(--red); }
+.tag.info { background: var(--blue); } .tag.warn { background: var(--amber); }
+.phase { font-size: 12px; font-weight: 600; color: var(--blue); background: var(--blue-l); border-radius: 10px; padding: 1px 10px; }
+
+/* 通用：进入 / 闪烁动画 */
+.av-enter { animation: avEnter var(--dur) var(--ease); }
+@keyframes avEnter { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+.av-flash { animation: avFlash calc(var(--dur) * 1.6) var(--ease); }
+@keyframes avFlash { 0% { background: #fde68a; } 100% { background: transparent; } }
+
+/* 分隔条 */
+.splitter { position: relative; cursor: col-resize; touch-action: none; }
+.splitter::after { content: ""; position: absolute; left: 5px; top: calc(50% - 30px); height: 60px; width: 3px; border-radius: 2px;
+  background: #cbd5e1; transition: background .15s; }
+.splitter:hover::after, .app.dragging .splitter::after { background: var(--blue); }
+.app.code-collapsed .splitter { cursor: default; }
+
+/* 代码位置：深色背景 + VS Code Dark Modern / Pylance 配色 */
+.right { min-width: 0; min-height: 0; display: flex; }
+.code-card { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #1f1f1f; border: 1px solid #2b2b2b;
+  border-radius: 12px; overflow: hidden; }
+.code-h { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #181818;
+  border-bottom: 1px solid #2b2b2b; color: #cccccc; font-size: 13px; white-space: nowrap; }
+.code-h .file { color: #e5e5e5; font-weight: 600; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; }
+.code-h .pyicon { width: 16px; height: 16px; border-radius: 3px; background: linear-gradient(135deg, #3572a5 50%, #ffd43b 50%); flex: none; }
+.code-h .pos { color: #8b949e; margin-left: auto; }
+.code-h button { background: transparent; border: 1px solid #3c3c3c; color: #cccccc; padding: 2px 8px; font-size: 12px; }
+.code-h button:hover { background: #2a2d2e; border-color: #555; }
+.code-h button.on { border-color: #0078d4; color: #fff; }
+.code-body { flex: 1; min-height: 0; position: relative; overflow-y: auto; overflow-x: hidden; padding: 8px 0 35vh;
+  font-family: Consolas, "Courier New", monospace; font-size: var(--code-fs); line-height: 1.45; color: #cccccc; }
+.code-body::-webkit-scrollbar { width: 12px; } .code-body::-webkit-scrollbar-thumb { background: #424242; }
+.code-body::-webkit-scrollbar-track { background: #1f1f1f; }
+.ln { display: flex; transition: background var(--dur) var(--ease); }
+.ln .g { flex: none; width: 4.4em; padding-right: 1.4em; text-align: right; color: #6e7681; user-select: none; position: relative;
+  transition: color var(--dur); }
+.ln .s { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all;
+  padding-left: calc(var(--ind) * 1ch + 4ch); text-indent: -4ch; padding-right: 12px;
+  background-image: repeating-linear-gradient(90deg, #404040 0 1px, transparent 1px 4ch);
+  background-size: calc(var(--ind) * 1ch) 100%; background-repeat: no-repeat; }
+.ln.on { background: rgba(255, 215, 0, .13); box-shadow: inset 3px 0 #ffd700; }
+.ln.on .g { color: #ffd700; }
+.ln.on .g::before { content: "➜"; position: absolute; left: .5em; color: #ffd700; }
+.code-body.no-cmt .ln.cmt { display: none; }
+.app.code-collapsed .code-body, .app.code-collapsed .code-h > :not(.collapse) { display: none; }
+.app.code-collapsed .code-h { flex: 1; flex-direction: column; justify-content: flex-start; padding: 10px 0; border: 0; }
+.app.code-collapsed .code-h .collapse::after { content: "代码位置"; display: block; writing-mode: vertical-rl; margin-top: 8px; letter-spacing: 2px; }
+.t-kw { color: #569cd6; } .t-ctl { color: #c586c0; } .t-fn { color: #dcdcaa; } .t-cls { color: #4ec9b0; }
+.t-str { color: #ce9178; } .t-num { color: #b5cea8; } .t-cmt { color: #6a9955; } .t-var { color: #9cdcfe; }
+.t-const { color: #4fc1ff; } .t-op { color: #d4d4d4; }
+.t-b0 { color: #ffd700; } .t-b1 { color: #da70d6; } .t-b2 { color: #179fff; }
+
+#av-check { display: none; }
+
+/* 公式：MathML 按论文格式排版（数学字体、斜体变量、真正的上下标与分式） */
+math { font-family: 'Cambria Math', 'STIX Two Math', 'Latin Modern Math', math; font-size: 1.12em; }
+math[display="block"] { margin: 2px 0; }
+.formula math { math-style: normal; }
+.stat .lab math, .card-h math, #inputs math, header math { font-size: 1em; }
+
+/* =====================================================================
+   DEMO STYLE —— 本题专用的可视化样式（生成新演示时替换这里）
+   ===================================================================== */
+.science-view { display:flex; gap:18px; height:232px; }
+.road-graph { flex:1; min-width:0; position:relative; }
+.road-graph svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+.road-graph svg > g path { fill:none; stroke-width:2; transition:stroke var(--dur),opacity var(--dur); }
+.road-graph svg text { font-size:12px; text-anchor:middle; dominant-baseline:central; paint-order:stroke; stroke:white; stroke-width:4px; stroke-linejoin:round; }
+.road-graph circle { fill:white; stroke:#94a3b8; stroke-width:2; transition:fill var(--dur),stroke var(--dur); }
+.road-graph .node-label { font-size:15px; font-weight:700; stroke-width:0; }
+.grid-side { flex:none; display:flex; flex-direction:column; justify-content:center; gap:6px; }
+.adj { display:grid; gap:3px; grid-template-columns:repeat(var(--cols),26px); grid-auto-rows:24px; font:12px Consolas,monospace; }
+.adj div { display:flex; align-items:center; justify-content:center; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; transition:background var(--dur); }
+.adj .axis { border:0; background:none; color:#64748b; }
+.adj .active { border-color:#8b5cf6; background:#f5f3ff; color:#7c3aed; }
+.adj .inf { color:#b4bcc8; }
+.legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; font-size:12px; color:#64748b; }
+.legend span { white-space:nowrap; }
+.vars { display:grid; grid-template-columns:100px minmax(0,1fr); gap:5px 10px; font:14px/1.5 Consolas,monospace; }
+.vars .name { color:#2563eb; font-weight:600; }
+.vars .value { overflow-wrap:anywhere; }
+.calc { margin-top:10px; padding:8px; border-radius:7px; background:#f8fafc; font:13px/1.7 Consolas,monospace; overflow-wrap:anywhere; }
+.desc { font-size:14px; line-height:1.6; }
+.dist-table { font-size:13px; }
+.dist-row { display:grid; grid-template-columns:45px 1fr 1fr 1fr; align-items:center; min-height:28px; text-align:center; border-bottom:1px solid #e5e7eb; transition:background var(--dur); }
+.dist-row.head { color:#64748b; font-weight:600; }
+.dist-row.scan { background:#fffbeb; }
+.dist-row.current { background:#eff6ff; color:#1d4ed8; }
+.dist-row.updated { background:#f0fdf4; color:#15803d; font-weight:700; }
+.route-text { margin-top:10px; font-size:13px; line-height:1.7; overflow-wrap:anywhere; }
+.stats { grid-template-columns:repeat(5,minmax(0,1fr)); }
+.stat { padding:6px 10px; }
+.stat .lab { font-size:13px; }
+.stat .num { font-size:28px; }
+.ks-sort{width:280px;display:flex;flex-direction:column;gap:8px;justify-content:center}.ks-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.ks-edge{font:12px/1.4 Consolas,monospace;border:1px solid #e2e8f0;border-radius:5px;padding:4px;text-align:center;transition:background var(--dur),color var(--dur)}.ks-edge.active{background:#f5f3ff;border-color:#8b5cf6}.ks-edge.chosen{background:#dcfce7;color:#15803d;border-color:#4ade80}.ks-edge.rejected{background:#fef2f2;color:#dc2626}.ks-vars{display:grid;grid-template-columns:130px minmax(0,1fr);gap:6px;font:13px/1.6 Consolas,monospace}.ks-vars .name{color:#2563eb}.ks-row{display:grid;grid-template-columns:42px 1.2fr 1.1fr 60px;align-items:center;min-height:28px;text-align:center;font:12px/1.6 Consolas,monospace;border-bottom:1px solid #e2e8f0;transition:background var(--dur)}.ks-row.head{font-weight:bold;color:#64748b}.ks-row.focused{box-shadow:inset 3px 0 #2563eb}.route-text{font-size:12px}.legend{font-size:11px}
+</style>
+</head>
+<body>
+<header><h1 id="title"></h1><div class="sub" id="subtitle"></div></header>
+
+<div class="app" id="app">
+  <section class="left" id="left">
+    <div class="card toolbar">
+      <div class="row" id="inputs"></div>
+      <div class="row">
+        <button id="btnFirst" title="第一步">⏮</button>
+        <button id="btnPrev">◀ 上一步</button>
+        <button class="primary" id="btnPlay">▶ 播放</button>
+        <button id="btnNext">下一步 ▶</button>
+        <button id="btnLast" title="最后一步">⏭</button>
+        <span class="hint">慢</span><input id="speed" type="range" min="0" max="100" value="100" aria-label="播放速度：越向右越快" style="width:110px"><span class="hint">快</span>
+        <div class="progress" id="progress" title="点击或拖动跳转"><div id="prog"></div><div class="thumb" id="thumb"></div><div class="tip" id="progTip"></div></div>
+        <span id="stepNo" class="hint mono"></span>
+        <span class="hint">← → 单步 · 空格 播放 · 进度条可拖动</span>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="card canvas-card">
+      <div class="card-h"><span id="canvasTitle"></span><span class="hint" id="canvasHint"></span></div>
+      <div id="canvas"></div>
+    </div>
+    <div class="bottom">
+      <div class="col">
+        <div class="card">
+          <div class="card-h"><span>当前步骤</span><span class="phase" id="phase"></span></div>
+          <div class="desc" id="desc"></div>
+        </div>
+        <div class="card grow" id="stateCard">
+          <div class="card-h"><span id="stateTitle"></span><span class="hint" id="stateHint"></span></div>
+          <div class="card-b" id="state"></div>
+        </div>
+      </div>
+      <div class="col" id="auxCol"></div>
+    </div>
+  </section>
+  <div class="splitter" id="splitter" title="拖动调整宽度，双击恢复"></div>
+  <aside class="right">
+    <div class="code-card">
+      <div class="code-h">
+        <button class="collapse" id="btnCollapse" title="折叠 / 展开代码">⇥</button>
+        <span class="file"><span class="pyicon"></span><span>代码位置 · <span id="fileName"></span></span></span>
+        <span class="pos" id="codePos"></span>
+        <button id="btnCmt" title="显示 / 隐藏纯注释行">注释</button>
+        <button id="btnFsDown" title="缩小字号">A−</button>
+        <button id="btnFsUp" title="放大字号">A+</button>
+      </div>
+      <div class="code-body" id="codeBody"></div>
+    </div>
+  </aside>
+</div>
+<pre id="av-check"></pre>
+
+<!-- 对应 .py 的完整源码，用 scripts/embed_source.py 写入（保持与源文件一致） -->
+<script type="text/plain" id="py-source">
+# 题目描述
+# 在世界的某个区域，有一些分散的神秘岛屿，每个岛屿上都有一种珍稀的资源或者宝藏。国王打算在这些岛屿上建公路，方便运输。
+
+# 不同岛屿之间，路途距离不同，国王希望你可以规划建公路的方案，如何可以以最短的总公路距离将 所有岛屿联通起来（注意：这是一个无向图）。 
+
+# 给定一张地图，其中包括了所有的岛屿，以及它们之间的距离。以最小化公路建设长度，确保可以链接到所有岛屿。
+
+# 输入描述
+# 第一行包含两个整数V 和 E，V代表顶点数，E代表边数 。顶点编号是从1到V。例如：V=2，一个有两个顶点，分别是1和2。
+
+# 接下来共有 E 行，每行三个整数 v1，v2 和 val，v1 和 v2 为边的起点和终点，val代表边的权值。
+
+# 输出描述
+# 输出联通所有岛屿的最小路径总距离
+
+# 输入示例
+# 7 11
+# 1 2 1
+# 1 3 1
+# 1 5 2
+# 2 6 1
+# 2 4 2
+# 2 3 2
+# 3 4 1
+# 4 5 1
+# 5 6 2
+# 5 7 1
+# 6 7 1
+# 输出示例
+# 6
+
+import sys
+
+# sys.stdin = open('input.txt', 'r')
+
+data = sys.stdin.read().split()
+n = int(data[0])
+m = int(data[1])
+
+edges = []
+index = 2
+for i in range(m):
+    a = int(data[index])
+    b = int(data[index + 1])
+    v = int(data[index + 2])
+    # 把权值放在第一项，直接 sort 就会优先按权值排序。
+    edges.append((v, a, b))
+    index += 3
+edges.sort()
+
+parent = []
+size = []
+for i in range(n + 1):
+    parent.append(i)
+    size.append(1)
+
+
+def find(x):
+    root = x
+    while parent[root] != root:
+        root = parent[root]
+    # 路径压缩：沿途节点直接指向根，方便后续查询。
+    while parent[x] != x:
+        next_node = parent[x]
+        parent[x] = root
+        x = next_node
+    return root
+
+
+res = 0
+cnt = 0
+for v, a, b in edges:
+    root_a = find(a)
+    root_b = find(b)
+    if root_a == root_b:
+        continue
+
+    # 小连通块接到大连通块下面，控制并查集树的高度。
+    if size[root_a] < size[root_b]:
+        tmp = root_a
+        root_a = root_b
+        root_b = tmp
+    parent[root_b] = root_a
+    size[root_a] += size[root_b]
+    res += v
+    cnt += 1
+    if cnt == n - 1:
+        break
+
+if cnt == n - 1:
+    print(res)
+else:
+    # 题面未规定不连通图的输出，这里额外约定为 -1。
+    print(-1)
+
+
+# 思路
+# Kruskal 按边权从小到大枚举道路，只有两个端点属于不同连通块时才选入。
+# 并查集 parent 表示父节点；find 找根并压缩路径，根相同说明两点已经连通。
+# 合并两个连通块并累计边权，选够 n-1 条边就得到最小生成树。
+#
+# 常见问题
+# 1. 为什么不能直接取最便宜的 n-1 条边？
+#    这些边可能成环、漏掉其他岛屿，所以要用并查集检查端点是否已经连通。
+# 2. 为什么两点根相同就跳过？
+#    两点已经有一条树内路径，再连一条边会成环；自环也会在这里跳过。
+# 3. 排序后的每项是什么？
+#    (v,a,b) 先按权值v排序，同权时依次比较a和b，方便稳定演示和复现。
+# 4. size 的作用是什么？
+#    仅根节点的 size 表示连通块大小；将小树挂到大树下，配合路径压缩加快查找。
+#    非根节点的 size 不再代表当前整个连通块的大小。
+# 5. 时间与空间复杂度？
+#    排序 O(m log m)，并查集操作均摊 O(m*α(n))，初始化 O(n)。
+#    总时间 O(n+m log m+m*α(n))，空间 O(n+m)，α(n) 是增长极慢的反阿克曼函数。
+# 6. 重边、同权边、负权边和不连通情况？
+#    重边分别参与排序，已连通后自动跳过；支持零权和负权，同权可有多棵最优树。
+#    单个岛屿输出0；不连通时选不够 n-1 条边，这里额外约定输出-1。
+
+
+# 以下为修改前的 Prim 代码，完整注释保留。
+# import sys
+#
+# # sys.stdin = open('input.txt', 'r')
+#
+# data = sys.stdin.read().split()
+# n = int(data[0])
+# m = int(data[1])
+# inf = float('inf')
+#
+# grid = []
+# for i in range(n + 1):
+#     row = []
+#     for j in range(n + 1):
+#         row.append(inf)
+#     grid.append(row)
+#
+# index = 2
+# for i in range(m):
+#     a = int(data[index])
+#     b = int(data[index + 1])
+#     v = int(data[index + 2])
+#     # 无向图写两个方向，重边只保留较小权值。
+#     # grid[a][b] = min(grid[a][b], v)
+#     # grid[b][a] = min(grid[b][a], v)
+#     grid[a][b] = v
+#     grid[b][a] = v
+#     index += 3
+#
+# dist = []
+# seen = []
+# for i in range(n + 1):
+#     dist.append(inf)
+#     seen.append(False)
+#
+# # dist[i] 是将岛屿 i 接入当前生成树所需的最小边权。
+# dist[1] = 0
+# res = 0
+# for i in range(n):
+#     cur = -1
+#     for j in range(1, n + 1):
+#         if seen[j]:
+#             continue
+#         # 还没有候选，或当前岛屿的接入成本更小，就更新 cur。
+#         # cur==-1 时 or 短路，不会读取 dist[-1]。
+#         if cur == -1 or dist[j] < dist[cur]:
+#             cur = j
+#
+#     # 没有候选，或候选仍不可达，说明无法连接全部岛屿。
+#     if cur == -1 or dist[cur] == inf:
+#         res = -1
+#         break
+#
+#     seen[cur] = True
+#     res += dist[cur]
+#     for j in range(1, n + 1):
+#         if not seen[j]:
+#             dist[j] = min(dist[j], grid[cur][j])
+#
+# print(res)
+#
+#
+# # 思路
+# # 本题要求连接所有岛屿的总边权最小，是最小生成树问题。
+# # Prim 从岛屿1开始，每次选择接入当前树成本最小的未加入岛屿。
+# # 将它加入树并累计对应边权，再用它的出边更新其他岛屿的接入成本。
+# # 起点的 dist[1]=0，只是为了让它首先被选中，不会多算一条边。
+# #
+# # 常见问题
+# # 1. dist 和 Dijkstra 中的距离有什么区别？
+# #    这里 dist[j] 是岛屿 j 到当前树的最小连接边权，不是起点到 j 的路径长度。
+# #    因此更新用 grid[cur][j]，不能加上 dist[cur]。
+# # 2. 为什么每次选最小连接边是正确的？
+# #    当前树内外形成一个割，跨越这个割的最小边可以属于某棵最小生成树。
+# #    每次选这样的安全边，不会失去最优解。
+# # 3. 为什么不产生环？
+# #    每次只把一个尚未加入树的岛屿接进来，不连接两个已经在树内的点。
+# # 4. 时间和空间复杂度是多少？
+# #    建矩阵 O(n²)，读取道路 O(m)，n轮中各进行两次 O(n) 扫描。
+# #    总时间 O(n²+m)；不计输入token的空间 O(n²)，计入后 O(n²+m)。
+# # 5. 重边、同权边、负权边、自环怎么处理？
+# #    重边取最小值，同权时可以任取一条，生成树可能不同但最小总权值不变。
+# #    Prim 支持零权和负权；更新只考虑未加入的岛屿，自环不会被选中。
+# # 6. 如果只有一个岛屿，或者图不连通呢？
+# #    单岛屿无需建路，输出0。
+# #    不连通时不存在生成树；题面未规定此时输出，本实现额外约定输出-1。
+#
+#
+# # 原使用 best 的选点写法，完整注释保留：
+# # for i in range(n):
+# #     cur = -1
+# #     best = inf
+# #     for j in range(1, n + 1):
+# #         if not seen[j] and dist[j] < best:
+# #             best = dist[j]
+# #             cur = j
+# #
+# #     # 没有可接入的岛屿，说明图不连通，不存在生成树。
+# #     if cur == -1:
+# #         res = -1
+# #         break
+# #
+# #     seen[cur] = True
+# #     res += best
+# #     for j in range(1, n + 1):
+# #         if not seen[j]:
+# #             dist[j] = min(dist[j], grid[cur][j])
+</script>
+
+<script>
+/* =====================================================================
+   ENGINE —— 播放器 / 布局 / 代码高亮 / 平滑过渡 / 自检（通用，勿改）
+   ===================================================================== */
+const AV = (() => {
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  let DUR = 420, instant = false;
+  const dur = () => (instant ? 0 : DUR);
+  const ease = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+  // ---------- 动画工具 ----------
+  const anims = new Map();
+  function animate(key, step, done, ms = dur()) {
+    if (anims.has(key)) cancelAnimationFrame(anims.get(key));
+    anims.delete(key);
+    if (ms <= 0) { step(1); done && done(); return; }
+    const t0 = performance.now();
+    const f = now => {
+      const p = Math.min(1, Math.max(0, now - t0) / ms);   // rAF 时间戳可能早于点击时记下的 t0
+      step(ease(p));
+      if (p < 1) anims.set(key, requestAnimationFrame(f)); else { anims.delete(key); done && done(); }
+    };
+    anims.set(key, requestAnimationFrame(f));
+  }
+  function flash(node, cls) { if (instant) return; node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls); }
+  function setText(node, text, flashCls) {
+    const t = String(text);
+    if ((node._raw != null ? node._raw : node.textContent) === t) return false;
+    node.textContent = t;
+    if (t.indexOf('$') >= 0) { node._raw = t; TEX.typeset(node); } else node._raw = null;
+    if (flashCls) flash(node, flashCls);
+    return true;
+  }
+  // 按 key 复用 DOM：移动 FLIP 平滑过渡，新增淡入，删除淡出（容器需 position:relative）
+  function keyed(box, items, keyOf, create, update) {
+    const ms = dur();
+    const old = new Map();
+    for (const c of [...box.children]) if (c.dataset.key != null && !c.classList.contains('av-leaving')) old.set(c.dataset.key, c);
+    const first = new Map();
+    if (ms) old.forEach((c, k) => first.set(k, c.getBoundingClientRect().top));
+    const want = new Set(items.map(it => String(keyOf(it))));
+    old.forEach((c, k) => {
+      if (want.has(k)) return;
+      if (!ms) { c.remove(); return; }
+      const st = { position: 'absolute', top: c.offsetTop + 'px', left: c.offsetLeft + 'px', width: c.offsetWidth + 'px' };
+      c.classList.add('av-leaving');
+      Object.assign(c.style, st, { transition: `opacity ${ms}ms, transform ${ms}ms`, pointerEvents: 'none' });
+      requestAnimationFrame(() => { c.style.opacity = 0; c.style.transform = 'translateX(18px)'; });
+      setTimeout(() => c.remove(), ms + 40);
+    });
+    const nodes = items.map(it => {
+      const k = String(keyOf(it));
+      let c = old.get(k), isNew = false;
+      if (!c) { c = create(it); c.dataset.key = k; isNew = true; }
+      update(c, it, isNew);
+      box.appendChild(c);
+      return c;
+    });
+    if (!ms) return;
+    nodes.forEach(c => {
+      const k = c.dataset.key;
+      if (!first.has(k)) { flash(c, 'av-enter'); return; }
+      const dy = first.get(k) - c.getBoundingClientRect().top;
+      if (Math.abs(dy) < .5) return;
+      c.style.transition = 'none';
+      c.style.transform = `translateY(${dy}px)`;
+      void c.offsetWidth;
+      c.style.transition = `transform ${ms}ms cubic-bezier(.4,0,.2,1), background ${ms}ms, color ${ms}ms`;
+      c.style.transform = '';
+      setTimeout(() => { c.style.transition = ''; }, ms + 20);
+    });
+  }
+
+  // ---------- Python 高亮（VS Code Dark Modern + Pylance 语义配色） ----------
+  const CTL = new Set('if elif else for while return import from as try except finally raise with break continue pass yield await async del global nonlocal assert match case'.split(' '));
+  const KW = new Set('def class lambda None True False and or not in is self cls'.split(' '));
+  const CLS = new Set('int float str bool list dict set tuple range object type bytes frozenset complex Exception ValueError KeyError IndexError TypeError deque defaultdict Counter OrderedDict'.split(' '));
+  function highlightPython(src) {
+    const lines = src.split('\n');
+    const modules = new Set();
+    for (const l of lines) {
+      let m = l.match(/^\s*import\s+([\w., ]+)/);
+      if (m) m[1].split(',').forEach(p => { const a = p.trim().split(/\s+as\s+/); modules.add((a[1] || a[0]).split('.')[0].trim()); });
+      m = l.match(/^\s*from\s+([\w.]+)\s+import/);
+      if (m) modules.add(m[1].split('.')[0]);
+    }
+    let depth = 0, triple = null;
+    const re = /(#.*)|([rRbBuUfF]{0,2})("""|'''|"(?:\\.|[^"\\])*"?|'(?:\\.|[^'\\])*'?)|(\d[\d_]*(?:\.\d*)?(?:[eE][+-]?\d+)?j?)|([A-Za-z_\u00c0-\uffff][\w\u00c0-\uffff]*)|([()[\]{}])|(\s+)|([\s\S])/y;
+    return lines.map(raw => {
+      const line = raw.replace(/\t/g, '    ');
+      const indent = line.match(/^ */)[0].length;
+      const toks = [];
+      let i = indent;
+      if (triple) {
+        const end = line.indexOf(triple, i);
+        if (end < 0) return { html: `<span class="t-str">${esc(line.slice(i))}</span>`, indent, cmt: false };
+        toks.push(['str', line.slice(i, end + 3)]); i = end + 3; triple = null;
+      }
+      while (i < line.length) {
+        re.lastIndex = i;
+        const m = re.exec(line);
+        if (!m) break;
+        if (m[1]) toks.push(['cmt', m[1]]);
+        else if (m[3] !== undefined && (m[3] || m[2])) {
+          if (m[2]) toks.push([/[fF]/.test(m[2]) ? 'kw' : 'str', m[2]]);
+          let s = m[3];
+          if (s === '"""' || s === "'''") {
+            const end = line.indexOf(s, re.lastIndex);
+            if (end < 0) { s = line.slice(m.index + m[2].length); triple = m[3]; re.lastIndex = line.length; }
+            else { s = line.slice(m.index + m[2].length, end + 3); re.lastIndex = end + 3; }
+          }
+          toks.push(['str', s]);
+        }
+        else if (m[4]) toks.push(['num', m[4]]);
+        else if (m[5]) toks.push(['id', m[5]]);
+        else if (m[6]) toks.push(['br', m[6]]);
+        else if (m[7]) toks.push(['ws', m[7]]);
+        else toks.push(['op', m[8]]);
+        i = re.lastIndex;
+      }
+      const sig = toks.map((t, k) => k).filter(k => toks[k][0] !== 'ws');
+      const html = toks.map((t, k) => {
+        const [type, w] = t;
+        if (type === 'ws') return w;
+        if (type === 'br') {
+          if ('([{'.includes(w)) { const c = depth % 3; depth++; return `<span class="t-b${c}">${w}</span>`; }
+          depth = Math.max(0, depth - 1); return `<span class="t-b${depth % 3}">${w}</span>`;
+        }
+        if (type !== 'id') return `<span class="t-${type}">${esc(w)}</span>`;
+        const p = sig.indexOf(k), prev = p > 0 ? toks[sig[p - 1]][1] : '', next = p < sig.length - 1 ? toks[sig[p + 1]][1] : '';
+        let c = 'var';
+        if (prev === 'def') c = 'fn';
+        else if (prev === 'class') c = 'cls';
+        else if (CTL.has(w)) c = 'ctl';
+        else if (KW.has(w)) c = 'kw';
+        else if (prev === '.') c = next === '(' ? 'fn' : 'var';
+        else if (modules.has(w)) c = 'cls';
+        else if (next === '(') c = CLS.has(w) || /^[A-Z]/.test(w) ? 'cls' : 'fn';
+        else if (CLS.has(w)) c = 'cls';
+        else if (/^[A-Z][A-Z0-9_]+$/.test(w)) c = 'const';
+        return `<span class="t-${c}">${esc(w)}</span>`;
+      }).join('');
+      return { html, indent, cmt: line.trim().startsWith('#') };
+    });
+  }
+
+  // ---------- 代码面板 ----------
+  let srcLines = [], codeEls = [], activeCodeLines = new Set();
+  function mountCode(fileName) {
+    const src = $('py-source').textContent.replace(/\r\n?/g, '\n').replace(/^\n/, '').replace(/\s+$/, '');
+    srcLines = src.split('\n');
+    activeCodeLines = new Set();
+    $('fileName').textContent = fileName || '';
+    const body = $('codeBody');
+    body.innerHTML = '';
+    codeEls = highlightPython(src).map((h, k) => {
+      const ln = el('div', 'ln' + (h.cmt ? ' cmt' : ''));
+      ln.innerHTML = `<span class="g">${k + 1}</span><span class="s" style="--ind:${h.indent}">${h.html || ' '}</span>`;
+      body.appendChild(ln);
+      return ln;
+    });
+  }
+  // 按源码内容定位行号：lineOf('res += 1')，nth 表示第几处匹配（忽略注释部分）
+  function lineOf(text, nth = 1) {
+    let cnt = 0;
+    for (let k = 0; k < srcLines.length; k++) {
+      const code = srcLines[k].replace(/#.*$/, '');
+      if (code.includes(text) && ++cnt === nth) return k + 1;
+    }
+    console.error('[AV] lineOf 未找到：', text, nth);
+    return 0;
+  }
+  function setCodeLines(lines) {
+    lines = (lines || []).filter(Boolean);
+    const set = new Set(lines);
+    if (set.size === activeCodeLines.size && [...set].every(k => activeCodeLines.has(k))) return;
+    for (const k of activeCodeLines) if (!set.has(k)) codeEls[k - 1]?.classList.remove('on');
+    for (const k of set) if (!activeCodeLines.has(k)) codeEls[k - 1]?.classList.add('on');
+    activeCodeLines = set;
+    const sorted = [...set].sort((a, b) => a - b);
+    $('codePos').textContent = sorted.length ? `第 ${sorted.length > 1 && sorted.at(-1) - sorted[0] === sorted.length - 1 ? sorted[0] + '–' + sorted.at(-1) : sorted.join(', ')} 行` : '';
+    if (!sorted.length) return;
+    const body = $('codeBody'), a = codeEls[sorted[0] - 1], b = codeEls[sorted.at(-1) - 1];
+    const top = a.offsetTop, bottom = b.offsetTop + b.offsetHeight, vt = body.scrollTop, vh = body.clientHeight;
+    if (top < vt + vh * .12 || bottom > vt + vh * .82) body.scrollTo({ top: Math.max(0, top - vh * .3), behavior: instant ? 'auto' : 'smooth' });
+  }
+
+  // ---------- 播放器与布局 ----------
+  let D, data, steps = [], cur = 0, timer = null;
+  const statEls = {}, P = { aux: {}, auxCard: {} };
+  // 速度从左到右递增，填充越满越快；0 为 2600ms，100 为 300ms。
+  const speedMs = () => 2600 - 23 * Number($('speed').value);
+  function setSpeed() {
+    DUR = clamp(Math.round(speedMs() * .5), 180, 650);
+    document.documentElement.style.setProperty('--dur', DUR + 'ms');
+  }
+
+  function setStat(def, val) {
+    const t = statEls[def.key];
+    const o = val !== null && typeof val === 'object' ? val : { v: val };
+    const v = o.v ?? '—';
+    if (typeof v === 'number' && typeof t.cur === 'number' && t.cur !== v && !instant) {
+      const a = t.cur;
+      animate('stat-' + def.key, p => { t.n.textContent = Math.round(a + (v - a) * p); });
+      flash(t.box, 'bump');
+    } else {
+      if (anims.has('stat-' + def.key)) { cancelAnimationFrame(anims.get('stat-' + def.key)); anims.delete('stat-' + def.key); }
+      t.n.textContent = v;
+    }
+    t.cur = v;
+    t.unit.textContent = o.unit || '';
+    t.sub.textContent = o.sub || '';
+  }
+
+  function render(prev) {
+    const s = steps[cur];
+    const pct = (steps.length > 1 ? cur / (steps.length - 1) * 100 : 100) + '%';
+    $('prog').style.width = pct;
+    $('thumb').style.left = pct;
+    $('progTip').style.left = pct;
+    $('progTip').textContent = `第 ${cur + 1} 步`;
+    $('stepNo').textContent = `${cur + 1} / ${steps.length}`;
+    const html = (s.tag ? `<span class="tag ${s.tag.kind || 'info'}">${s.tag.text}</span>` : '') + s.desc;
+    if (setHTML($('desc'), html)) { flash($('desc'), 'fade-in'); }
+    setText($('phase'), s.phase || '');
+    (D.stats || []).forEach(def => setStat(def, s.stats ? s.stats[def.key] : undefined));
+    setCodeLines(s.lines);
+    D.render(s, prev, data, P);
+    TEX.flush();
+  }
+  function go(k) {
+    k = clamp(k, 0, steps.length - 1);
+    const prev = steps[cur];
+    cur = k;
+    render(prev === steps[cur] ? null : prev);
+  }
+  function stop() { finishDrag?.(); clearTimeout(timer); timer = null; $('btnPlay').textContent = '▶ 播放'; }
+  function play() {
+    if (timer) return stop();
+    if (cur >= steps.length - 1) go(0);
+    $('btnPlay').textContent = '⏸ 暂停';
+    const tick = () => {
+      if (cur >= steps.length - 1) return stop();
+      go(cur + 1);
+      timer = setTimeout(tick, speedMs());
+    };
+    timer = setTimeout(tick, 120);
+  }
+  function withInstant(fn) { const was = instant; instant = true; document.body.classList.add('instant'); try { fn(); } finally { instant = was; if (!was) { void document.body.offsetWidth; document.body.classList.remove('instant'); } } }
+
+  // A gesture owns one pending frame; finish/interrupt always flushes its final position.
+  let finishDrag = null;
+  function frameDrag(node, begin, update, end) {
+    node.addEventListener('pointerdown', e => {
+      if (!e.isPrimary || e.button !== 0) return;
+      finishDrag?.();
+      const context = begin(e);
+      if (!context) return;
+      e.preventDefault();
+      const pointerId = e.pointerId;
+      let latestX = e.clientX, frame = 0, dirty = true, ended = false;
+      const flush = () => {
+        frame = 0;
+        if (dirty) { dirty = false; update(latestX, context); }
+      };
+      const move = ev => {
+        if (ev.pointerId !== pointerId) return;
+        latestX = ev.clientX; dirty = true;
+        if (!frame) frame = requestAnimationFrame(flush);
+      };
+      const finish = ev => {
+        if (ended || (ev?.pointerId != null && ev.pointerId !== pointerId)) return;
+        ended = true;
+        if (ev?.type === 'pointerup') { latestX = ev.clientX; dirty = true; }
+        cancelAnimationFrame(frame);
+        finishDrag = null;
+        node.removeEventListener('pointermove', move);
+        for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) node.removeEventListener(type, finish);
+        window.removeEventListener('blur', finish);
+        document.removeEventListener('visibilitychange', hidden);
+        try { flush(); } finally {
+          end(context);
+          if (node.hasPointerCapture(pointerId)) node.releasePointerCapture(pointerId);
+        }
+      };
+      const hidden = () => { if (document.hidden) finish(); };
+      finishDrag = finish;
+      node.addEventListener('pointermove', move);
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) node.addEventListener(type, finish);
+      window.addEventListener('blur', finish);
+      document.addEventListener('visibilitychange', hidden);
+      node.setPointerCapture(pointerId);
+      frame = requestAnimationFrame(flush);
+    });
+  }
+  function beginScrub() {
+    const was = instant;
+    instant = true;
+    document.body.classList.add('instant');
+    for (const id of anims.values()) cancelAnimationFrame(id);
+    anims.clear();
+    // Stop a previously started smooth code scroll before following the pointer.
+    const body = $('codeBody');
+    body.scrollTo({ top: body.scrollTop, behavior: 'instant' });
+    return () => {
+      instant = was;
+      if (!was) { void document.body.offsetWidth; document.body.classList.remove('instant'); }
+    };
+  }
+
+  // 输入框内容与哪个预设一致就高亮哪个按钮（同值时优先刚点的那个），手动改输入后自动取消
+  let lastPreset = -1;
+  function markPreset() {
+    const same = p => Object.keys(p.values).every(k => $('in-' + k) && String($('in-' + k).value) === String(p.values[k]));
+    const list = D.presets || [], hit = list[lastPreset] && same(list[lastPreset]) ? lastPreset : list.findIndex(same);
+    $('inputs').querySelectorAll('button.preset').forEach((b, i) => b.classList.toggle('on', i === hit));
+  }
+  function apply() {
+    stop();
+    markPreset();
+    const values = {};
+    (D.inputs || []).forEach(f => { values[f.id] = $('in-' + f.id).value; });
+    const r = D.parse(values);
+    if (r.error) { $('err').textContent = r.error; return false; }
+    $('err').textContent = '';
+    data = r;
+    steps = D.build(data);
+    for (const k in P.aux) P.aux[k].innerHTML = '';
+    $('canvas').innerHTML = ''; $('state').innerHTML = '';
+    withInstant(() => {
+      D.mount(data, P);
+      cur = 0;
+      D.layout && D.layout(data, P);
+      render(null);
+    });
+    return true;
+  }
+
+  function buildShell() {
+    document.title = D.title;
+    $('title').textContent = D.title;
+    $('subtitle').innerHTML = D.subtitle || '';
+    const inputs = $('inputs');
+    (D.inputs || []).forEach(f => {
+      inputs.appendChild(el('label', '', f.label));
+      const inp = el('input');
+      inp.type = f.type || 'text'; inp.id = 'in-' + f.id; inp.value = f.value;
+      if (f.width) inp.style.width = f.width + 'px';
+      if (f.flex) { inp.style.flex = '1'; inp.style.minWidth = '200px'; }
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') apply(); });
+      inputs.appendChild(inp);
+    });
+    const btn = el('button', 'primary', '生成演示'); btn.onclick = apply; inputs.appendChild(btn);
+    if (D.presets && D.presets.length) inputs.appendChild(el('span', 'hint', '预设：'));
+    (D.presets || []).forEach((p, i) => {
+      const b = el('button', 'preset', p.label);
+      b.onclick = () => { lastPreset = i; for (const k in p.values) $('in-' + k).value = p.values[k]; apply(); };
+      inputs.appendChild(b);
+    });
+    inputs.addEventListener('input', markPreset);
+    inputs.appendChild(el('span', 'err')).id = 'err';
+
+    (D.stats || []).forEach(def => {
+      const box = el('div', 'stat ' + (def.color || 'blue'));
+      box.innerHTML = `<div class="lab">${def.label}</div><div class="num"><span class="n">—</span><small></small></div><div class="sub"></div>`;
+      $('stats').appendChild(box);
+      statEls[def.key] = { box, n: box.querySelector('.n'), unit: box.querySelector('small'), sub: box.querySelector('.sub'), cur: null };
+    });
+
+    const pn = D.panels || {};
+    $('canvasTitle').textContent = pn.canvas?.title || '';
+    $('canvasHint').textContent = pn.canvas?.hint || '';
+    $('stateTitle').textContent = pn.state?.title || '';
+    $('stateHint').textContent = pn.state?.hint || '';
+    P.canvas = $('canvas'); P.state = $('state'); P.stateHint = $('stateHint'); P.stateCard = $('stateCard');
+    (pn.aux || []).forEach(a => {
+      const card = el('div', 'card' + (a.grow ? ' grow' : ''));
+      card.innerHTML = `<div class="card-h"><span>${a.title}</span><span class="hint">${a.hint || ''}</span></div><div class="card-b"></div>`;
+      $('auxCol').appendChild(card);
+      P.aux[a.id] = card.querySelector('.card-b');
+      P.auxCard[a.id] = card;
+    });
+    mountCode(D.file);
+  }
+
+  function wire() {
+    $('btnFirst').onclick = () => { stop(); go(0); };
+    $('btnLast').onclick = () => { stop(); go(steps.length - 1); };
+    $('btnPrev').onclick = () => { stop(); go(cur - 1); };
+    $('btnNext').onclick = () => { stop(); go(cur + 1); };
+    $('btnPlay').onclick = play;
+    $('speed').oninput = setSpeed;
+    // Cache geometry once; coalesce pointer events and keep snapshots immediate while scrubbing.
+    const bar = $('progress');
+    frameDrag(bar, () => {
+      stop();
+      const rect = bar.getBoundingClientRect();
+      const restore = beginScrub();
+      bar.classList.add('dragging');
+      return { rect, restore, first: true };
+    }, (x, ctx) => {
+      const k = Math.round(clamp((x - ctx.rect.left) / ctx.rect.width, 0, 1) * (steps.length - 1));
+      if (ctx.first || k !== cur) { ctx.first = false; go(k); }
+    }, ctx => { bar.classList.remove('dragging'); ctx.restore(); });
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight') { stop(); go(cur + 1); }
+      else if (e.key === 'ArrowLeft') { stop(); go(cur - 1); }
+      else if (e.key === ' ') { e.preventDefault(); play(); }
+      else if (e.key === 'Home') { stop(); go(0); }
+      else if (e.key === 'End') { stop(); go(steps.length - 1); }
+    });
+
+    // 代码面板：可拖动宽度 / 折叠 / 注释开关 / 字号
+    const app = $('app'), sp = $('splitter'), LS = 'algoviz.';
+    const defW = () => clamp(Math.round(window.innerWidth * .4), 420, 820);
+    const setW = w => app.style.setProperty('--code-w', clamp(w, 320, window.innerWidth - 700) + 'px');
+    setW(+localStorage.getItem(LS + 'codeW') || defW());
+    frameDrag(sp, () => {
+      if (app.classList.contains('code-collapsed')) return null;
+      stop();
+      const right = app.getBoundingClientRect().right - 16;
+      const restore = beginScrub();
+      app.classList.add('dragging');
+      return { right, restore };
+    }, (x, ctx) => setW(ctx.right - x - 6), ctx => {
+      app.classList.remove('dragging');
+      ctx.restore();
+      localStorage.setItem(LS + 'codeW', parseInt(app.style.getPropertyValue('--code-w')));
+    });
+    sp.ondblclick = () => { localStorage.removeItem(LS + 'codeW'); setW(defW()); };
+    const setCollapsed = c => { app.classList.toggle('code-collapsed', c); $('btnCollapse').textContent = c ? '⇤' : '⇥'; localStorage.setItem(LS + 'collapsed', c ? 1 : ''); };
+    setCollapsed(!!localStorage.getItem(LS + 'collapsed'));
+    $('btnCollapse').onclick = () => setCollapsed(!app.classList.contains('code-collapsed'));
+    const setCmt = show => { $('codeBody').classList.toggle('no-cmt', !show); $('btnCmt').classList.toggle('on', show); localStorage.setItem(LS + 'hideCmt', show ? '' : 1); };
+    setCmt(!localStorage.getItem(LS + 'hideCmt'));
+    $('btnCmt').onclick = () => setCmt($('codeBody').classList.contains('no-cmt'));
+    let fs = +localStorage.getItem(LS + 'fs') || 14;
+    const setFs = v => { fs = clamp(v, 11, 20); document.documentElement.style.setProperty('--code-fs', fs + 'px'); localStorage.setItem(LS + 'fs', fs); };
+    setFs(fs);
+    $('btnFsDown').onclick = () => setFs(fs - 1);
+    $('btnFsUp').onclick = () => setFs(fs + 1);
+
+    // 画布尺寸变化（窗口缩放、拖动分隔条、折叠代码）时重新排版，不做过渡
+    let raf = 0;
+    new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => withInstant(() => { D.layout && D.layout(data, P); D.render(steps[cur], null, data, P); }));
+    }).observe($('canvas'));
+  }
+
+  // ---------- 自检：文字互相遮挡 / 左侧需滚动 / 代码横向滚动 ----------
+  function textRects(root) {
+    const out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    const seenMath = new Set();
+    while (w.nextNode()) {
+      const node = w.currentNode;
+      if (!node.textContent.trim()) continue;
+      const host = node.parentElement.closest('math') || node.parentElement;
+      if (host.closest('.av-leaving, svg defs, .slots .empty')) continue;
+      const cs = getComputedStyle(host);
+      if (cs.visibility === 'hidden' || +cs.opacity === 0) continue;
+      // 公式按整体外框参与检查（上下标、重音符的字形框会互相叠住，不算重叠）
+      if (host.localName === 'math') { if (seenMath.has(host)) continue; seenMath.add(host); range.selectNode(host); }
+      else range.selectNodeContents(node);
+      // 被滚动容器裁掉（不可见）的部分不参与检查
+      let clip = null;
+      for (let a = host.parentElement; a && a !== root; a = a.parentElement) {
+        const o = getComputedStyle(a);
+        if (/(auto|scroll|hidden)/.test(o.overflowY + o.overflowX)) { clip = a.getBoundingClientRect(); break; }
+      }
+      for (const r0 of range.getClientRects()) {
+        let r = r0;
+        if (clip) {
+          const l = Math.max(r.left, clip.left), t = Math.max(r.top, clip.top), rr = Math.min(r.right, clip.right), b = Math.min(r.bottom, clip.bottom);
+          if (rr - l <= 1 || b - t <= 1) continue;
+          r = { left: l, top: t, right: rr, bottom: b, width: rr - l, height: b - t };
+        }
+        if (r.width > 1 && r.height > 1) out.push({ r, host, text: host.localName === 'math' ? host.textContent.trim().slice(0, 16) : node.textContent.trim().slice(0, 16) });
+      }
+    }
+    return out;
+  }
+  const inter = (a, b, pad = 0) => Math.min(a.right + pad, b.right + pad) - Math.max(a.left - pad, b.left - pad) > 1.5 &&
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1.5;
+  function checkOnce(stepIdx, issues) {
+    const left = $('left');
+    const ts = textRects(left);
+    for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) {
+      const a = ts[i], b = ts[j];
+      if (a.host === b.host || a.host.contains(b.host) || b.host.contains(a.host)) continue;
+      if (inter(a.r, b.r)) issues.push({ step: stepIdx, type: '文字重叠', a: a.text, b: b.text });
+    }
+    const solids = [...left.querySelectorAll('[data-solid]')].map(e => {
+      const r = e.getBoundingClientRect(), g = +(e.dataset.ring || 0);
+      return { e, r: { left: r.left - g, right: r.right + g, top: r.top - g, bottom: r.bottom + g } };
+    });
+    for (const path of left.querySelectorAll('svg [marker-end], svg [marker-start]')) {
+      if (path.closest('.av-leaving') || +getComputedStyle(path.closest('g') || path).opacity === 0) continue;
+      const id = (path.getAttribute('marker-end') || path.getAttribute('marker-start')).match(/#([^)]+)/)?.[1];
+      const head = id && document.getElementById(id)?.querySelector('path, polygon');
+      const cs = head && getComputedStyle(head);
+      if (!cs || (cs.fill === 'none' && (cs.stroke === 'none' || parseFloat(cs.strokeWidth) === 0)))
+        issues.push({ step: stepIdx, type: '连线缺少箭头', a: id || '(无 marker)', b: path.getAttribute('d')?.slice(0, 20) || '' });
+    }
+    for (const t of ts) for (const s of solids) {
+      if (s.e.contains(t.host)) continue;
+      if (inter(t.r, s.r)) issues.push({ step: stepIdx, type: '元素遮挡文字', a: t.text, b: s.e.className });
+    }
+  }
+  function runCheck() {
+    const issues = [];
+    let total = 0;
+    // 逐个预设、逐步检查；没有预设时只检查当前输入
+    const runs = D.presets && D.presets.length ? D.presets : [null];
+    runs.forEach(p => {
+      if (p) { for (const k in p.values) $('in-' + k).value = p.values[k]; if (!apply()) return; }
+      const tagged = [];
+      withInstant(() => { for (let k = 0; k < steps.length; k++) { go(k); checkOnce(k, tagged); } go(0); });
+      total += steps.length;
+      tagged.forEach(it => { it.step = (p ? p.label + ' · ' : '') + 'step ' + it.step; issues.push(it); });
+    });
+    const left = $('left'), body = $('codeBody');
+    const uniq = [], seen = new Set();
+    for (const it of issues) { const key = it.type + it.a + '|' + it.b; if (!seen.has(key)) { seen.add(key); uniq.push(it); } }
+    const res = {
+      viewport: [window.innerWidth, window.innerHeight], steps: total, lastSteps: steps.length,
+      leftNeedsScroll: Math.max(0, left.scrollHeight - left.clientHeight),
+      codeHScroll: Math.max(0, body.scrollWidth - body.clientWidth),
+      overlaps: uniq.slice(0, 30), overlapCount: uniq.length,
+    };
+    $('av-check').textContent = JSON.stringify(res);
+    document.title = 'AVCHECK ' + (res.leftNeedsScroll || res.codeHScroll || res.overlapCount ? 'FAIL' : 'OK');
+  }
+
+  function start(demo) {
+    D = demo;
+    buildShell();
+    wire();
+    setSpeed();
+    apply();
+    const h = new URLSearchParams(location.hash.slice(1));
+    const pre = D.presets && D.presets[+h.get('preset')];
+    if (h.has('preset') && pre) { for (const k in pre.values) $('in-' + k).value = pre.values[k]; apply(); }
+    if (h.has('step')) withInstant(() => go(+h.get('step')));
+    if (h.has('check')) setTimeout(runCheck, 50);
+  }
+
+  // —— 公式排版：文本里的 $…$（行内）/ $$…$$（独立一行）按 TeX 语法离线转成 MathML，
+  //    浏览器用数学字体按论文格式排版。支持 ^ _ {} \frac \sqrt \hat \bar \tilde \vec \mathbf \mathrm \text
+  //    \operatorname \mathcal \mathbb \left \right \class{色类}{…}、希腊字母与常用符号；也认 ∇ ᵀ ² ₀ x̂ ᾱ 等 Unicode 写法。
+  const TEX = (() => {
+    const GREEK = { alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ϵ', varepsilon: 'ε', zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'ϕ', varphi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω', ell: 'ℓ',
+      Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω' };
+    const OPS = { cdot: '⋅', times: '×', div: '÷', pm: '±', mp: '∓', le: '≤', leq: '≤', ge: '≥', geq: '≥', ne: '≠', neq: '≠', approx: '≈', sim: '∼', equiv: '≡', propto: '∝',
+      in: '∈', notin: '∉', subset: '⊂', cup: '∪', cap: '∩', to: '→', rightarrow: '→', leftarrow: '←', gets: '←', Rightarrow: '⇒', Leftarrow: '⇐', iff: '⇔', mapsto: '↦',
+      infty: '∞', nabla: '∇', partial: '∂', sum: '∑', prod: '∏', int: '∫', top: '⊤', mid: '∣', forall: '∀', exists: '∃', circ: '∘', odot: '⊙', otimes: '⊗', oplus: '⊕',
+      land: '∧', wedge: '∧', lor: '∨', vee: '∨', neg: '¬', lnot: '¬',
+      lfloor: '⌊', rfloor: '⌋', lceil: '⌈', rceil: '⌉', langle: '⟨', rangle: '⟩', lVert: '‖', rVert: '‖', Vert: '‖', lvert: '|', rvert: '|', '|': '‖', '{': '{', '}': '}',
+      ldots: '…', cdots: '⋯', dots: '…', '#': '#', '%': '%', '&': '&', _: '_', '$': '$' };
+    const FN = new Set('max min exp log ln sin cos tan tanh sigmoid arg det diag std var sup inf lim softmax argmin argmax'.split(' '));
+    const ACC = { hat: 'ˆ', widehat: 'ˆ', bar: '―', overline: '―', tilde: '˜', widetilde: '˜', vec: '→', dot: '˙', ddot: '¨' };
+    const SPACE = { ',': '0.17em', ':': '0.22em', ';': '0.28em', ' ': '0.28em', quad: '1em', qquad: '2em', '!': '-0.17em' };
+    const SUP = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁺': '+', '⁻': '-', 'ᵀ': '\\top ', 'ⁱ': 'i', 'ⁿ': 'n', 'ᵈ': 'd', 'ᵗ': 't' };
+    const SUB = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9', '₊': '+', '₋': '-', 'ₖ': 'k', 'ᵢ': 'i', 'ⱼ': 'j', 'ₜ': 't', 'ₙ': 'n', 'ₘ': 'm', 'ₓ': 'x' };
+    const COMB = { '̂': 'ˆ', '̄': '―', '̅': '―', '̃': '˜', '̇': '˙', '⃗': '→' };
+    const PRE = { 'ᾱ': 'ᾱ', 'ᾰ': 'ᾰ' };
+    const x = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const styled = (s, A, a, D) => [...s].map(c => c >= 'A' && c <= 'Z' ? String.fromCodePoint(A + c.charCodeAt(0) - 65)
+      : c >= 'a' && c <= 'z' ? String.fromCodePoint(a + c.charCodeAt(0) - 97) : D && c >= '0' && c <= '9' ? String.fromCodePoint(D + c.charCodeAt(0) - 48) : c).join('');
+    const CAL = { B: 'ℬ', E: 'ℰ', F: 'ℱ', H: 'ℋ', I: 'ℐ', L: 'ℒ', M: 'ℳ', R: 'ℛ' };
+    const BB = { C: 'ℂ', H: 'ℍ', N: 'ℕ', P: 'ℙ', Q: 'ℚ', R: 'ℝ', Z: 'ℤ' };
+    const cache = new Map();
+
+    function convert(src, display) {
+      const key = (display ? 'D' : 'I') + src;
+      if (cache.has(key)) return cache.get(key);
+      let s = src.replace(/[ᾱᾰ]/g, c => PRE[c]), i = 0;
+      const peek = () => s[i];
+      const skipWs = () => { while (i < s.length && /\s/.test(s[i])) i++; };
+      const readName = () => {
+        if (/[A-Za-z]/.test(s[i])) { const m = /^[A-Za-z]+/.exec(s.slice(i))[0]; i += m.length; return m; }
+        return s[i++] || '';
+      };
+      const readRaw = () => { // \text{…} 等的原文参数
+        skipWs();
+        if (s[i] !== '{') return s[i++] || '';
+        let d = 0, j = i;
+        for (; j < s.length; j++) { if (s[j] === '{') d++; else if (s[j] === '}' && --d === 0) break; }
+        const t = s.slice(i + 1, j); i = j + 1; return t;
+      };
+      const arg = () => { skipWs(); const a = atom(); return a == null ? '<mrow></mrow>' : a; };
+      const mrow = list => list.length === 1 ? list[0] : `<mrow>${list.join('')}</mrow>`;
+      const sub = t => convertInner(t);
+      // 不在 \left…\right 里的括号保持原高，不随分式拉伸
+      const mo = c => c === '/' ? '<mo lspace="0" rspace="0">/</mo>' : /^[()[\]{}|‖⌊⌋⌈⌉⟨⟩]$/.test(c) ? `<mo stretchy="false">${x(c)}</mo>` : `<mo>${x(c)}</mo>`;
+
+      const delim = () => { skipWs(); let d = s[i++] || '.'; if (d === '\\') { const m = readName(); d = OPS[m] || m; } return d === '.' ? '' : `<mo>${x(d)}</mo>`; };
+      function seq(stop, inLeft) {
+        const out = [];
+        while (i < s.length) {
+          skipWs();
+          if (i >= s.length) break;
+          if (stop && s[i] === stop) { i++; break; }
+          if (inLeft && s.startsWith('\\right', i)) break;
+          const a = atom();
+          if (a == null) continue;
+          out.push(scripts(a));
+          if (/^<mi>[A-Za-z]{2,}<\/mi>$/.test(a)) { skipWs(); if (s[i] !== '(') out.push('<mspace width="0.17em"></mspace>'); } // \max c 之间留细空
+        }
+        return out;
+      }
+      function scripts(base) {
+        let lo = null, hi = null;
+        for (;;) {
+          const c = s[i];
+          if (c === '^') { i++; hi = arg(); }
+          else if (c === '_') { i++; lo = arg(); }
+          else if (c === "'") { let p = ''; while (s[i] === "'") { p += '′'; i++; } hi = `<mo>${p}</mo>`; }
+          else if (c && COMB[c]) { base = `<mover accent="true">${base}<mo>${COMB[c]}</mo></mover>`; i++; }
+          else if (c && SUP[c]) { let t = ''; while (SUP[s[i]]) t += SUP[s[i++]]; hi = sub(t); }
+          else if (c && SUB[c]) { let t = ''; while (SUB[s[i]]) t += SUB[s[i++]]; lo = sub(t); }
+          else if (c && /\s/.test(c) && /^\s*[\^_]/.test(s.slice(i))) skipWs();
+          else break;
+        }
+        if (lo && hi) return `<msubsup>${base}${lo}${hi}</msubsup>`;
+        if (lo) return `<msub>${base}${lo}</msub>`;
+        if (hi) return `<msup>${base}${hi}</msup>`;
+        return base;
+      }
+      function atom() {
+        const c = s[i];
+        if (c === '{') { i++; return mrow(seq('}')); }
+        if (c === '}') { i++; return null; }
+        if (c === '\\') {
+          i++;
+          const n = readName();
+          if (n in GREEK) return /[A-Z]/.test(n[0]) ? `<mi mathvariant="normal">${GREEK[n]}</mi>` : `<mi>${GREEK[n]}</mi>`;
+          if (n in SPACE) return `<mspace width="${SPACE[n]}"></mspace>`;
+          if (FN.has(n)) return `<mi>${n}</mi>`;
+          if (n in ACC) return `<mover accent="true">${arg()}<mo>${ACC[n]}</mo></mover>`;
+          if (n in OPS) return mo(OPS[n]);
+          switch (n) {
+            case 'frac': case 'dfrac': case 'tfrac': { const a = arg(); return `<mfrac>${a}${arg()}</mfrac>`; }
+            case 'sqrt': return `<msqrt>${arg()}</msqrt>`;
+            case 'text': case 'textrm': case 'mbox': return `<mtext>${x(readRaw())}</mtext>`;
+            case 'mathrm': case 'operatorname': { const t = readRaw(); return t.length === 1 ? `<mi mathvariant="normal">${x(t)}</mi>` : `<mi>${x(t)}</mi>`; }
+            case 'mathbf': return `<mi>${x(styled(readRaw(), 0x1D400, 0x1D41A, 0x1D7CE))}</mi>`;
+            case 'boldsymbol': case 'bm': return `<mi>${x(styled(readRaw(), 0x1D468, 0x1D482, 0x1D7CE))}</mi>`;
+            case 'mathcal': return `<mi>${[...readRaw()].map(ch => CAL[ch] || styled(ch, 0x1D49C, 0x1D4B6)).join('')}</mi>`;
+            case 'mathbb': return `<mi>${[...readRaw()].map(ch => BB[ch] || styled(ch, 0x1D538, 0x1D552, 0x1D7D8)).join('')}</mi>`;
+            case 'class': { const cls = readRaw().replace(/[^\w -]/g, ''); return `<mrow class="${cls}">${arg()}</mrow>`; }
+            case 'left': {
+              const open = delim(), inner = seq(null, true);
+              const close = s.startsWith('\\right', i) ? (i += 6, delim()) : '';
+              return `<mrow>${open}${inner.join('')}${close}</mrow>`;
+            }
+            case 'right': case 'big': case 'Big': case 'bigl': case 'bigr': case 'Bigl': case 'Bigr': return delim() || null;
+            default: return `<mtext>\\${x(n)}</mtext>`;
+          }
+        }
+        let m;
+        if ((m = /^\d+(?:\.\d+)?/.exec(s.slice(i)))) { i += m[0].length; return `<mn>${m[0]}</mn>`; }
+        if (/[A-Za-z]/.test(c)) { i++; return `<mi>${c}</mi>`; }
+        if (/[α-ωϵϕℓ]/.test(c)) { i++; return `<mi>${c}</mi>`; }
+        if (/[Α-Ω]/.test(c)) { i++; return `<mi mathvariant="normal">${c}</mi>`; }
+        if (/[　-鿿＀-￯]/.test(c)) { // 中文说明文字
+          m = /^[　-鿿＀-￯]+/.exec(s.slice(i))[0]; i += m.length; return `<mtext>${x(m)}</mtext>`;
+        }
+        i++;
+        if (c === '-') return '<mo>−</mo>';
+        if (c === '*') return '<mo>∗</mo>';
+        if (c === '~') return '<mspace width="0.28em"></mspace>';
+        if (c === '·') return '<mo>⋅</mo>';
+        if (c === '∑' || c === '∏') return `<mo>${c}</mo>`;
+        return mo(c);
+      }
+      function convertInner(t) { const [s0, i0] = [s, i]; s = t; i = 0; const r = mrow(seq()); s = s0; i = i0; return r; }
+
+      const body = mrow(seq());
+      const out = `<math${display ? ' display="block"' : ''}>${body}</math>`;
+      cache.set(key, out);
+      return out;
+    }
+
+    // 把一个文本节点里的 $…$ / $$…$$ 换成 MathML；返回是否替换
+    const SKIP = '.code-card, script, style, textarea, math, svg, title, .no-tex';
+    function typesetText(node) {
+      const t = node.nodeValue;
+      if (!t || t.indexOf('$') < 0) return false;
+      const host = node.parentElement;
+      if (!host || host.closest(SKIP)) return false;
+      const re = /\$\$([\s\S]+?)\$\$|\$([^$]+?)\$/g;
+      let html = '', last = 0, hit = false, mm;
+      while ((mm = re.exec(t))) {
+        hit = true;
+        html += x(t.slice(last, mm.index)) + (mm[1] != null ? convert(mm[1].trim(), true) : convert(mm[2].trim(), false));
+        last = re.lastIndex;
+      }
+      if (!hit) return false;
+      html += x(t.slice(last));
+      const tpl = document.createElement('template');
+      tpl.innerHTML = html;
+      node.replaceWith(tpl.content);
+      return true;
+    }
+    function typeset(root) {
+      if (!root) return;
+      if (root.nodeType === 3) { typesetText(root); return; }
+      if (root.nodeType !== 1 && root.nodeType !== 11) return;
+      if (root.nodeType === 1 && root.closest(SKIP)) return;
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), list = [];
+      while (w.nextNode()) if (w.currentNode.nodeValue.indexOf('$') >= 0) list.push(w.currentNode);
+      list.forEach(typesetText);
+    }
+    // DEMO 直接写 innerHTML / textContent 的内容由 MutationObserver 兜底排版；render 结束时同步冲刷一次
+    const handle = recs => { for (const r of recs) { if (r.type === 'characterData') typeset(r.target); else r.addedNodes.forEach(typeset); } };
+    const mo = new MutationObserver(handle);
+    mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    const flush = () => handle(mo.takeRecords());
+    return { convert, typeset, flush };
+  })();
+  // 带公式的 innerHTML 写入：按原始字符串判断是否变化（排版后 innerHTML 已不同于源串）
+  function setHTML(node, html) {
+    html = html == null ? '' : String(html);
+    if (node._raw === html) return false;
+    node._raw = html;
+    node.innerHTML = html;
+    TEX.typeset(node);
+    return true;
+  }
+  // —— 公式排版结束
+  return { $, el, esc, clamp, dur, animate, flash, setText, keyed, lineOf, start, isInstant: () => instant, setHTML, tex: TEX.convert, typeset: TEX.typeset };
+})();
+</script>
+
+<script>
+(()=>{
+const {el,setText,keyed,lineOf:L}=AV,fmt=x=>x==null?'·':String(x);let U;
+const presets=[{label:'题目样例',values:{n:7,edges:'1 2 1; 1 3 1; 1 5 2; 2 6 1; 2 4 2; 2 3 2; 3 4 1; 4 5 1; 5 6 2; 5 7 1; 6 7 1'}},{label:'先成环再连通',values:{n:5,edges:'1 2 1; 2 3 2; 1 3 3; 3 4 4; 4 5 5; 1 5 9'}},{label:'合并与压缩',values:{n:6,edges:'1 2 1; 3 4 2; 3 5 3; 1 3 4; 2 5 5; 2 6 6'}},{label:'负权与重边',values:{n:4,edges:'1 2 8; 1 2 -2; 2 3 0; 1 3 1; 3 4 3'}},{label:'不连通',values:{n:4,edges:'1 2 1; 3 4 2'}},{label:'单个岛屿',values:{n:1,edges:''}}];
+presets.unshift(presets.splice(1,1)[0]);
+const D={file:"53. 寻宝(kruskal) .py",title:'寻宝 · Kruskal 与并查集',subtitle:'道路按权值从小到大排序；根不同才选边并合并，根相同则跳过。绿色道路逐步组成最小生成树。',
+ inputs:[{id:'n',label:'岛屿 n',value:presets[0].values.n,type:'number',width:56},{id:'edges',label:'无向道路 a b v；',value:presets[0].values.edges,flex:true}],presets,
+ stats:[{key:'v',label:'当前边权 v',color:'purple'},{key:'roots',label:'两端根节点',color:'blue'},{key:'cnt',label:'已选边数 cnt',color:'green'},{key:'components',label:'当前连通块数',color:'amber'},{key:'res',label:'总边权 res',color:'red'}],
+ panels:{canvas:{title:'无向道路与边的排序扫描',hint:'绿：已选；紫：当前；红：因成环跳过；灰：尚未处理'},state:{title:'当前变量与计算',hint:'parent指向父节点，find找根；只有根的size才是当前块大小'},aux:[{id:'dsu',title:'并查集 parent 与 size 一一配对',hint:'颜色相同表示属于同一个连通块；0号位置不参与图算法',grow:true}]},
+ parse(v){const n=Number(v.n);if(!Number.isInteger(n)||n<1||n>7)return {error:'动画支持1～7个岛屿。'};const edges=[];for(const part of v.edges.split(/[;；\n]+/).filter(s=>s.trim())){const a=part.trim().split(/[\s,，]+/).map(Number);if(a.length!==3||a.some(x=>!Number.isSafeInteger(x))||a[0]<1||a[0]>n||a[1]<1||a[1]>n||Math.abs(a[2])>99)return {error:'输入 a b v，编号1～n，权值-99～99。'};edges.push(a);}if(edges.length>15)return {error:'动画最多15条道路。'};return {n,edges};},
+ build(d){const parent=[],size=[],order=[],tree=[],rejected=[],steps=[];let id=null,a=null,b=null,v=null,ra=null,rb=null,x=null,root=null,focus=null,res=0,cnt=0,calc='',kind='info',done=false,answer=null;
+ const snap=(phase,desc,line)=>steps.push({phase,desc,lines:[L(line)],tag:{text:phase,kind},parent:parent.slice(),size:size.slice(),order:order.slice(),tree:tree.slice(),rejected:rejected.slice(),id,a,b,v,ra,rb,x,root,focus,res,cnt,calc,done,answer,stats:{v:v??'—',roots:ra==null||rb==null?'—':ra+' / '+rb,cnt,components:parent.length?parent.slice(1).filter((p,i)=>p===i+1).length:'—',res}});
+ snap('读取地图',`共有${d.n}个岛屿，${d.edges.length}条道路。`,'n = int(data[0])');
+ for(let i=0;i<d.edges.length;i++){order.push(i);const [a,b,v]=d.edges[i];snap('加入边表',`追加 (v,a,b)=(${v},${a},${b})，将权值放在第一项。`,'edges.append((v, a, b))');}
+ order.sort((i,j)=>{const a=d.edges[i],b=d.edges[j];return a[2]-b[2]||a[0]-b[0]||a[1]-b[1]||i-j;});snap('排序所有边','按 (v,a,b) 升序排序；同权时按端点编号打破平局。','edges.sort()');
+ for(let i=0;i<=d.n;i++){parent.push(i);focus=i;snap('初始化 parent',`parent[${i}]=${i}，初始每个节点都是自己的根。`,'parent.append(i)');size.push(1);snap('初始化 size',`size[${i}]=1。`,'size.append(1)');}focus=null;
+ function find(start){x=start;root=x;focus=x;calc=`root = x = ${x}`;snap('查找根节点',calc,'root = x');while(parent[root]!==root){calc=`parent[${root}]=${parent[root]}，不等于自身，继续向上。`;snap('检查父节点',calc,'while parent[root] != root:');root=parent[root];focus=root;snap('沿父指针向上',`root=${root}。`,'root = parent[root]');}snap('找到根',`parent[${root}]=${root}，根是${root}。`,'while parent[root] != root:');while(parent[x]!==x){const next=parent[x];calc=`next_node = parent[${x}] = ${next}`;snap('保存原父节点',calc,'next_node = parent[x]');parent[x]=root;focus=x;snap('路径压缩',`parent[${x}] 直接改为根${root}；${x===root?'根保持不变。':'后续查找可以少走中间节点。'}`,'parent[x] = root');x=next;focus=x;snap('继续压缩上层',`x = next_node = ${next}。`,'x = next_node');}snap('返回根',`find(${start}) 返回${root}。`,'return root');return root;}
+ for(const eid of order){id=eid;[a,b,v]=d.edges[eid];ra=null;rb=null;root=null;x=null;focus=null;kind='info';calc=`(v,a,b)=(${v},${a},${b})`;snap('读取下一条边',calc,'for v, a, b in edges:');ra=find(a);snap('记录 root_a',`root_a=find(${a})=${ra}。`,'root_a = find(a)');rb=find(b);snap('记录 root_b',`root_b=find(${b})=${rb}。`,'root_b = find(b)');focus=null;calc=`root_a == root_b → ${ra===rb}`;snap('判断是否成环',ra===rb?'端点已经连通，再选这条边会成环。':'两端属于不同连通块，可以安全选边。','if root_a == root_b:');if(ra===rb){rejected.push(eid);kind='miss';snap('跳过成环边','continue 只跳过当前边，接着检查下一条。','continue');continue;}
+ calc=`size[${ra}]=${size[ra]} < size[${rb}]=${size[rb]} → ${size[ra]<size[rb]}`;snap('比较连通块大小',calc,'if size[root_a] < size[root_b]:');if(size[ra]<size[rb]){const tmp=ra;snap('保存临时根',`tmp=${tmp}。`,'tmp = root_a');ra=rb;snap('交换较大的根',`root_a=${ra}。`,'root_a = root_b');rb=tmp;snap('交换较小的根',`root_b=${rb}。`,'root_b = tmp');}
+ parent[rb]=ra;focus=rb;tree.push(eid);kind='hit';calc=`parent[${rb}] = ${ra}`;snap('合并两个连通块',`把根${rb}挂到根${ra}下，选中道路 ${a}—${b}。`,'parent[root_b] = root_a');size[ra]+=size[rb];focus=ra;calc=`size[${ra}] = ${size[ra]}`;snap('更新根的大小',calc+'；非根size可能是历史值，不再代表整块大小。','size[root_a] += size[root_b]');const old=res;res+=v;calc=`res = ${old} + (${v}) = ${res}`;snap('累计边权',calc,'res += v');cnt++;calc=`cnt=${cnt}，n-1=${d.n-1}`;snap('累计已选边数',calc,'cnt += 1');focus=null;snap('判断是否已连通全部岛屿',cnt===d.n-1?'已选够n-1条无环边，可以提前结束。':'还未选够n-1条，继续扫描。','if cnt == n - 1:');if(cnt===d.n-1){snap('提前结束','break 退出边遍历，检查最终结果。','break');break;}
+ }
+ id=null;focus=null;done=true;answer=cnt===d.n-1?res:-1;kind=cnt===d.n-1?'hit':'miss';calc=`cnt=${cnt}；需要${d.n-1}条边`;snap('检查最终边数',calc,'if cnt == n - 1:');snap('最终结果',cnt===d.n-1?`最小生成树共${cnt}条边，总边权${res}。`:'图不连通，当前选边只是局部森林；按代码约定输出-1。',cnt===d.n-1?'print(res)':'print(-1)');return steps;
+ },
+ mount(d,P){P.canvas.innerHTML='<div class="science-view"><div class="road-graph"><svg><g class="roads"></g><g class="nodes"></g></svg></div><div class="ks-sort"><div class="hint">edges 按 (v,a,b) 升序；从左上向右下</div><div class="ks-list"></div></div></div><div class="legend">绿：选入树　紫：正在判断　红：跳过成环边　连通块颜色见下方parent表</div>';
+ const ns='http://www.w3.org/2000/svg',sv=t=>document.createElementNS(ns,t),svg=P.canvas.querySelector('svg'),roadEls=[],nodeEls=[];d.edges.forEach(([a,b,w],id)=>{const path=sv('path'),text=sv('text');text.textContent=w;svg.querySelector('.roads').append(path,text);roadEls.push({a,b,id,path,text});});for(let i=1;i<=d.n;i++){const g=sv('g'),circle=sv('circle'),text=sv('text');circle.setAttribute('r',18);text.setAttribute('class','node-label');text.textContent=i;g.append(circle,text);svg.querySelector('.nodes').append(g);nodeEls[i]={g,circle};}
+ P.state.innerHTML='<div class="ks-vars"></div><div class="calc"></div>';const vars={};for(const key of ['当前道路','root_a / root_b','find：x / root','res / cnt']){P.state.querySelector('.ks-vars').append(el('div','name',key));vars[key]=P.state.querySelector('.ks-vars').appendChild(el('div','value','—'));}
+ P.aux.dsu.innerHTML='<div class="ks-row head"><span>节点</span><span>parent[i]</span><span>size[i]</span><span>所属根</span></div><div class="ks-rows"></div><div class="route-text"></div>';const rows=[];for(let i=1;i<=d.n;i++)rows[i]=P.aux.dsu.querySelector('.ks-rows').appendChild(el('div','ks-row',`<span>#${i}</span><span>·</span><span>·</span><span>·</span>`));U={graph:P.canvas.querySelector('.road-graph'),svg,roadEls,nodeEls,list:P.canvas.querySelector('.ks-list'),vars,calc:P.state.querySelector('.calc'),rows,tree:P.aux.dsu.querySelector('.route-text')};
+ },
+  layout(d){
+  const w=U.graph.clientWidth,h=U.graph.clientHeight,rx=Math.max(50,Math.min(w/2-70,260)),ry=h/2-45;
+  const pos=Array.from({length:d.n+1},(_,i)=>{const a=-Math.PI/2+2*Math.PI*(i-1)/d.n;return d.n===1?{x:w/2,y:h/2}:{x:w/2+rx*Math.cos(a),y:h/2+ry*Math.sin(a)};});
+  const occupied=pos.slice(1).map(p=>({...p,w:42,h:42}));
+  const collides=(a,b)=>Math.abs(a.x-b.x)<(a.w+b.w)/2+5&&Math.abs(a.y-b.y)<(a.h+b.h)/2+5;
+  for(let i=1;i<=d.n;i++)U.nodeEls[i].g.setAttribute('transform',`translate(${pos[i].x},${pos[i].y})`);
+  for(const e of U.roadEls){const a=pos[e.a],b=pos[e.b];let tx,ty;
+   if(e.a===e.b){e.path.setAttribute('d',`M${a.x-13},${a.y-14} C${a.x-48},${a.y-48} ${a.x+48},${a.y-48} ${a.x+13},${a.y-14}`);tx=a.x;ty=a.y-42;}
+   else{const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy),nx=-dy/len,ny=dx/len,bend=24+(e.id%3)*12,cx=(a.x+b.x)/2+nx*bend,cy=(a.y+b.y)/2+ny*bend;
+    const l0=Math.hypot(cx-a.x,cy-a.y),l1=Math.hypot(b.x-cx,b.y-cy),x0=a.x+(cx-a.x)*21/l0,y0=a.y+(cy-a.y)*21/l0,x1=b.x-(b.x-cx)*24/l1,y1=b.y-(b.y-cy)*24/l1;
+    e.path.setAttribute('d',`M${x0},${y0} Q${cx},${cy} ${x1},${y1}`);
+    let best=null,bestCount=Infinity;
+    for(const t of [.5,.36,.64,.25,.75])for(const offset of [8,19,-8,30,-19]){const x=(1-t)**2*x0+2*(1-t)*t*cx+t*t*x1+nx*offset,y=(1-t)**2*y0+2*(1-t)*t*cy+t*t*y1+ny*offset,candidate={x,y,w:30,h:15};const count=occupied.filter(p=>collides(candidate,p)).length+(x<20||x>w-20||y<10||y>h-10?100:0);if(count<bestCount){bestCount=count;best=candidate;}}
+    tx=best.x;ty=best.y;
+   }
+   occupied.push({x:tx,y:ty,w:30,h:15});e.text.setAttribute('x',tx);e.text.setAttribute('y',ty);
+  }
+ },
+
+ render(s,prev,d){const palette=['#eff6ff','#f5f3ff','#fef3c7','#dcfce7','#ffe4e6','#cffafe','#fae8ff'];const rootOf=i=>{if(s.parent[i]===undefined)return null;while(s.parent[i]!==i)i=s.parent[i];return i;};
+ for(const e of U.roadEls){const active=e.id===s.id,chosen=s.tree.includes(e.id),drop=s.rejected.includes(e.id);e.path.style.opacity=s.order.includes(e.id)?1:0;e.text.style.opacity=s.order.includes(e.id)?1:0;e.path.style.stroke=chosen?'#16a34a':drop?'#ef4444':active?'#7c3aed':'#cbd5e1';e.path.style.strokeWidth=chosen?4:active?3:1.5;e.text.style.fill=chosen?'#15803d':active?'#7c3aed':'#64748b';}
+ for(let i=1;i<=d.n;i++){const root=rootOf(i),color=root===null?'white':palette[(root-1)%palette.length];U.nodeEls[i].circle.style.fill=color;U.nodeEls[i].circle.style.stroke=i===s.focus?'#2563eb':i===s.a||i===s.b?'#7c3aed':'#94a3b8';const r=U.rows[i];r.style.background=color;r.className='ks-row'+(i===s.focus?' focused':'');setText(r.children[1],`parent[${i}]=${fmt(s.parent[i])}`);setText(r.children[2],`size[${i}]=${fmt(s.size[i])}${root!==null&&root!==i?'*':''}`);setText(r.children[3],fmt(root));}
+ keyed(U.list,s.order,id=>id,()=>el('div','ks-edge'),(cell,id)=>{const [a,b,v]=d.edges[id];setText(cell,`${a}—${b} (${v})`);cell.className='ks-edge'+(s.tree.includes(id)?' chosen':s.rejected.includes(id)?' rejected':id===s.id?' active':'');});
+ const vars={'当前道路':s.a==null?'—':`${s.a}—${s.b}，v=${s.v}`,'root_a / root_b':`${fmt(s.ra)} / ${fmt(s.rb)}`,'find：x / root':`${fmt(s.x)} / ${fmt(s.root)}`,'res / cnt':`${s.res} / ${s.cnt}`};for(const [k,v]of Object.entries(vars))setText(U.vars[k],v);setText(U.calc,s.calc||'并查集初始化时，各节点各自成一个连通块。');setText(U.tree,'已选道路：'+(s.tree.length?s.tree.map(id=>{const [a,b,v]=d.edges[id];return `${a}—${b} (${v})`;}).join('；'):'无')+'。* 非根size为历史值。'+(s.done?' 输出：'+s.answer:''));
+ }
+};window.KRUSKAL_DEMO=D;AV.start(D);
+})();
+
+</script>
+</body>
+</html>
