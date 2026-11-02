@@ -1,0 +1,53 @@
+{
+  "desktop": "1440x1000",
+  "mobile": "390x844",
+  "lessons": [
+    {
+      "lesson": 1,
+      "quiz": "passed",
+      "demo": "passed"
+    },
+    {
+      "lesson": 2,
+      "quiz": "passed",
+      "demo": "passed"
+    },
+    {
+      "lesson": 3,
+      "quiz": "passed",
+      "demo": "passed"
+    },
+    {
+      "lesson": 4,
+      "quiz": "passed",
+      "demo": "passed"
+    },
+    {
+      "lesson": 5,
+      "quiz": "passed",
+      "demo": "passed"
+    },
+    {
+      "lesson": 6,
+      "quiz": "passed",
+      "demo": "passed"
+    },
+    {
+      "lesson": 7,
+      "quiz": "passed",
+      "demo": "passed"
+    },
+    {
+      "lesson": 8,
+      "quiz": "passed",
+      "demo": "passed"
+    }
+  ],
+  "progress_reload": "passed",
+  "locked_navigation": "passed",
+  "video_metadata": "passed",
+  "mobile_overflow": "none",
+  "page_errors": [],
+  "post_fix_navigation": "passed",
+  "final_completion_banner": "passed"
+}

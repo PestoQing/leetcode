@@ -1,6 +1,6 @@
 const names={nvda:'英伟达',aapl:'苹果',mu:'美光科技',meta:'Meta',googl:'谷歌 A',goog:'谷歌 C',ndx:'纳斯达克100指数',nq:'纳斯达克100期货',hstech:'恒生科技指数',shcomp:'上证指数',chinext:'创业板指数',momenta:'魔门塔',unitree:'宇树科技'};
 const periods={intraday:'单日',day:'日',week:'周',month:'月',quarter:'季',year:'年'};
-let selected='ndx',period='day',quotes={},candles=[],start=0,visible=70,drag=null,raf=0;
+let selected='ndx',period='day',quotes={},candles=[],start=0,visible=70,drag=null,hover=null,raf=0;
 const $=id=>document.getElementById(id), chart=$('chart'),ctx=chart.getContext('2d'),wrap=document.querySelector('.chart-wrap');
 const currency={USD:'$',CNY:'¥',HKD:'HK$'};
 function fmt(v,cur='USD',digits){if(v==null||!Number.isFinite(Number(v)))return '—';let n=Number(v);return (currency[cur]||'')+n.toLocaleString('en-US',{minimumFractionDigits:digits??(n<100?2:2),maximumFractionDigits:digits??2})}
@@ -15,7 +15,7 @@ function renderSummary(){let q=quotes[selected]||{},isIndex=q.isIndex;setText('m
 let chartRequestId=0;
 async function loadCandles(preserveView=false){
   const requestId=++chartRequestId, key=selected, requestedPeriod=period;
-  if(!preserveView){candles=[];start=0;render();$('chartMessage').style.display='flex';$('chartMessage').textContent=requestedPeriod==='intraday'?'正在读取全天分时…':'正在读取 K 线…'}
+  if(!preserveView){hover=null;$('crosshairLabel').style.display='none';candles=[];start=0;render();$('chartMessage').style.display='flex';$('chartMessage').textContent=requestedPeriod==='intraday'?'正在读取全天分时…':'正在读取 K 线…'}
   try{
     const data=await fetchCandles(key,requestedPeriod);
     if(requestId!==chartRequestId)return;
@@ -85,10 +85,23 @@ function render(){
   let last=list[n-1],ly=y(last.close),up=last.close>=(period==='intraday'?list[0].close:last.open);ctx.strokeStyle=up?'#25c98b':'#fa6672';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(p.l,ly);ctx.lineTo(w-p.r,ly);ctx.stroke();ctx.setLineDash([]);
   ctx.fillStyle=up?'#d6f3e8':'#fbe0e3';ctx.fillRect(w-p.r+4,ly-9,p.r-8,18);ctx.fillStyle=up?'#087b53':'#bd3547';ctx.textAlign='left';ctx.fillText(last.close.toLocaleString('en-US',{maximumFractionDigits:2}),w-p.r+8,ly);
   ctx.fillStyle='#78869a';ctx.textAlign='center';
-  for(let i=0;i<5;i++){
-    let idx=Math.round((n-1)*i/4),date=new Date(list[idx].time*1000);
-    let label=period==='intraday'?date.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}):date.toLocaleDateString('zh-CN',{year:'2-digit',month:'2-digit',day:period==='day'?'2-digit':undefined});
-    ctx.fillText(label,p.l+idx*cw+cw/2,h-8);
+  for(let i=0;i<10;i++){
+    let tickCount=Math.min(n,Math.max(1,Math.floor(plotW/110)));
+    if(i>=tickCount)break;
+    let idx=tickCount===1?0:Math.round((n-1)*i/(tickCount-1)),date=new Date(list[idx].time*1000);
+    let label=period==='intraday'?date.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}):date.toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:period==='day'?'2-digit':undefined});
+    const x=Math.max(p.l+42,Math.min(w-p.r-42,p.l+idx*cw+cw/2));
+    ctx.fillText(label,x,h-8);
+  }
+  if(hover!==null){
+    const idx=Math.max(0,Math.min(n-1,Math.floor((hover-p.l)/cw))),x=p.l+(idx+.5)*cw;
+    ctx.save();ctx.strokeStyle='#637b9a';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(x,p.t);ctx.lineTo(x,volBottom);ctx.stroke();ctx.restore();
+    updateOhlc(idx);
+    const lab=$('crosshairLabel'),date=new Date(list[idx].time*1000);
+    lab.textContent=period==='intraday'?date.toLocaleString('zh-CN',{hour12:false}):date.toLocaleDateString('zh-CN');
+    lab.style.display='block';lab.style.top=(h-23)+'px';
+    lab.style.left=Math.max(0,Math.min(w-lab.offsetWidth,x-lab.offsetWidth/2))+'px';
   }
 }
 function updateOhlc(i){
@@ -98,5 +111,27 @@ function updateOhlc(i){
   if(period==='intraday'){$('ohlc').innerHTML=`<span>${date}</span><span>现价 <b>${priceFormat(c.close,quotes[selected])}</b></span><span>量 <b>${compact(c.volume,'')}</b></span>`;return}
   $('ohlc').innerHTML=`<span>${date}</span><span>开 <b>${priceFormat(c.open,quotes[selected])}</b></span><span>高 <b>${priceFormat(c.high,quotes[selected])}</b></span><span>低 <b>${priceFormat(c.low,quotes[selected])}</b></span><span>收 <b>${priceFormat(c.close,quotes[selected])}</b></span><span>量 <b>${compact(c.volume,'')}</b></span>`+MA_LINES.map(ma=>{let v=movingAverage(idx,ma.n);return `<span style="color:${ma.color}">MA${ma.n} <b style="color:${ma.color}">${v==null?'—':priceFormat(v,quotes[selected])}</b></span>`}).join('');
 }
-wrap.addEventListener('pointerdown',e=>{if(!candles.length)return;wrap.setPointerCapture(e.pointerId);drag={x:e.clientX,start};wrap.classList.add('dragging')});wrap.addEventListener('pointermove',e=>{if(drag){let dx=e.clientX-drag.x,cw=layout().plotW/visible;start=Math.max(0,Math.min(candles.length-visible,drag.start+Math.round(dx/cw)));render()}else if(candles.length){let box=wrap.getBoundingClientRect(),idx=Math.floor((e.clientX-box.left-layout().p.l)/(layout().plotW/visible));updateOhlc(idx);let lab=$('crosshairLabel');lab.style.display='block';let date=new Date(candles[Math.max(0,Math.min(candles.length-1,candles.length-start-visible+idx))]?.time*1000);lab.textContent=Number.isNaN(+date)?'':date.toLocaleString('zh-CN',{hour12:false})}});wrap.addEventListener('pointerup',()=>{drag=null;wrap.classList.remove('dragging')});wrap.addEventListener('pointerleave',()=>{if(!drag)$('crosshairLabel').style.display='none'});wrap.addEventListener('wheel',e=>{if(!candles.length)return;e.preventDefault();let factor=e.deltaY>0?1.15:.87,old=visible;visible=Math.max(15,Math.min(candles.length,Math.round(visible*factor)));let box=wrap.getBoundingClientRect(),ratio=(e.clientX-box.left-layout().p.l)/layout().plotW;let anchor=candles.length-start-old+Math.round(ratio*old);start=Math.max(0,Math.min(candles.length-visible,candles.length-anchor+Math.round(ratio*visible)));render()},{passive:false});
+wrap.addEventListener('pointerdown',e=>{
+  if(!candles.length||e.button!==0)return;
+  wrap.setPointerCapture(e.pointerId);drag={x:e.clientX,start};wrap.classList.add('dragging');
+});
+wrap.addEventListener('pointermove',e=>{
+  const box=wrap.getBoundingClientRect(),{p,plotW}=layout(),x=e.clientX-box.left;
+  hover=candles.length&&x>=p.l&&x<=p.l+plotW?x:null;
+  if(hover===null)$('crosshairLabel').style.display='none';
+  if(drag){const cw=plotW/visible;start=Math.max(0,Math.min(Math.max(0,candles.length-visible),drag.start+Math.round((e.clientX-drag.x)/cw)))}
+  render();
+});
+function endDrag(){drag=null;wrap.classList.remove('dragging')}
+wrap.addEventListener('pointerup',endDrag);
+wrap.addEventListener('pointercancel',()=>{endDrag();hover=null;$('crosshairLabel').style.display='none';render()});
+wrap.addEventListener('lostpointercapture',endDrag);
+wrap.addEventListener('pointerleave',()=>{hover=null;$('crosshairLabel').style.display='none';render()});
+wrap.addEventListener('wheel',e=>{
+  if(!candles.length)return;e.preventDefault();if(e.deltaY===0)return;
+  // 最新K线始终固定在右侧，向左展开或收拢历史。
+  const factor=e.deltaY>0?1.15:.87;
+  visible=Math.max(Math.min(15,candles.length),Math.min(candles.length,Math.round(visible*factor)));
+  start=0;render();if(hover===null)updateOhlc(visible-1);
+},{passive:false});
 document.querySelectorAll('.ticker-card').forEach(el=>el.addEventListener('click',()=>{document.querySelector('.ticker-card.selected')?.classList.remove('selected');el.classList.add('selected');selected=el.dataset.symbol;renderSummary();loadCandles()}));document.querySelectorAll('.periods button').forEach(el=>el.addEventListener('click',()=>{document.querySelector('.periods .active')?.classList.remove('active');el.classList.add('active');period=el.dataset.period;loadCandles()}));$('resetView').addEventListener('click',()=>{start=0;visible=period==='intraday'?candles.length:Math.min(70,candles.length);render()});$('refresh').addEventListener('click',()=>{loadQuotes();loadCandles()});window.addEventListener('resize',resize);resize();loadQuotes();loadCandles();setInterval(()=>{loadQuotes();if(period==='intraday')loadCandles(true)},30000);setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false})},1000);

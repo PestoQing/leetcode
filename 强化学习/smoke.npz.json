@@ -1,0 +1,13 @@
+{
+  "source": {
+    "command": "collect",
+    "algo": "sac",
+    "steps": 1000,
+    "seed": 0,
+    "model": null,
+    "data": "smoke.npz",
+    "out": "runs/smoke",
+    "episodes": 20
+  },
+  "sha256": "fcefa9babad92e1942d9df0f0c94ea063a86e01f064cec20e977eeb3cb962342"
+}

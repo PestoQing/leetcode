@@ -1,0 +1,38 @@
+{
+  "algorithms": [
+    {
+      "algo": "bc",
+      "initial": "回报 -1450.48",
+      "after": "回报 -1211.49"
+    },
+    {
+      "algo": "ppo",
+      "initial": "回报 -1450.48",
+      "after": "回报 -1461.78"
+    },
+    {
+      "algo": "sac",
+      "initial": "回报 -1450.48",
+      "after": "回报 -1217.61"
+    },
+    {
+      "algo": "iql",
+      "initial": "回报 -1450.48",
+      "after": "回报 -1213.57"
+    }
+  ],
+  "pause": "passed",
+  "refresh": "passed",
+  "mobile": "passed",
+  "errors": [],
+  "api_errors": [],
+  "continuous_five_rounds": "passed",
+  "ppo_epoch_sequence": [
+    1,
+    2,
+    3,
+    4,
+    1
+  ],
+  "demo_session": "1793609612012021015_ppo_s0"
+}

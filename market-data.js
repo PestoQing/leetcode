@@ -127,11 +127,13 @@ async function sinaCandles(cfg,period){
 }
 
 async function tencentCandles(key,period){
-  const code=SYMBOLS[key].tencent;
+  // 美股历史接口必须使用交易所后缀，否则可能只返回2011年的占位记录。
+  const baseCode=SYMBOLS[key].tencent;
+  const code=baseCode+(baseCode.startsWith('us.')&&!SYMBOLS[key].isIndex?'.OQ':'');
   if(period==='intraday'){
     const endpoint=code.startsWith('us.')?'UsMinute':code.startsWith('hk')?'hkMinute':'day';
-    const payload=await loadVar(n=>tencent(`${endpoint}/query?code=${code}`,n));
-    const result=payload.data?.[code];
+    const payload=await loadVar(n=>tencent(`${endpoint}/query?code=${baseCode}`,n));
+    const result=payload.data?.[baseCode];
     if(!result)throw Error('腾讯未返回该标的分时数据');
     const minute=Array.isArray(result.data)?result.data[result.data.length-1]:result.data;
     const rows=minute?.data||[];
@@ -151,7 +153,7 @@ async function tencentCandles(key,period){
   }
   const [interval,count]={day:['day',240],week:['week',180],month:['month',180],quarter:['month',240],year:['month',240]}[period]||['day',240];
   const response=(await loadVar(n=>tencent(`${code.startsWith('us.')?'usfqkline':'fqkline'}/get?param=${code},${interval},,,${count},qfq`,n))).data[code];
-  const rows=response[interval]||response['qfq'+interval]||[],candles=[];
+  const rows=response['qfq'+interval]||response[interval]||[],candles=[];
   for(const r of rows){
     // Tencent rows are [date, open, close, high, low, volume]; drop corrupt records occasionally returned for global indices.
     // Also drop rows far from the previous close (e.g. a bogus ~11 point bar for the live US session).

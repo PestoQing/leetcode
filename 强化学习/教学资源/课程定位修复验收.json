@@ -1,0 +1,58 @@
+{
+  "checks": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "lesson": 3,
+      "phase": 0,
+      "scroll": 616,
+      "course": 641,
+      "top": 25.46875,
+      "live": 1694,
+      "title": "SAC：复用经验，也保留探索"
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "lesson": 3,
+      "phase": 0,
+      "scroll": 616,
+      "course": 641,
+      "top": 25.46875,
+      "live": 1694,
+      "title": "SAC：复用经验，也保留探索"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "lesson": 3,
+      "phase": 0,
+      "scroll": 650,
+      "course": 675,
+      "top": 25.25,
+      "live": 2132,
+      "title": "SAC：复用经验，也保留探索"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "lesson": 3,
+      "phase": 0,
+      "scroll": 650,
+      "course": 675,
+      "top": 25.25,
+      "live": 2132,
+      "title": "SAC：复用经验，也保留探索"
+    }
+  ],
+  "experiment_link": "passed",
+  "training_requests": 0
+}
